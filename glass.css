@@ -1,0 +1,350 @@
+/* Resenha · estilo vidro e foco (inspirado na Apple TV). Lote 1: sala.
+   Desempenho: o fundo é uma pintura fixa e suave, então os painéis usam só cor translúcida (sem blur).
+   O blur de verdade fica nos elementos flutuantes e desliga quando há live na tela. */
+html.glass {
+  --g-fill: rgba(255,255,255,.055);
+  --g-fill-2: rgba(255,255,255,.09);
+  --g-fill-h: rgba(255,255,255,.13);
+  --g-edge: rgba(255,255,255,.10);
+  --g-shine: inset 0 1px 0 rgba(255,255,255,.10);
+}
+
+/* Parede de fundo: pintada uma vez, nunca anima. */
+html.glass #main {
+  background:
+    radial-gradient(60% 55% at 12% 8%, color-mix(in srgb, var(--blurple) 44%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 92% 18%, color-mix(in srgb, var(--link) 24%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 55% 110%, color-mix(in srgb, var(--blurple) 28%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+
+/* Painéis: vidro "falso" (translúcido, sem blur). */
+html.glass #main #sidebar, html.glass #main #chat {
+  background: var(--g-fill); box-shadow: var(--g-shine), 0 0 0 1px var(--g-edge) inset;
+}
+html.glass.desktop-app #main #sidebar, html.glass.desktop-app #main #chat { border-radius: 18px; }
+html.glass #main #call { background: transparent; }
+html.glass #sidebar .side-actions, html.glass #sidebar #voice-panel, html.glass #sidebar #user-panel,
+html.glass #chat .right-nav { border-color: var(--g-edge); }
+html.glass #sidebar .code-chip { background: var(--g-fill); border-color: var(--g-edge); }
+html.glass #sidebar .channel:hover, html.glass #sidebar #room-header:hover,
+html.glass #sidebar #user-panel .icon-btn:hover { background: var(--g-fill-2); }
+html.glass #sidebar .channel.active { background: var(--g-fill-h); }
+html.glass #sidebar .server-dot.active { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--text-hi); }
+html.glass #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--green); }
+html.glass #chat .right-nav button[aria-pressed=true] { background: var(--g-fill-h); }
+html.glass #chat #composer, html.glass #chat .msg.bot .text { background: var(--g-fill); border-color: var(--g-edge); }
+html.glass #chat .msg:hover { background: rgba(255,255,255,.035); }
+html.glass #call .chat-toggle { background: var(--g-fill); border-color: var(--g-edge); }
+
+/* Cards da call em vidro. */
+html.glass #call .tile:not(.is-screen), html.glass #call .vc-card, html.glass #call .stream-invite {
+  background: var(--g-fill-2); box-shadow: var(--g-shine);
+}
+html.glass #call .vc-card { border-color: var(--g-edge); }
+/* Passar o mouse, como no app Apple TV: sem zoom nem luz; o card escurece de leve e o contorno de vidro aparece (0,2 s). */
+html.glass #call .tile::after, html.glass #call .vc-card::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3;
+  background: rgba(0,0,0,.16);
+  box-shadow: inset .5px .5px rgba(255,255,255,.22), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.14);
+  opacity: 0; transition: opacity .2s ease;
+}
+html.glass #call .vc-card { position: relative; }
+html.glass #call .grid > .tile:hover::after, html.glass #call .focus-strip > .tile:hover::after, html.glass #call .vc-card:hover::after { opacity: 1; }
+html.glass #call .grid > .tile, html.glass #call .focus-strip > .tile { cursor: pointer; }
+html.glass #call .tile.speaking { box-shadow: var(--g-shine), inset 0 0 0 3px var(--green); }
+
+/* Dock flutuante em pílula de vidro. */
+html.glass #call #call-controls {
+  border-radius: 999px; border-color: var(--g-edge); background: rgba(30,32,40,.55);
+  backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--g-shine), 0 12px 30px rgba(0,0,0,.35);
+}
+/* Dock unificado: uma barra de vidro com ícones soltos (sem bolinha em cada um).
+   Passar o mouse: o ícone acende e cresce de leve na hora; clicar: afunda. Só cor e escala do ícone mudam. */
+html.glass #call #call-controls { padding: 6px 10px; gap: 2px; }
+html.glass #call #call-controls .cc-btn, html.glass #call #call-controls #cc-leave {
+  width: 50px; height: 46px; min-width: 50px; border-radius: 14px; background: transparent; color: rgba(255,255,255,.72); position: relative;
+  transition: color 90ms ease-out;
+}
+html.glass #call #call-controls .cc-btn svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call #call-controls .cc-btn:hover { background: transparent; color: #fff; transform: none; }
+html.glass #call #call-controls .cc-btn:hover svg { scale: 1.14; }
+html.glass #call #call-controls .cc-btn:active svg { scale: .86; transition-duration: 90ms; }
+html.glass #call #call-controls .cc-btn.off { background: transparent; color: #f87171; }
+html.glass #call #call-controls .cc-btn.off:hover { color: #fca5a5; }
+html.glass #call #call-controls .cc-btn.on { background: transparent; color: var(--link); }
+html.glass #call #call-controls .cc-btn.on::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+html.glass #call #call-controls #cc-leave { width: auto; padding: 0 14px 0 10px; border-radius: 14px; background: transparent; color: #f87171; }
+html.glass #call #call-controls #cc-leave:hover { background: transparent; color: #fca5a5; }
+html.glass #call #call-controls .cc-sep { height: 26px; margin: 0 6px; background: var(--g-edge); }
+html.glass #call #call-controls .cc-sep { background: var(--g-edge); }
+html.glass #call .tile .label { background: rgba(10,11,15,.55); backdrop-filter: blur(12px); }
+
+/* Fluidez: com live na sala (alguém transmitindo ou assistindo), nada de blur. As animações seguem, pois só movem camadas. */
+html.glass:has(#sidebar .live, #call .tile.is-screen) #call #call-controls { backdrop-filter: none; background: rgba(24,26,32,.92); }
+html.glass:has(#sidebar .live, #call .tile.is-screen) #call .tile .label { backdrop-filter: none; background: rgba(10,11,15,.78); }
+html.glass #call .focus-strip .tile .avatar { transform: translateY(-10px); }
+/* O quadro ampliado fica por cima da fileira enquanto as duas se movem. */
+html.glass #call .focus-main { position: relative; z-index: 2; overflow: visible; }
+html.glass #call .focus-strip { position: relative; z-index: 1; }
+/* Enquanto cresce, o quadro fica opaco (cor média do vidro) para não mostrar os outros através dele. */
+html.glass #call .tile.flipping:not(.is-screen) { background: color-mix(in srgb, var(--bg-rail) 86%, #fff); }
+html.glass #call .grid > .tile.flipping { position: relative; z-index: 4; }
+/* Janelas: só escurece o fundo (sem desfoque, que pesa com live atrás). */
+html.glass .overlay { backdrop-filter: none; background: rgba(5,6,8,.55); animation: none; }
+html.glass .overlay .modal { animation: none; background: color-mix(in srgb, var(--bg-rail) 90%, #fff); border-color: rgba(255,255,255,.10); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 30px 80px rgba(0,0,0,.5); }
+html.glass #ctx-menu { box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 18px 50px rgba(0,0,0,.45); }
+
+/* Destaque deslizante (motion.js): a pílula corre até o item com mola; os itens ficam por cima dela. */
+.has-slider { position: relative; }
+.has-slider > :not(.m-slider) { position: relative; z-index: 1; }
+.m-slider { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0;
+  transition: transform var(--spring-move-dur, .35s) var(--spring-move, ease-out), width var(--spring-move-dur, .35s) var(--spring-move, ease-out), height var(--spring-move-dur, .35s) var(--spring-move, ease-out), opacity .18s ease; }
+.m-slider-tabs { border-radius: 10px; background: var(--active); }
+html.glass .m-slider-tabs { background: rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabs.has-slider > .tab.active, .tabs.has-slider > .tab:hover { background: transparent; }
+#chat .right-nav.has-slider button[aria-pressed=true] { background: transparent; }
+html.glass #chat .right-nav.has-slider button[aria-pressed=true] { background: transparent; }
+
+/* ---------- Lote 6: tela inicial em vidro ---------- */
+html.glass #home {
+  background:
+    radial-gradient(60% 55% at 10% 6%, color-mix(in srgb, var(--blurple) 44%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 94% 16%, color-mix(in srgb, var(--link) 24%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 50% 112%, color-mix(in srgb, var(--blurple) 28%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+html.glass #home .card { background: var(--g-fill); border-color: var(--g-edge); box-shadow: var(--g-shine); border-radius: 22px; }
+html.glass #home .field input:not([type=color]):not([type=checkbox]), html.glass #home .home-color input[type=color] { background: rgba(0,0,0,.18); border-color: var(--g-edge); }
+html.glass #home .btn:not(.primary) { border-color: var(--g-edge); background: var(--g-fill); }
+html.glass #home .btn:not(.primary):hover { background: var(--g-fill-h); }
+html.glass #home .recent-item { background: var(--g-fill); }
+html.glass #home .recent-item:hover { background: var(--g-fill-2); border-color: var(--g-edge); }
+
+/* Minhas salas: fileira horizontal de cards, como as fileiras do Apple TV. */
+#home .home-rooms .room-shelf { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 2px; padding: 4px 2px 10px; scrollbar-width: thin; }
+#home .home-rooms .saved-room { flex: 0 0 216px; scroll-snap-align: start; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; border-radius: 20px; cursor: pointer; position: relative; }
+#home .saved-room-art { position: relative; height: 118px; display: grid; place-items: center;
+  background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--room-color, #6a4bb3) 100%, #fff 18%), var(--room-color, #6a4bb3) 55%, color-mix(in srgb, var(--room-color, #6a4bb3) 70%, #000) 100%); }
+#home .saved-room-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#home .saved-room .saved-room-art .saved-room-badge { width: auto; height: auto; background: none !important; color: rgba(255,255,255,.95) !important; font-size: 40px; font-weight: 800; letter-spacing: -.02em; border-radius: 0; }
+#home .saved-room-fav { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.35); color: #fbbf24; }
+#home .saved-room-fav svg { fill: currentColor; stroke: none; }
+#home .home-rooms .saved-room-info { padding: 12px 14px 4px; gap: 3px; }
+#home .home-rooms .saved-room-info b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#home .home-rooms .saved-room-status { font-size: 12px; }
+#home .home-rooms .saved-room .btn { margin: 8px 14px 14px; min-height: 36px; }
+html.glass #home .saved-room { background: var(--g-fill-2); border-color: var(--g-edge); box-shadow: var(--g-shine); }
+/* Passar o mouse: igual aos cards da call (escurece de leve e mostra o contorno, 0,2 s). */
+#home .saved-room::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: rgba(0,0,0,.14);
+  box-shadow: inset .5px .5px rgba(255,255,255,.24), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.16); opacity: 0; transition: opacity .2s ease; }
+#home .saved-room:hover::after { opacity: 1; }
+#home .saved-room:active { scale: .985; transition: scale 90ms ease-out; }
+
+/* Card que vira a sala (motion.js): camada com a cor da sala crescendo do card até a janela. */
+.m-expand { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 90; pointer-events: none; transform-origin: 0 0; border-radius: 20px; }
+/* Conteúdo primeiro (como no Apple TV): Minhas salas logo depois da saudação. */
+#home .home-main > .home-brand { order: 0; } #home .home-main > .home-rooms { order: 1; } #home .home-main > .home-join { order: 2; }
+#home .home-main > #home-error { order: 3; } #home .home-main > .home-create { order: 4; }
+/* Sala abrindo: a arte do card pulsa devagar (só opacidade) até a sala aparecer. */
+#home .saved-room.opening .saved-room-art > * { animation: m-breathe 1.1s ease-in-out infinite; }
+#home .saved-room.opening .btn { opacity: .6; pointer-events: none; }
+@keyframes m-breathe { 50% { opacity: .45; } }
+
+/* ---------- Lote 7: live em tela cheia ---------- */
+/* Barras de controle unificadas, como o dock (sem bolinha por botão). Sem desfoque: o vídeo atrás muda a cada quadro. */
+html.glass #call .tile.is-screen:fullscreen .tile-tools { background: rgba(20,22,28,.74); border-color: rgba(255,255,255,.10); border-radius: 999px; padding: 6px 10px; gap: 2px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 36px rgba(0,0,0,.45); }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button { background: transparent !important; color: rgba(255,255,255,.78); border-radius: 14px; transition: color 90ms ease-out; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:hover { color: #fff; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:hover svg { scale: 1.14; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:active svg { scale: .86; transition-duration: 90ms; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools .off { color: #f87171 !important; }
+html.glass #call .tile.is-screen:fullscreen .live-volume { background: transparent; }
+html.glass #call .tile.is-screen:fullscreen .live-identity, html.glass #call .tile.is-screen:fullscreen .live-back { background: rgba(20,22,28,.74); box-shadow: inset 0 1px 0 rgba(255,255,255,.10); }
+/* Controles entram e saem deslizando (mola), não só piscando. */
+html.glass #call .tile.is-screen:fullscreen .tile-tools, html.glass #call .tile.is-screen:fullscreen .live-meta {
+  transition: opacity .2s ease, translate var(--spring-move-dur, .4s) var(--spring-move, ease-out); }
+html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .tile-tools { translate: 0 18px; }
+html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .live-meta { translate: 0 -14px; }
+
+/* ---------- Lote 10: Reduzir animações (opção nas configurações) ---------- */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+
+/* ---------- Lote 9: vidro no tema claro ---------- */
+html.glass.light {
+  --g-fill: rgba(255,255,255,.55);
+  --g-fill-2: rgba(255,255,255,.72);
+  --g-fill-h: rgba(255,255,255,.92);
+  --g-edge: rgba(30,30,60,.09);
+  --g-shine: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 3px rgba(30,30,60,.05);
+}
+html.glass.light #main, html.glass.light #home {
+  background:
+    radial-gradient(60% 55% at 12% 8%, color-mix(in srgb, var(--blurple) 22%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 92% 18%, color-mix(in srgb, var(--link) 14%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 55% 110%, color-mix(in srgb, var(--blurple) 16%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+html.glass.light #chat .msg:hover { background: rgba(255,255,255,.5); }
+html.glass.light #call .tile::after, html.glass.light #call .vc-card::after, html.glass.light #home .saved-room::after {
+  background: rgba(30,30,60,.04); box-shadow: inset 0 0 0 1px rgba(30,30,60,.10), 0 8px 24px rgba(30,30,60,.08); }
+html.glass.light #call .tile.flipping:not(.is-screen) { background: #fff; }
+html.glass.light #call #call-controls { background: rgba(255,255,255,.66); box-shadow: var(--g-shine), 0 12px 30px rgba(30,30,60,.12); }
+html.glass.light:has(#sidebar .live, #call .tile.is-screen) #call #call-controls { background: rgba(255,255,255,.94); }
+html.glass.light #call #call-controls .cc-btn { color: var(--icon); }
+html.glass.light #call #call-controls .cc-btn:hover { color: var(--text-hi); }
+html.glass.light #call #call-controls .cc-btn.off, html.glass.light #call #call-controls #cc-leave { color: #dc2626; }
+html.glass.light #call #call-controls .cc-btn.off:hover, html.glass.light #call #call-controls #cc-leave:hover { color: #b91c1c; }
+html.glass.light .overlay { background: rgba(30,30,50,.28); }
+html.glass.light .overlay .modal { background: #fff; border-color: rgba(30,30,60,.10); box-shadow: inset 0 1px 0 #fff, 0 30px 80px rgba(30,30,60,.22); }
+html.glass.light #ctx-menu { box-shadow: 0 18px 50px rgba(30,30,60,.18); }
+html.glass.light .m-slider-tabs { background: #fff; box-shadow: 0 1px 3px rgba(30,30,60,.12), inset 0 0 0 .5px rgba(30,30,60,.08); }
+html.glass.light #home .field input:not([type=color]):not([type=checkbox]), html.glass.light #home .home-color input[type=color] { background: rgba(255,255,255,.75); }
+html.glass.light #call .tile:not(.is-screen) .label { background: rgba(255,255,255,.85); color: var(--text-hi); backdrop-filter: none; }
+html.glass.light .m-expand { opacity: .95; }
+
+/* ---------- Ajustes pós-teste da 2.1.0 ---------- */
+/* Fundo bem mais sutil: duas manchas largas nos cantos, nada de "holofote" no meio. */
+html.glass #main, html.glass #home, html.glass #boot {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--blurple) 14%, transparent) 0, transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--blurple) 9%, transparent) 0, transparent 60%),
+    var(--bg-rail);
+}
+html.glass.light #main, html.glass.light #home, html.glass.light #boot {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--blurple) 9%, transparent) 0, transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--blurple) 6%, transparent) 0, transparent 60%),
+    var(--bg-rail);
+}
+
+/* Minhas salas: sem barra de rolagem; as pontas esmaecem e as setas aparecem ao passar o mouse. */
+#home .home-rooms .shelf-wrap { position: relative; }
+#home .home-rooms .room-shelf { scrollbar-width: none; scroll-behavior: smooth; padding: 6px 4px 10px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent 100%); }
+#home .home-rooms .room-shelf::-webkit-scrollbar { display: none; }
+#home .home-rooms .room-shelf.more-r { --fade-r: 56px; }
+#home .home-rooms .room-shelf.more-l { --fade-l: 56px; }
+#home .shelf-arrow { position: absolute; top: 50%; translate: 0 -50%; z-index: 2; width: 36px; height: 56px; border: 0; border-radius: 12px; display: grid; place-items: center;
+  background: var(--g-fill-h, rgba(255,255,255,.12)); color: var(--text-hi); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s ease; box-shadow: var(--g-shine); }
+#home .shelf-arrow.prev { left: -6px; }
+#home .shelf-arrow.next { right: -6px; }
+#home .shelf-wrap:hover .shelf-arrow.on { opacity: 1; pointer-events: auto; }
+#home .saved-room-hide { position: absolute; top: 10px; left: 10px; z-index: 4; width: 26px; height: 26px; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(0,0,0,.38); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s ease; }
+#home .saved-room:hover .saved-room-hide { opacity: 1; }
+#home .rooms-old { align-self: flex-start; border: 0; background: none; padding: 2px 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+#home .rooms-old:hover { color: var(--text-hi); text-decoration: underline; }
+
+/* Tela de carregamento no visual novo: ícone em vidro, nome e uma barra fina que corre. */
+#boot img { width: 84px; height: 84px; border-radius: 22px; box-shadow: var(--g-shine, none), 0 18px 40px rgba(0,0,0,.35); margin-bottom: 12px; }
+#boot h2 { font-size: 22px; letter-spacing: -.02em; }
+#boot .boot-dots { width: 140px; height: 3px; gap: 0; margin-top: 14px; border-radius: 2px; overflow: hidden; background: var(--g-edge, rgba(255,255,255,.1)); }
+#boot .boot-dots i { width: 40%; height: 100%; border-radius: 2px; background: var(--link); opacity: 1; animation: boot-run 1.15s cubic-bezier(.45,0,.2,1) infinite; }
+#boot .boot-dots i:nth-child(n+2) { display: none; }
+@keyframes boot-run { from { translate: -110% 0; } to { translate: 260% 0; } }
+html.glass.light #boot img { box-shadow: 0 14px 34px rgba(30,30,60,.18); }
+
+/* Cor do perfil: bolinha de cor de verdade (sem quadrado dentro do círculo). */
+input[type=color] { -webkit-appearance: none; appearance: none; width: 40px !important; height: 40px !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+  background: none !important; cursor: pointer; box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--g-edge, var(--line)); transition: box-shadow .15s ease; }
+input[type=color]:hover { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--muted); }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+
+/* Live em miniatura: segue a proporção da tela transmitida (sem barras pretas) e tem controles do tamanho dela. */
+#call #pips .tile.is-screen { width: 300px !important; height: auto !important; aspect-ratio: var(--live-ar, 16 / 9) !important; min-height: 0 !important; max-height: 240px; border-radius: 14px; }
+#call #pips .tile.is-screen video { object-fit: cover; }
+#call #pips .tile.is-screen .tile-tools { top: auto !important; bottom: 8px !important; right: 8px !important; left: auto !important; padding: 3px 4px !important; gap: 0 !important; border-radius: 999px !important;
+  background: rgba(10,11,15,.7) !important; opacity: 0; transition: opacity .15s ease; }
+#call #pips .tile.is-screen:hover .tile-tools { opacity: 1; }
+#call #pips .tile.is-screen .tile-tools > :not([data-full]) { display: none !important; }
+#call #pips .tile.is-screen .tile-tools button { width: 28px !important; height: 28px !important; min-width: 28px !important; min-height: 28px !important; padding: 0 !important; background: transparent !important; color: #fff; }
+#call #pips .tile.is-screen .tile-tools button svg { width: 15px !important; height: 15px !important; }
+#call #pips .tile.is-screen .label { bottom: 8px; left: 8px; font-size: 11px; padding: 3px 8px; }
+#call #pips .tile.is-screen .live-meta { display: none; }
+
+/* Barra lateral recolhida (72 px): uma coluna arrumada, só ícones. */
+#main[data-sidebar-compact=true] > #sidebar { width: 72px !important; min-width: 72px !important; }
+#main[data-sidebar-compact=true] #sidebar .server-row { flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 6px; overflow: visible; }
+.os-darwin #main[data-sidebar-compact=true] #sidebar .server-row { padding-top: 38px; padding-left: 0; }
+#main[data-sidebar-compact=true] #sidebar .server-dot.home { margin-left: 0; }
+#main[data-sidebar-compact=true] #sidebar .side-brand { flex-direction: column; align-items: center; padding: 6px 0 4px; min-height: 0 !important; gap: 4px; }
+#main[data-sidebar-compact=true] #sidebar .side-brand > img, #main[data-sidebar-compact=true] #sidebar .side-room { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar .side-actions { flex-direction: column; align-items: center; padding: 0 0 10px; gap: 6px; }
+#main[data-sidebar-compact=true] #sidebar .code-chip { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar #btn-invite { width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 0; border-radius: 12px; flex: none; }
+#main[data-sidebar-compact=true] #sidebar #btn-invite svg { width: 18px; height: 18px; }
+#main[data-sidebar-compact=true] #sidebar #channels { padding: 4px 0 10px; display: flex; flex-direction: column; align-items: center; }
+#main[data-sidebar-compact=true] #sidebar #channels > * { width: 100%; box-sizing: border-box; }
+#main[data-sidebar-compact=true] #sidebar .cat { font-size: 0 !important; padding: 8px 14px 4px !important; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar .cat::before { content: ''; display: block; width: 24px; height: 1px; background: var(--g-edge, var(--line)); }
+#main[data-sidebar-compact=true] #sidebar .cat > *, #main[data-sidebar-compact=true] #sidebar .cat-add { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar .channel { width: 44px; height: 40px; min-height: 40px; margin: 2px auto; padding: 0 !important; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar .vu, #main[data-sidebar-compact=true] #sidebar .ou, #main[data-sidebar-compact=true] #sidebar .friend-row { justify-content: center; padding: 4px 0; margin: 0 auto; width: 44px; }
+#main[data-sidebar-compact=true] #sidebar .tag, #main[data-sidebar-compact=true] #sidebar .live { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar #voice-panel { padding: 8px 0; display: flex; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar #user-panel { flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; }
+#home .shelf-arrow.next svg { scale: -1 1; }
+#main[data-sidebar-compact=true] #sidebar #channels .muted.small { display: none; }
+
+/* ---------- Ajustes de uso (2.1.1) ---------- */
+/* Fechar o chat longe do fechar do app: o X de dentro do chat some; o botão de conversa no topo da call liga e desliga. */
+.desktop-app #chat .right-nav .right-close { display: none !important; }
+.desktop-app #main[data-right-open=true] #call .chat-toggle { display: grid !important; }
+
+/* Configurações (janela com abas): altura fixa, então trocar de aba não faz a janela pular; o conteúdo aparece suave. */
+#modal-root .overlay .modal:has(.tp) { height: min(720px, calc(100vh - 48px)); }
+#modal-root .overlay .modal:has(.tp) > .body { flex: 1; min-height: 0; overflow-y: auto; }
+#modal-root .overlay .modal .tp:not(.hidden) { animation: m-tab-in .22s ease-out; }
+@keyframes m-tab-in { from { opacity: 0; translate: 0 6px; } }
+
+/* Telas carregando na janela de transmitir: espaços reservados que pulsam. */
+.sources .src.loading { pointer-events: none; }
+.sources .src.loading .th { background: var(--g-fill-2, var(--bg-panel)); animation: m-breathe 1.1s ease-in-out infinite; }
+/* Temas completos já têm cor de destaque própria: as paletas ficam apagadas. */
+html.theme-fixed .palette-grid { opacity: .35; pointer-events: none; }
+/* Escolha do ícone do app (Configurações > Aparência). */
+.icon-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; padding: 10px 6px 8px; border-radius: 14px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .15s ease; }
+.icon-card img { width: 46px; height: 46px; border-radius: 11px; transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+.icon-card:hover { background: var(--g-fill-h, var(--hover)); }
+.icon-card:hover img { scale: 1.06; }
+.icon-card.sel { border-color: var(--link); box-shadow: 0 0 0 2px var(--accent-soft); color: var(--text-hi); }
+/* Logo Pipoquinha: quadrado com cantos arredondados. */
+#sidebar .side-brand > img { width: 32px !important; height: 32px !important; border-radius: 9px; }
+#home .home-logo img { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
+#home .home-tip img { width: 64px !important; height: 64px !important; border-radius: 16px; }
+
+/* Quadro de quem está ao vivo: contorno vermelho suave e botão de vidro no centro, embaixo do avatar. */
+html.glass #call .tile:not(.is-screen):has(.live-join), #call .tile:not(.is-screen):has(.live-join) { box-shadow: var(--g-shine, none), inset 0 0 0 2px rgba(255,74,74,.55); }
+html.glass #call .tile:not(.is-screen):has(.live-join).speaking { box-shadow: var(--g-shine, none), inset 0 0 0 3px var(--green); }
+#call .tile:not(.is-screen) .tile-tools:has(.live-join) { inset: 0 !important; top: 0 !important; right: 0 !important; display: flex !important; align-items: flex-end; justify-content: center;
+  padding: 0 0 max(14px, 13cqh) !important; background: none !important; pointer-events: none; opacity: 1 !important; }
+#call .tile:not(.is-screen) .tile-tools .live-join { pointer-events: auto; max-width: none !important; min-height: 38px !important; padding: 0 16px 0 12px !important; gap: 8px !important;
+  border-radius: 999px !important; border: 1px solid rgba(255,255,255,.16) !important; background: rgba(18,19,24,.62) !important; color: #fff !important; font-size: 13px !important; font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 22px rgba(0,0,0,.35); transition: background-color .15s ease, scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+#call .tile:not(.is-screen) .tile-tools .live-join::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; box-shadow: 0 0 0 0 rgba(255,74,74,.6); animation: m-live-dot 1.6s ease-out infinite; flex: none; }
+#call .tile:not(.is-screen) .tile-tools .live-join svg { display: none; }
+#call .tile:not(.is-screen) .tile-tools .live-join:hover { background: rgba(30,32,40,.78) !important; scale: 1.04; }
+#call .tile:not(.is-screen) .tile-tools .live-join:active { scale: .95; transition-duration: 90ms; }
+@keyframes m-live-dot { 0% { box-shadow: 0 0 0 0 rgba(255,74,74,.6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(255,74,74,0); } }
+/* Na fileira de baixo (quadros pequenos) o botão encolhe para uma pílula "ao vivo". */
+#call .focus-strip .tile:not(.is-screen) .tile-tools:has(.live-join) { padding-bottom: 8px !important; }
+#call .focus-strip .tile:not(.is-screen) .tile-tools .live-join { min-height: 26px !important; padding: 0 10px 0 8px !important; font-size: 11px !important; gap: 6px !important; }
+#call .focus-strip .tile:not(.is-screen) .tile-tools .live-join::before { width: 6px; height: 6px; }
+html.glass.light #call .tile:not(.is-screen) .tile-tools .live-join { background: rgba(255,255,255,.9) !important; color: var(--text-hi) !important; border-color: rgba(30,30,60,.12) !important; box-shadow: 0 6px 18px rgba(30,30,60,.14); }
+/* PWA: aviso de versão nova. */
+#pwa-update { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: 300; border: 0; border-radius: 999px; padding: 12px 18px;
+  background: var(--blurple); color: #fff; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,.4); cursor: pointer; animation: m-tab-in .3s ease-out; }
+
+/* ---------- Celular / PWA: barra de ajuda compacta, em vidro ---------- */
+.web-viewer #mobile-tools { margin: 6px 12px 8px; padding: 8px 10px; border-radius: 16px; background: var(--g-fill, var(--bg-side)); border: 1px solid var(--g-edge, var(--line)); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.web-viewer #mobile-tools #mobile-hint { flex: 1 1 100%; margin: 0; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.web-viewer #mobile-tools .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.web-viewer #mobile-tools .mobile-actions button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill-2, var(--bg-panel)); color: var(--text-hi); font: inherit; font-size: 12px; font-weight: 600; }
+.web-viewer #web-diagnostic, .web-viewer #web-quality { display: none !important; }

@@ -1,0 +1,54 @@
+/* All adaptations are scoped to the browser client. */
+.web-viewer #mobile-tools {padding:8px 14px;background:var(--bg-panel);border-radius:18px;margin:0 10px 8px;flex-shrink:0}
+.web-viewer #mobile-tools p {font-size:12px;margin:4px 0 8px}
+.web-viewer .mobile-actions {display:flex;flex-wrap:wrap;gap:6px}
+.web-viewer #mobile-tools button,.web-viewer #mobile-live button,.web-viewer #web-people button{min-height:44px;padding:8px 12px;border-radius:14px;background:var(--bg-input);color:var(--text-hi);border:1px solid var(--line)}
+.web-viewer #mobile-participants {padding:12px;overflow:auto;flex-shrink:0;max-height:45vh}
+.web-viewer summary {min-height:44px;padding:10px;cursor:pointer}
+.web-viewer .web-person {padding:12px 0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px}
+.web-viewer .web-person strong {width:100%}
+.web-viewer .web-person label,.web-viewer .web-live-controls label {display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:100%;font-size:12px}
+.web-viewer input[type=range] {min-height:44px;max-width:100%}
+.web-viewer #mobile-live {padding:6px 12px;flex-shrink:0;max-height:25vh;overflow:auto}
+.web-viewer .web-live-controls {display:flex;flex-wrap:wrap;gap:6px}
+.web-viewer button:focus-visible,.web-viewer summary:focus-visible,.web-viewer input:focus-visible {outline:3px solid var(--blurple);outline-offset:2px}
+.web-viewer .tile-tools {opacity:1}
+.web-viewer .tile:fullscreen:not(.controls-visible) .tile-tools {opacity:0}
+@media(max-width:760px),(max-width:1000px) and (max-height:500px) {
+ .web-viewer {height:var(--web-height,100dvh);overflow:hidden;position:relative;top:var(--web-top,0);width:100%;}
+ .web-viewer #main {height:100%;min-width:0;padding:env(safe-area-inset-top) max(8px,env(safe-area-inset-right)) calc(60px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:0;}
+ .web-viewer #rail,.web-viewer .splitter {display:none}
+ .web-viewer #sidebar,.web-viewer #chat,.web-viewer #call {min-width:0!important;width:100%!important;max-width:none;flex:1;margin:0}
+ .web-viewer #main[data-mobile-pane=call] #sidebar,.web-viewer #main[data-mobile-pane=call] #chat,.web-viewer #main[data-mobile-pane=chat] #sidebar,.web-viewer #main[data-mobile-pane=chat] #call,.web-viewer #main[data-mobile-pane=sidebar] #call,.web-viewer #main[data-mobile-pane=sidebar] #chat {display:none}
+ .web-viewer .web-nav {display:flex;position:absolute;bottom:0;height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
+ .web-viewer .web-nav button {min-height:44px}
+ .web-viewer #home {height:100%;overflow:auto}
+ .web-viewer .pane-header {height:54px;min-height:54px;padding:8px 16px}
+ .web-viewer .pane-heading > span {font-size:22px}
+ .web-viewer #call {overflow:auto}
+ .web-viewer #call-stage {min-height:140px;flex:1;padding:6px}
+ .web-viewer #pips {position:static!important;width:100%!important;max-height:none;flex-shrink:0;padding:6px;display:flex;flex-direction:column;gap:8px}
+ .web-viewer #pips .tile {width:100%;height:auto;min-height:0;aspect-ratio:16/9;flex-shrink:0}
+ .web-viewer #call-controls {padding:6px;flex-shrink:0}
+ .web-viewer .focus-strip {display:none}
+ .web-viewer #composer {margin:4px 6px 6px;flex-shrink:0}
+ .web-viewer #messages {min-height:0;flex:1;overflow:auto}
+ .web-viewer textarea,.web-viewer input,.web-viewer select {font-size:16px;min-width:0;max-width:100%}
+ .web-viewer #input {min-height:44px;max-height:110px}
+ .web-viewer .modal {width:calc(100vw - 16px);max-height:calc(var(--web-height,100dvh) - 16px);min-width:0}
+ .web-viewer .modal .body {min-height:0;overflow:auto}
+ .web-viewer .dm-messages {height:auto;max-height:calc(var(--web-height,100dvh) - 300px);min-height:50px}
+ .web-viewer .dm-compose {position:sticky;bottom:0;background:var(--bg-main);padding:6px 0;z-index:1}
+ .web-viewer .dm-compose textarea {width:0;flex:1;min-width:0}
+ .web-viewer .icon-btn,.web-viewer .btn,.web-viewer .channel,.web-viewer .friend-row {min-height:44px}
+ .web-viewer .icon-btn {min-width:44px}
+ .web-viewer .msg,.web-viewer code {overflow-wrap:anywhere;max-width:100%}
+ .web-viewer .tile-tools {gap:4px;flex-wrap:wrap}
+ .web-viewer .tile-tools button {min-height:44px;min-width:44px}
+ .web-viewer .tile.is-screen:fullscreen {height:100dvh!important}
+}
+
+.web-viewer #titlebar {display:none}
+.web-viewer #modal-root .overlay {top:var(--web-top,0);height:var(--web-height,100dvh);bottom:auto}
+
+.web-viewer .screen {top:0}
