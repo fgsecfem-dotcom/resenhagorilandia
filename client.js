@@ -183,7 +183,7 @@ async function renderMyRooms(check=false) {
   const root=$('#my-rooms');if(!root)return;
   root.classList.toggle('hidden',!storedRooms.length);
   // Fileira de cards (estilo Apple TV): arte com a cor ou o ícone da sala, nome, status e botão.
-  root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room" data-room-row="${i}" style="--room-color:${serverColor(r.code)}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}</div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}">${check?'Verificando…':esc(fmtCode(r.code))}</span></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
+  root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room ${r.look?.cover ? 'has-cover' : ''}" data-room-row="${i}" style="--room-color:${r.look?.color || serverColor(r.code)}${r.look?.cover ? `;--room-cover:url('${esc(r.look.cover)}')` : ''}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}</div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}">${check?'Verificando…':esc(fmtCode(r.code))}</span></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
     +(hiddenCount&&!showOld?`<button class="rooms-old" data-rooms-old>Mostrar ${hiddenCount} ${hiddenCount===1?'sala oculta':'salas ocultas'}</button>`:showOld&&hiddenCount?'<button class="rooms-old" data-rooms-old>Esconder salas antigas</button>':'');
   root.classList.toggle('hidden',!rooms.length&&!hiddenCount);
   $$('[data-hide-room]',root).forEach(b=>b.onclick=(e)=>{e.stopPropagation();const h=new Set(LS.get('hiddenRooms',[]));h.add(b.dataset.hideRoom);LS.set('hiddenRooms',[...h]);renderMyRooms();renderServerRow();});
@@ -252,8 +252,8 @@ async function renderServerRow(){
   const cur=normCode(S.code),fav=favoriteCode();
   const list=visibleRooms(storedRooms).sort((a,b)=>(normCode(b.code)===fav)-(normCode(a.code)===fav));
   row.innerHTML=list.map(r=>{
-    const code=normCode(r.code),isCur=code===cur,img=isCur&&S.roomIcon!==undefined?S.roomIcon:r.icon,name=isCur&&S.roomName?S.roomName:r.name;
-    return `<button class="server-dot ${isCur?'active':''}" data-server="${esc(code)}" title="${esc(name)}${code===fav?' · abre ao iniciar':''}" aria-label="${esc(name)}" aria-current="${isCur}" style="--dot:${serverColor(code)}">${img?`<img src="${esc(img)}" alt="">`:`<span>${esc(initials(name))}</span>`}${code===fav?`<i class="server-fav" aria-hidden="true">${icon('star',9)}</i>`:''}</button>`;
+    const code=normCode(r.code),isCur=code===cur,img=isCur&&S.roomIcon!==undefined?S.roomIcon:r.icon,name=isCur&&S.roomName?S.roomName:r.name,dotColor=(isCur&&S.roomLook?.color)||r.look?.color||serverColor(code);
+    return `<button class="server-dot ${isCur?'active':''}" data-server="${esc(code)}" title="${esc(name)}${code===fav?' · abre ao iniciar':''}" aria-label="${esc(name)}" aria-current="${isCur}" style="--dot:${dotColor}">${img?`<img src="${esc(img)}" alt="">`:`<span>${esc(initials(name))}</span>`}${code===fav?`<i class="server-fav" aria-hidden="true">${icon('star',9)}</i>`:''}</button>`;
   }).join('')+`<button class="server-dot ghost" data-server-add title="Entrar ou criar servidor" aria-label="Entrar ou criar servidor">${icon('add',16)}</button><button class="server-dot ghost home" data-server-home title="Página inicial" aria-label="Página inicial">${icon('home',16)}</button>`;
   row.classList.remove('hidden');
   $$('[data-server]',row).forEach(b=>b.onclick=()=>switchServer(b.dataset.server));
@@ -276,6 +276,18 @@ async function switchServer(code){
 // On start the app opens the favourite, else the last server you were in (left via home or "Sair" clears it).
 const rememberRoom=()=>{if(native?.rooms&&S.code)LS.set('lastRoom',{code:normCode(S.code),name:S.roomName||''});};
 const forgetLastRoom=()=>LS.set('lastRoom',null);
+// Card da sala para a tela de carregamento (boot-card.js): nome, cor, capa, ícone. Guarda só as 6 salas mais recentes.
+function rememberRoomCard(){
+  if(!native?.rooms||!S.code||!S.roomName)return;
+  const code=normCode(S.code),look=S.roomLook||{},card={name:S.roomName,color:look.color||serverColor(code),about:look.about||'',cover:look.cover||'',icon:S.roomIcon||''};
+  try{
+    const prev=LS.get('card.'+code,null);if(prev&&JSON.stringify(prev)===JSON.stringify(card))return;
+    LS.set('card.'+code,card);
+    const idx=[code,...LS.get('cardIndex',[]).filter((c)=>c!==code)];
+    for(const old of idx.slice(6))localStorage.removeItem('resenha.card.'+old);
+    LS.set('cardIndex',idx.slice(0,6));
+  }catch{}
+}
 function endBoot(){document.documentElement.classList.remove('booting');}
 let startTried=false;
 async function openStartServer(){
@@ -312,6 +324,65 @@ function pickServerIcon(){
       wsSend({t:'room',name:S.roomName,icon:c.toDataURL('image/jpeg',0.85)});};
     img.src=URL.createObjectURL(f);};
   inp.click();
+}
+
+// Personalizar sala (só o anfitrião): foto de capa do grupo, ícone, nome, descrição e cor. Todos veem na hora.
+const ROOM_COLORS = ['#e0533a', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+function shrinkImage(file, w, h, maxBytes) { // corta no centro para w×h e reduz até caber em maxBytes
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const k = Math.max(w / img.width, h / img.height), sw = w / k, sh = h / k;
+      c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
+      URL.revokeObjectURL(img.src);
+      for (let q = 0.85; q >= 0.4; q -= 0.08) { const d = c.toDataURL('image/jpeg', q); if (d.length <= maxBytes) return resolve(d); }
+      reject(new Error('A imagem ficou grande demais.'));
+    };
+    img.onerror = () => reject(new Error('Não consegui abrir essa imagem.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+function openRoomLook() {
+  if (!S.isHost) return;
+  const look = { ...(S.roomLook || {}) }; let name = S.roomName, iconData = S.roomIcon || '';
+  const m = openModal(`<header><div><h2>Personalizar sala</h2><p>Todo mundo na sala vê as mudanças na hora.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
+    <div class="body room-look">
+      <div class="rl-preview"><div class="rl-cover"></div><div class="rl-id"><span class="rl-icon"></span><div><b class="rl-name"></b><span class="rl-about muted small"></span></div></div></div>
+      <div class="rl-actions"><button class="btn" id="rl-cover">Escolher foto de capa</button><button class="btn" id="rl-nocover">Remover capa</button><button class="btn" id="rl-icon">Escolher ícone</button><button class="btn" id="rl-noicon">Remover ícone</button></div>
+      <div class="field"><label>Nome da sala</label><input id="rl-name" maxlength="40"></div>
+      <div class="field"><label>Descrição <span class="muted">(até 140 letras)</span></label><input id="rl-about-in" maxlength="140" placeholder="Ex.: Os ranqueados de quinta"></div>
+      <div class="field"><label>Cor da sala</label><div class="rl-colors">${ROOM_COLORS.map((c) => `<button class="rl-color" data-color="${c}" style="--c:${c}" aria-label="Cor ${c}"></button>`).join('')}<input type="color" id="rl-custom" title="Outra cor"></div></div>
+      <p class="muted small" id="rl-err"></p>
+    </div>
+    <footer><button class="btn" data-close>Cancelar</button><button class="btn primary" id="rl-save">Salvar</button></footer>`, { wide: true });
+  const el = m.el, $e = (q) => $(q, el);
+  const pick = (cb) => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.onchange = () => inp.files[0] && cb(inp.files[0]); inp.click(); };
+  const paint = () => {
+    const color = look.color || serverColor(S.code || S.roomName);
+    $e('.rl-cover').style.background = look.cover ? `center/cover no-repeat url("${look.cover}")` : `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 55%, #000))`;
+    $e('.rl-icon').innerHTML = iconData ? `<img src="${iconData}" alt="">` : esc(initials(name || 'S'));
+    $e('.rl-icon').style.background = color;
+    $e('.rl-name').textContent = name || 'Sala'; $e('.rl-about').textContent = look.about || 'Sem descrição';
+    $e('#rl-nocover').disabled = !look.cover; $e('#rl-noicon').disabled = !iconData;
+    $$('.rl-color', el).forEach((b) => b.classList.toggle('sel', b.dataset.color === look.color));
+  };
+  $e('#rl-name').value = name; $e('#rl-about-in').value = look.about || ''; $e('#rl-custom').value = look.color || '#8b5cf6';
+  $e('#rl-name').oninput = (e) => { name = e.target.value; paint(); };
+  $e('#rl-about-in').oninput = (e) => { look.about = e.target.value; paint(); };
+  $$('.rl-color', el).forEach((b) => b.onclick = () => { look.color = b.dataset.color; paint(); });
+  $e('#rl-custom').oninput = (e) => { look.color = e.target.value; paint(); };
+  const err = (t) => { $e('#rl-err').textContent = t || ''; };
+  $e('#rl-cover').onclick = () => pick(async (f) => { try { err('Preparando a foto…'); look.cover = await shrinkImage(f, 960, 320, 185 * 1024); err(); paint(); } catch (e) { err(e.message); } });
+  $e('#rl-nocover').onclick = () => { delete look.cover; paint(); };
+  $e('#rl-icon').onclick = () => pick(async (f) => { try { iconData = await shrinkImage(f, 96, 96, 46 * 1024); err(); paint(); } catch (e) { err(e.message); } });
+  $e('#rl-noicon').onclick = () => { iconData = ''; paint(); };
+  $e('#rl-save').onclick = () => {
+    const clean = {}; if (look.cover) clean.cover = look.cover; if ((look.about || '').trim()) clean.about = look.about.trim(); if (look.color) clean.color = look.color;
+    if (!wsSend({ t: 'room', name: (name || '').trim() || S.roomName, icon: iconData, look: clean })) return err('Sem conexão com a sala.');
+    m.close(); toast('Sala atualizada.', 'ok', 2500);
+  };
+  paint();
 }
 
 // ---------------- Tela inicial ----------------
@@ -720,7 +791,7 @@ function handle(m) {
     case 'welcome': {
       if (!S.isHost) S.forceGuest = false; // voltou como convidado: pode assumir numa próxima troca
       staleRoomWarned=false;
-      S.myId = m.id; S.token = m.token; S.turn = m.turn; S.roomName = m.room.name; S.roomIcon = typeof m.room.icon === 'string' ? m.room.icon : undefined; S.reconnectTries = 0;
+      S.myId = m.id; S.token = m.token; S.turn = m.turn; S.roomName = m.room.name; S.roomIcon = typeof m.room.icon === 'string' ? m.room.icon : undefined; S.roomLook = m.room.look || {}; S.reconnectTries = 0;
       if (typeof m.resume === 'string') { S.resume = m.resume; try { sessionStorage.setItem('resenha.resume', m.resume); } catch {} }
       if (m.code) S.code = fmtCode(m.code);
       if(S.latestRoomSnapshot && fmtCode(S.latestRoomSnapshot.code)!==S.code)S.latestRoomSnapshot=null;
@@ -828,7 +899,7 @@ function handle(m) {
     }
     case 'typing': if (m.channelId === S.textChannel) { S.typing.set(m.id, Date.now()); renderTyping(); } break;
     case 'signal': onSignal(m.from, m.data); break;
-    case 'room': S.roomName = m.room.name; if (typeof m.room.icon === 'string') S.roomIcon = m.room.icon; renderHeader(); renderServerRow(); rememberRoom(); break;
+    case 'room': S.roomName = m.room.name; if (typeof m.room.icon === 'string') S.roomIcon = m.room.icon; if (m.room.look) S.roomLook = m.room.look; renderHeader(); renderServerRow(); rememberRoom(); break;
     case 'pong': {
       const rtt = Date.now() - m.ts; S.lastPing = rtt;
       if (m.serverTime) { const off = m.serverTime + rtt / 2 - Date.now(); S.serverOffset = S.offsetInit ? S.serverOffset * 0.8 + off * 0.2 : off; S.offsetInit = true; }
@@ -882,6 +953,17 @@ function renderHeader() {
   const sub = $('#room-sub'); if (sub) sub.textContent = S.isHost ? 'Você é o anfitrião' : people === 1 ? '1 pessoa na sala' : `${people} pessoas na sala`;
   const chip = $('#btn-code');
   if (chip) { chip.classList.toggle('hidden', !S.code); if (S.code) chip.innerHTML = `<span>${esc(fmtCode(S.code))}</span>${icon('copy', 14)}`; }
+  rememberRoomCard();
+  // Visual da sala: foto de capa no topo da barra lateral, descrição e cor (Personalizar sala).
+  const look = S.roomLook || {}, side = $('#sidebar');
+  if (side) {
+    side.classList.toggle('has-cover', !!look.cover);
+    if (look.cover) side.style.setProperty('--room-cover', `url("${look.cover}")`); else side.style.removeProperty('--room-cover');
+    if (look.color) $('#main').style.setProperty('--room-color', look.color); else $('#main').style.removeProperty('--room-color');
+    let about = $('#room-about');
+    if (!about && sub) { about = document.createElement('div'); about.id = 'room-about'; sub.after(about); }
+    if (about) { about.textContent = look.about || ''; about.classList.toggle('hidden', !look.about); }
+  }
 }
 function statusIcons(u) {
   let h = '';
@@ -2566,8 +2648,7 @@ async function openSettings(tab = 'voz') {
     <div class="body">
       <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}</div>
       <div class="tp" data-p="aparencia">
-        <div class="section-title" style="margin-top:0">Tema</div>
-        <div class="palette-grid">${window.paletteCards(settings.themeColor)}</div><div class="section-title">Aparência</div><div class="theme-grid">${Object.entries(THEMES).filter(([key]) => window.VISIBLE_THEMES.includes(key)).map(([k, t]) => { const v = themePreview(k); return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(t.name)}</span></button>`; }).join('')}</div>
+        <div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${Object.entries(THEMES).filter(([key]) => window.VISIBLE_THEMES.includes(key)).map(([k, t]) => { const v = themePreview(k); return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(t.name)}</span></button>`; }).join('')}</div>
         <div class="section-title">Ícone do app</div>
         <div class="icon-grid">${globalThis.PIPOCA ? Object.entries(PIPOCA.VARIANTS).map(([k, v]) => `<button class="icon-card ${settings.appIcon === k ? 'sel' : ''}" data-app-icon="${k}"><img src="${PIPOCA.dataURL(k, 64)}" alt=""><span>${esc(v.name)}</span></button>`).join('') : ''}</div>
         <div class="section-title">Layout</div>
@@ -2759,7 +2840,7 @@ function roomMenu() {
     <div class="dd-item" data-a="newtext">Criar canal de texto ${icon('hash', 16)}</div>
     <div class="dd-item" data-a="newvoice">Criar canal de voz ${icon('volume', 16)}</div>
     ${native?.rooms && S.code ? `<div class="dd-item" data-a="fav">${favoriteCode() === normCode(S.code) ? 'Não abrir ao iniciar' : 'Abrir ao iniciar o Resenha'} ${icon('star', 16)}</div>` : ''}
-    ${S.isHost ? `<div class="dd-item" data-a="icon">Trocar ícone do servidor ${icon('image', 16)}</div>${S.roomIcon ? `<div class="dd-item" data-a="noicon">Remover ícone ${icon('x', 16)}</div>` : ''}` : ''}
+    ${S.isHost ? `<div class="dd-item" data-a="look">Personalizar sala ${icon('image', 16)}</div>` : ''}
     <div class="dd-item" data-a="settings">Configurações ${icon('settings', 16)}</div>
     <div class="dd-item danger" data-a="leave">${S.isHost ? 'Fechar sala' : 'Sair da sala'} ${icon('logout', 16)}</div>`;
   menu.classList.remove('hidden');
@@ -2769,6 +2850,7 @@ function roomMenu() {
     if (a === 'invite') openInvite();
     if (a === 'settings') openSettings();
     if (a === 'fav') toggleFavorite();
+    if (a === 'look') openRoomLook();
     if (a === 'icon') pickServerIcon();
     if (a === 'noicon') wsSend({ t: 'room', name: S.roomName, icon: '' });
     if (a === 'newtext') createChannel('text');
