@@ -1,0 +1,141 @@
+/* Resenha 2.1.5 · temas caprichados, em versão elegante.
+   Poucos temas, cada um com personalidade própria, mas com contenção: painéis de vidro escuro, cor em poucos
+   lugares, item ativo como pílula clara com texto escuro, sombras suaves (sem neon) e movimento calmo.
+   Só vale para: noturno, titanio, ametista, fucsia, horizonte, ambar. Os outros temas não mudam. */
+
+/* ---------- Variáveis de cada tema ---------- */
+/* --hl: cor de destaque · --pill / --pill-ink: pílula clara do item ativo · --speak: quem está falando */
+html[data-tk="noturno"]   { --hl: #8fb8ff; --pill: #d6e4ff; --pill-ink: #0a1633; --speak: #8fb8ff; --soft: rgba(143,184,255,.10); }
+html[data-tk="titanio"]   { --hl: #e4e7ec; --pill: #eef0f3; --pill-ink: #15171b; --speak: #f1f2f5; --soft: rgba(255,255,255,.07); }
+html[data-tk="ametista"]  { --hl: #c4b5fd; --pill: #ddd2ff; --pill-ink: #1d1240; --speak: #c4b5fd; --soft: rgba(196,181,253,.10); }
+html[data-tk="fucsia"]    { --hl: #f5a3d7; --pill: #ffd3ee; --pill-ink: #3a0d2c; --speak: #f5a3d7; --soft: rgba(245,163,215,.09); }
+html[data-tk="horizonte"] { --hl: #93c5fd; --pill: #cfe3ff; --pill-ink: #0a1a33; --speak: #93c5fd; --soft: rgba(147,197,253,.09); }
+html[data-tk="ambar"]     { --hl: #f2c48f; --pill: #8fc9f5; --pill-ink: #0b1d2e; --cta: #f6d3b0; --cta-ink: #2a1a0c; --speak: #8fc9f5; --soft: rgba(242,196,143,.08); }
+
+/* Jeito de mexer: todos calmos, cada um com seu tempo. */
+html[data-tk="noturno"] body   { --spring-move: cubic-bezier(.22,1,.36,1); --spring-move-dur: 480ms; --spring-press: cubic-bezier(.3,1.25,.5,1); --spring-press-dur: 220ms; }
+html[data-tk="titanio"] body   { --spring-move: cubic-bezier(.25,.9,.3,1);  --spring-move-dur: 300ms; --spring-press: cubic-bezier(.25,.9,.3,1);  --spring-press-dur: 150ms; }
+html[data-tk="ametista"] body  { --spring-move: cubic-bezier(.16,1.06,.3,1); --spring-move-dur: 560ms; --spring-press: cubic-bezier(.2,1.3,.4,1); --spring-press-dur: 280ms; }
+html[data-tk="fucsia"] body    { --spring-move: cubic-bezier(.2,1.12,.35,1); --spring-move-dur: 380ms; --spring-press: cubic-bezier(.25,1.35,.4,1); --spring-press-dur: 200ms; }
+html[data-tk="horizonte"] body { --spring-move: cubic-bezier(.33,1.08,.4,1); --spring-move-dur: 440ms; --spring-press: cubic-bezier(.3,1.25,.45,1); --spring-press-dur: 220ms; }
+html[data-tk="ambar"] body     { --spring-move: cubic-bezier(.2,.95,.3,1);  --spring-move-dur: 420ms; --spring-press: cubic-bezier(.25,1.15,.4,1); --spring-press-dur: 200ms; }
+
+/* ---------- Interações (mesma estrutura, cor de cada tema) ---------- */
+:is(html[data-tk="noturno"], html[data-tk="titanio"], html[data-tk="ametista"], html[data-tk="fucsia"], html[data-tk="horizonte"], html[data-tk="ambar"]) {
+  & #main #sidebar, & #main #chat { border-radius: var(--r-panel, 22px) !important; }
+  & #sidebar .channel { transition: background-color .18s ease, color .18s ease; }
+  & #sidebar .channel:hover { background: var(--soft) !important; }
+  & #sidebar .channel.active, & #sidebar .channel.voice.connected { background: var(--pill) !important; color: var(--pill-ink) !important; box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 14px rgba(0,0,0,.22); font-weight: 600; }
+  & #sidebar .channel.active svg, & #sidebar .channel.voice.connected svg, & #sidebar .channel.voice.connected .vc-time, & #sidebar .channel.voice.connected * { color: var(--pill-ink) !important; }
+  & .btn.primary, & #composer .send-btn, & .rm-quick-btn.on {
+    background: var(--cta, var(--pill)) !important; color: var(--cta-ink, var(--pill-ink)) !important; border-color: transparent !important;
+    box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 4px 14px rgba(0,0,0,.25); transition: filter .15s, scale var(--spring-press-dur) var(--spring-press); }
+  & .btn.primary svg, & #composer .send-btn svg { color: var(--cta-ink, var(--pill-ink)) !important; }
+  & .btn.primary:hover, & #composer .send-btn:hover { filter: brightness(1.05); }
+  & .btn.primary:active, & #composer .send-btn:active { scale: .97; }
+  & :is(.dd-item, .ctx-item):hover { background: var(--soft) !important; color: var(--text-hi); }
+  & #call #call-controls .cc-btn:hover { color: var(--hl) !important; }
+  & #call .tile.speaking { box-shadow: var(--g-shine, none), inset 0 0 0 1.5px var(--speak), 0 0 0 4px color-mix(in srgb, var(--speak) 12%, transparent) !important; }
+  & #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--speak) !important; }
+  & .server-dot.active { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--hl) !important; }
+  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 70%, transparent) !important; outline-offset: 2px; }
+  & input:not([type="range"]):not([type="checkbox"]):focus, & textarea:focus, & select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hl) 55%, transparent) !important; }
+  & input[type="range"], & input[type="checkbox"], & progress { accent-color: var(--hl); }
+  & .right-nav button[aria-pressed="true"] { background: rgba(255,255,255,.10) !important; color: var(--text-hi) !important; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset; }
+  & #chat .msg.mine .text { background: var(--cta, var(--pill)) !important; color: var(--cta-ink, var(--pill-ink)) !important; box-shadow: none !important; }
+  & #chat .msg.mine .text a { color: var(--cta-ink, var(--pill-ink)) !important; }
+  & #update-bar .up-progress i, & .up-progress i { background: var(--hl); }
+  & ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12) !important; border-radius: 99px; }
+  & ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22) !important; }
+  & ::selection { background: color-mix(in srgb, var(--hl) 35%, transparent); color: #fff; }
+  /* Fundo vivo: camada por trás de tudo, bem discreta (só transform/opacity, sem desfoque em tempo real) */
+  & #main, & #home { isolation: isolate; }
+  & #main::before, & #home::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; } /* fixed: não cria barra de rolagem */
+}
+
+/* ---------- Noturno: estrelas que piscam devagar ---------- */
+html[data-tk="noturno"] :is(#main, #home)::before {
+  background:
+    radial-gradient(1.4px 1.4px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 28% 8%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 47% 22%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 63% 12%, #fff 50%, transparent 51%),
+    radial-gradient(1.3px 1.3px at 78% 28%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 91% 9%, #fff 50%, transparent 51%);
+  animation: tk-twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes tk-twinkle { 0% { opacity: .25; } 100% { opacity: .8; } }
+
+/* ---------- Titânio: reflexo metálico lento ---------- */
+html[data-tk="titanio"] :is(#main, #home)::before {
+  inset: -20% -60%; background: linear-gradient(105deg, transparent 44%, rgba(255,255,255,.045) 49%, rgba(255,255,255,.07) 50%, rgba(255,255,255,.045) 51%, transparent 56%);
+  animation: tk-sheen 18s cubic-bezier(.45,0,.2,1) infinite;
+}
+@keyframes tk-sheen { 0% { translate: -40% 0; } 60%, 100% { translate: 40% 0; } }
+
+/* ---------- Ametista: aurora lilás bem suave ---------- */
+html[data-tk="ametista"] :is(#main, #home)::before {
+  inset: -10%; background: radial-gradient(38% 30% at 32% 0%, rgba(196,181,253,.16), transparent 70%), radial-gradient(30% 26% at 70% 4%, rgba(139,92,246,.14), transparent 70%);
+  animation: tk-drift 24s ease-in-out infinite alternate;
+}
+/* ---------- Fúcsia: clarão rosado que respira devagar ---------- */
+html[data-tk="fucsia"] :is(#main, #home)::before {
+  inset: auto; left: -12%; top: -18%; width: 60%; height: 60%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(245,120,200,.20), transparent); animation: tk-breathe 10s ease-in-out infinite;
+}
+/* ---------- Horizonte: brilho azul que se move devagar ---------- */
+html[data-tk="horizonte"] :is(#main, #home)::before {
+  inset: auto; right: -14%; top: -12%; width: 55%; height: 60%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(59,130,246,.18), transparent); animation: tk-breathe 12s ease-in-out infinite;
+}
+/* ---------- Âmbar: luz quente que passeia ---------- */
+html[data-tk="ambar"] :is(#main, #home)::before {
+  inset: -10%; background: radial-gradient(40% 40% at 80% 10%, rgba(242,180,110,.16), transparent 70%);
+  animation: tk-drift 26s ease-in-out infinite alternate;
+}
+@keyframes tk-drift { 0% { translate: -4% 0; } 100% { translate: 5% 3%; } }
+@keyframes tk-breathe { 50% { opacity: .55; translate: 2% 3%; } }
+
+/* Sem movimento quando o sistema ou o Resenha pedem menos animação */
+@media (prefers-reduced-motion: reduce) { :is(#main, #home)::before { animation: none !important; } }
+html.reduce-motion :is(#main, #home)::before { animation: none !important; }
+
+/* Âmbar (referência Savance): barra lateral quase preta e painéis de vidro escuro sobre a luz quente */
+html[data-tk="ambar"] #sidebar { background: rgba(8,7,6,.86) !important; }
+html[data-tk="ambar"] :is(#chat, #call #call-controls, .modal, #room-menu.server-menu) { background-color: rgba(24,20,17,.62); }
+
+/* ---------- Identidade do Resenha (tema padrão): grafite neutro + vidro esfumaçado + laranja só em detalhes ---------- */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) { --hl: #ff8a3d; }
+html.light:is([data-tk="system"], [data-tk="arcLight"]) { --hl: #ea580c; }
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) {
+  & #sidebar .channel { transition: background-color .18s ease; }
+  & #sidebar .channel:hover { background: rgba(255,255,255,.05) !important; }
+  & #sidebar .channel.active { background: rgba(255,255,255,.08) !important; color: var(--text-hi) !important; }
+  /* Detalhe laranja: o ícone do canal ativo ganha um quadradinho laranja, como na referência */
+  & #sidebar .channel.active > svg:first-child { color: #fff !important; background: var(--hl); border-radius: 7px; padding: 3px; box-sizing: content-box; margin: -3px 0; }
+  & .btn.primary { background: rgba(255,255,255,.12) !important; color: var(--text-hi) !important; border-color: transparent !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  & .btn.primary:hover { background: rgba(255,255,255,.18) !important; }
+  & #composer .send-btn { background: var(--hl) !important; color: #fff !important; box-shadow: none !important; }
+  & #composer .send-btn:hover { filter: brightness(1.08); }
+  & :is(.btn.primary, #composer .send-btn):active { scale: .97; }
+  & :is(.dd-item, .ctx-item):hover { background: rgba(255,255,255,.06) !important; }
+  & #call #call-controls .cc-btn:hover { color: #fff !important; }
+  & #call #call-controls .cc-btn.on::after { background: var(--hl) !important; }
+  & .server-dot.active { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--hl) !important; }
+  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 75%, transparent) !important; outline-offset: 2px; }
+  & input:not([type="range"]):not([type="checkbox"]):focus, & textarea:focus { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22) !important; }
+  & input[type="range"], & input[type="checkbox"], & progress { accent-color: var(--hl); }
+  & .right-nav button[aria-pressed="true"] { background: rgba(255,255,255,.10) !important; color: var(--text-hi) !important; }
+  & #chat .msg.mine .text { background: rgba(255,255,255,.12) !important; color: var(--text-hi) !important; box-shadow: none !important; }
+  & #update-bar .up-progress i, & .up-progress i { background: var(--hl); }
+  & ::selection { background: color-mix(in srgb, var(--hl) 35%, transparent); }
+  & ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12) !important; border-radius: 99px; }
+}
+html.light:is([data-tk="system"], [data-tk="arcLight"]) :is(.right-nav button[aria-pressed="true"], #sidebar .channel.active, .btn.primary, #chat .msg.mine .text) { background: rgba(0,0,0,.07) !important; }
+
+/* Vidro do tema padrão (como a referência): com a janela translúcida, o papel de parede desfocado aparece de verdade
+   atrás dos painéis; os painéis são vidro esfumaçado com borda clara e reflexo no topo. */
+html.acrylic:is([data-tk="system"], [data-tk="arcDark"]):not(.light) body::before { opacity: .42; }
+html.acrylic.light:is([data-tk="system"], [data-tk="arcLight"]) body::before { opacity: .5; }
+html.acrylic:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) :is(#main #sidebar, #main #chat, #call .tile, #call #call-controls, #home .card, .modal, #room-menu.server-menu) {
+  background-color: rgba(28,28,30,.38) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.09), 0 20px 50px rgba(0,0,0,.25) !important; }
+html.acrylic.light:is([data-tk="system"], [data-tk="arcLight"]) :is(#main #sidebar, #main #chat, #call .tile, #call #call-controls, #home .card, .modal, #room-menu.server-menu) {
+  background-color: rgba(255,255,255,.5) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(0,0,0,.06), 0 18px 40px rgba(0,0,0,.08) !important; }
+html.acrylic:is([data-tk="system"], [data-tk="arcDark"]) #call .tile.speaking { box-shadow: inset 0 0 0 2px var(--green), inset 0 1px 0 rgba(255,255,255,.14) !important; }

@@ -30,7 +30,7 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'system', themeColor: 'lavanda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha',
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {},
 }, LS.get('settings', {}));
 document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
@@ -719,7 +719,14 @@ function sendProfile(extra = {}) { wsSend({ t: 'profile', name: me.name, color: 
 const BANNER_COLORS = ['#d6402b', '#0369a1', '#047857', '#b45309', '#6a4bb3', '#be185d', '#26282f'];
 const NAME_COLORS = ['', '#fbbf24', '#f5b1d4', '#80e1bc', '#a4d9ff', '#fca5a5'];
 const MAX_BANNER = 8 * 1024 * 1024;
-const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', bannerColor: me.bannerColor || '' });
+const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: me.nameFx || '', bannerColor: me.bannerColor || '' });
+// Nome com cor e efeito do perfil (2.1.5): aparece na lista da esquerda, na call, no chat e no cartão.
+const NAME_FX = { '': 'Nenhum', holo: 'Holográfico', rainbow: 'Arco-íris', neon: 'Neon', ouro: 'Ouro', fogo: 'Fogo', gelo: 'Gelo', glitch: 'Glitch' };
+function nameHTML(u, text = u?.name) {
+  const fx = u?.nameFx && NAME_FX[u.nameFx] ? u.nameFx : '', c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
+  if (!fx && !c) return esc(text);
+  return `<span class="uname${fx ? ' fx-' + fx : ''}"${c ? ` style="--nc:${c}"` : ''} data-text="${esc(text)}">${esc(text)}</span>`;
+}
 function bannerStore(value) { // undefined = read, null = delete, Blob = save
   return new Promise((resolve) => {
     try {
@@ -748,7 +755,7 @@ function profileCardHTML(u) {
   const banner = bannerURL(u), ch = u.voiceChannel && chanById(u.voiceChannel);
   return `<div class="pcard"><div class="pcard-banner" style="background-color:${esc(u.bannerColor || u.color || '#26282f')}">${banner ? `<img src="${esc(banner)}" alt="">` : ''}</div>
     <div class="pcard-av">${avatarHTML(u)}</div>
-    <div class="pcard-body"><div class="pcard-name"${u.nameColor ? ` style="color:${esc(u.nameColor)}"` : ''}>${esc(u.name)}</div>
+    <div class="pcard-body"><div class="pcard-name">${nameHTML(u)}</div>
       ${u.status ? `<div class="pcard-status">${esc(u.status)}</div>` : ''}
       ${u.bio ? `<div class="pcard-bio">${esc(u.bio)}</div>` : ''}
       ${ch ? `<div class="pcard-meta">${icon('volume', 14)}<span>Na call em ${esc(ch.name)}</span></div>` : ''}</div></div>`;
@@ -983,7 +990,7 @@ function renderChannels() {
     const us = usersIn(c.id);
     const since = us.filter((u) => u.voiceSince).map((u) => u.voiceSince);
     return `<div class="channel voice ${V.joined && V.channel === c.id ? 'connected' : ''}" draggable="true" data-vch="${esc(c.id)}">${icon('volume', 20)}<span class="cn">${esc(c.name)}</span><span class="timer" data-since="${since.length ? Math.min(...since) : ''}"></span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>
-      <div class="voice-users">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${esc(u.name)}${u.isHost ? '<span class="tag">HOST</span>' : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>`;
+      <div class="voice-users">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.isHost ? '<span class="tag">HOST</span>' : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>`;
   }).join('');
   tickTimers();
 }
@@ -994,7 +1001,7 @@ function renderSidebar() {
   $('#online-cat').textContent = `Na sala (fora da call) · ${others.length}`;
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${esc(u.name)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? '<span class="tag">HOST</span>' : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? '<span class="tag">HOST</span>' : ''}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
   $('#up-sub').textContent = V.joined ? (WEB_VIEWER && !WEB_VOICE ? 'Ouvindo' : 'Em voz') : 'Online';
@@ -1093,7 +1100,7 @@ function updateTile(key, u, isScreen) {
     $('[data-live-pause]', tools)?.addEventListener('click', (e) => { e?.stopPropagation(); if (v.paused) v.play().catch(() => {}); else v.pause(); renderCall(); });
     $('[data-full]', tools)?.addEventListener('click', (e) => { e?.stopPropagation(); (document.fullscreenElement ? document.exitFullscreen() : WEB_VIEWER && !t.requestFullscreen && v?.webkitEnterFullscreen ? Promise.resolve(v.webkitEnterFullscreen()) : t.requestFullscreen()).catch(() => {}); });
     }
-    const via = !self && V.relayVia?.get(u.id); t.querySelector('.label').innerHTML = `<span>${esc(u.name)}${self ? ' · sua tela' : ''}${via ? ' · via ' + esc(S.users.get(via)?.name || 'repasse') : ''}</span>`;
+    const via = !self && V.relayVia?.get(u.id); t.querySelector('.label').innerHTML = `<span>${nameHTML(u)}${self ? ' · sua tela' : ''}${via ? ' · via ' + esc(S.users.get(via)?.name || 'repasse') : ''}</span>`;
     t.title = watching ? (V.focus === key ? 'Clique para diminuir' : 'Clique para ampliar') : '';
     if (typeof roomUI !== 'undefined' && roomUI) roomUI.updateLive(t, u, self, watching, myVoiceUsers().filter((x) => x.id !== u.id).slice(0, 6).map((x) => ({ id: x.id, name: x.id === S.myId ? 'Você' : x.name, color: x.color, avatar: x.avatar, muted: x.muted || x.deafened })));
   } else if (u.id === DJ_ID) {
@@ -1107,7 +1114,7 @@ function updateTile(key, u, isScreen) {
   } else {
     const sig = (u.avatar || '') + u.color + u.name;
     if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
-    t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${esc(u.name)}</span>`;
+    t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
     const tools = t.querySelector('.tile-tools');
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
     const watching = self ? !V.previewHidden : V.watching.has(u.id);
@@ -1232,7 +1239,7 @@ function layoutGrid() {
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 
-function renderAll() { renderSidebar(); renderCall(); renderDM(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
+function renderAll() { renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
@@ -2180,7 +2187,15 @@ function selectTextChannel(id) {
   renderChannels(); renderMessages(); renderTyping();
   $('#input').focus();
 }
+// Topo do chat (2.1.5): pilha de avatares de quem está na sala, como no design de referência.
+function renderChatOnline() {
+  const box = $('#chat-online'); if (!box) return;
+  const people = [...S.users.values()].filter((u) => u.id !== DJ_ID), shown = people.slice(0, 4), more = people.length - shown.length;
+  box.innerHTML = people.length ? `<span class="co-stack">${shown.map((u) => avatarHTML(u)).join('')}${more > 0 ? `<i class="co-more">+${more}</i>` : ''}</span><span class="co-label">${people.length} na sala</span>` : '';
+  box.title = people.map((u) => u.name).join(', ');
+}
 function renderChatHeader() {
+  renderChatOnline();
   const c = chanById(S.textChannel);
   $('#chat-title').textContent = c ? c.name : '';
   $('#input').placeholder = c ? `Conversar em #${c.name}` : '';
@@ -2227,10 +2242,10 @@ function msgHTML(m, prev) {
     ${canDel ? `<button data-mt="delete" class="danger" title="Excluir">${icon('trash', 18)}</button>` : ''}</div>`;
   const edited = m.editedAt ? '<span class="edited" title="' + esc(fmtTime(m.editedAt)) + '">(editado)</span>' : '';
   const body = `${m.text ? `<div class="text">${linkify(m.text, m.mentions)}${edited}</div>` : ''}${m.attachments && m.attachments.length ? `<div class="atts">${m.attachments.map(attHTML).join('')}</div>` : ''}`;
-  const cls = `msg ${mentionsMe(m) ? 'mentioned' : ''} ${m.bot ? 'bot' : ''}`;
+  const cls = `msg ${mine ? 'mine' : ''} ${mentionsMe(m) ? 'mentioned' : ''} ${m.bot ? 'bot' : ''}`;
   const reply = m.replyTo ? `<div class="reply-ref" data-jump="${esc(m.replyTo.id)}">${icon('reply', 14)}<b style="color:${esc(m.replyTo.color)}">@${esc(m.replyTo.name)}</b><span>${esc(m.replyTo.text)}</span></div>` : '';
   if (grouped) return `<div class="${cls}" data-id="${esc(m.id)}"><span class="hover-time">${new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>${body}${tools}</div>`;
-  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" style="color:${esc(m.color)}">${esc(m.name)}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
+  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" style="color:${esc(m.color)}">${m.bot ? esc(m.name) : nameHTML({ ...(S.users.get(m.userId) || {}), name: m.name })}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
 }
 function renderMessages(keepScroll) {
   renderChatHeader();
@@ -2685,6 +2700,7 @@ async function openSettings(tab = 'voz') {
         <div class="settings-grid">
           <div class="field"><label>Tamanho da interface <span id="st-fs-v">${settings.fontScale}%</span></label><input type="range" id="st-fs" min="85" max="125" step="5" value="${settings.fontScale}"></div>
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
+          ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${settings.reduceMotion ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
@@ -2704,6 +2720,9 @@ async function openSettings(tab = 'voz') {
               <p class="muted small" style="margin:6px 0 0">Até 8 MB. GIFs ficam animados.</p></div>
             <div class="field"><label>Cor do nome</label>
               <div class="swatches" id="st-ncolors">${NAME_COLORS.map((c) => `<button class="swatch ${(me.nameColor || '') === c ? 'sel' : ''} ${c ? '' : 'none'}" data-c="${c}" style="background:${c || 'transparent'}" aria-label="${c ? 'Cor do nome ' + c : 'Cor padrão'}">${c ? '' : 'Aa'}</button>`).join('')}</div></div>
+            <div class="field"><label>Efeito do nome</label>
+              <div class="nfx-grid" id="st-nfx">${Object.entries(NAME_FX).map(([k, n]) => `<button class="nfx ${(me.nameFx || '') === k ? 'sel' : ''}" data-nfx="${k}" aria-pressed="${(me.nameFx || '') === k}"><span class="uname${k ? ' fx-' + k : ''}" style="--nc:${me.nameColor || 'var(--text-hi)'}" data-text="${esc(n)}">${esc(n)}</span></button>`).join('')}</div>
+              <p class="muted small" style="margin:6px 0 0">Aparece na lista de voz, na call, no chat e no seu cartão.</p></div>
             <div class="field"><label for="st-status">Status</label><input id="st-status" maxlength="40" placeholder="🎮 jogando LoL" value="${esc(me.status || '')}"></div>
             <div class="field"><label for="st-bio">Recado</label><textarea id="st-bio" maxlength="140" rows="3" placeholder="Algo que a galera deve saber">${esc(me.bio || '')}</textarea></div>
           </div>
@@ -2767,7 +2786,8 @@ async function openSettings(tab = 'voz') {
   previewCard();
   const saveExtras = () => { LS.set('profile', me); sendProfile(); previewCard(); };
   $$('#st-bcolors .swatch', el).forEach((b) => b.onclick = () => { me.bannerColor = b.dataset.c; $$('#st-bcolors .swatch', el).forEach((x) => x.classList.toggle('sel', x === b)); saveExtras(); });
-  $$('#st-ncolors .swatch', el).forEach((b) => b.onclick = () => { me.nameColor = b.dataset.c; $$('#st-ncolors .swatch', el).forEach((x) => x.classList.toggle('sel', x === b)); saveExtras(); });
+  $$('#st-ncolors .swatch', el).forEach((b) => b.onclick = () => { me.nameColor = b.dataset.c; $$('#st-ncolors .swatch', el).forEach((x) => x.classList.toggle('sel', x === b)); $$('#st-nfx .uname', el).forEach((x) => x.style.setProperty('--nc', me.nameColor || 'var(--text-hi)')); saveExtras(); });
+  $$('#st-nfx .nfx', el).forEach((b) => b.onclick = () => { me.nameFx = b.dataset.nfx; $$('#st-nfx .nfx', el).forEach((x) => { x.classList.toggle('sel', x === b); x.setAttribute('aria-pressed', String(x === b)); }); saveExtras(); });
   $('#st-status', el).oninput = () => { me.status = $('#st-status', el).value; LS.set('profile', me); previewCard(); };
   $('#st-bio', el).oninput = () => { me.bio = $('#st-bio', el).value; LS.set('profile', me); previewCard(); };
   $('#st-status', el).onchange = $('#st-bio', el).onchange = () => sendProfile();
@@ -2790,6 +2810,7 @@ async function openSettings(tab = 'voz') {
     $$('[data-app-icon]', el).forEach((x) => x.classList.toggle('sel', x === b));
     if (native?.setAppIcon) { const r = await native.setAppIcon(settings.appIcon, await PIPOCA.rasterize(settings.appIcon)); toast(r?.ok ? 'Ícone trocado. A barra de tarefas pode levar alguns segundos para atualizar.' : 'Não consegui trocar o ícone da janela.', r?.ok ? 'ok' : '', 3500); }
   });
+  if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
   // Aparência
   bindPaletteCards(el);
@@ -2872,7 +2893,7 @@ function openMembers(transfer = false) {
   const people = roomPeople().sort((a, b) => (!!b.isHost - !!a.isHost) || (!!b.voiceChannel - !!a.voiceChannel) || String(a.name).localeCompare(String(b.name)));
   const row = (u) => { const ch = u.voiceChannel && chanById(u.voiceChannel); const st = u.sharing ? '<span class="mb-live">ao vivo</span>' : ch ? 'na call ' + esc(ch.name) : 'na sala';
     const act = u.id === S.myId ? '<span class="muted small">você</span>' : transfer ? (u.canHost ? `<button class="btn small-btn" data-host="${esc(u.id)}">Tornar anfitrião</button>` : '<span class="muted small">só no app de PC</span>') : `<button class="btn small-btn" data-dm="${esc(u.id)}">Mensagem</button>`;
-    return `<div class="mb-row">${avatarHTML(u)}<div class="mb-info"><b>${esc(u.name)}${u.isHost ? ' <span class="tag">HOST</span>' : ''}</b><span>${st}</span></div>${act}</div>`; };
+    return `<div class="mb-row">${avatarHTML(u)}<div class="mb-info"><b>${nameHTML(u)}${u.isHost ? ' <span class="tag">HOST</span>' : ''}</b><span>${st}</span></div>${act}</div>`; };
   const m = openModal(`<header><div><h2>${transfer ? 'Transferir anfitrião' : 'Pessoas na sala'}</h2><p>${transfer ? 'Escolha quem passa a hospedar. Todo mundo reconecta sozinho.' : people.length + (people.length === 1 ? ' pessoa conectada' : ' pessoas conectadas')}</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body members-list">${people.map(row).join('')}</div>`);
   $$('[data-host]', m.el).forEach((b) => b.onclick = () => { m.close(); transferHost(b.dataset.host); });
   $$('[data-dm]', m.el).forEach((b) => b.onclick = () => { m.close(); openDM(b.dataset.dm); });
@@ -3164,9 +3185,53 @@ function bind() {
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 
-window.__resenha = { showUpdateState, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
+window.__resenha = { showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
 if (!LS.get('arcThemeMigrated', false)) { settings.theme = 'system'; saveSettings(); LS.set('arcThemeMigrated', true); }
+if (window.RETIRED_THEMES?.[settings.theme]) { settings.theme = window.RETIRED_THEMES[settings.theme]; saveSettings(); } // temas retirados na 2.1.5
 applyTheme(settings.theme,settings.themeColor);
+// Janela translúcida: o vidro do sistema aparece atrás do fundo do tema (Windows 11 22H2+).
+async function applyWindowMaterial() {
+  if (!native?.setWindowMaterial) return;
+  try { const r = await native.setWindowMaterial(settings.translucent !== false); document.documentElement.classList.toggle('acrylic', !!r?.on); } catch {}
+}
+applyWindowMaterial();
+// "O que há de novo": aparece uma vez, na primeira abertura de uma versão com novidades, só para quem já usava o app.
+const WHATS_NEW = {
+  '2.1.5': {
+    items: [
+      ['sparkles', 'Identidade nova', 'Grafite fosco, vidro esfumaçado e um laranja só nos detalhes.'],
+      ['image', 'Temas caprichados', 'Âmbar, Noturno, Ametista, Fúcsia, Horizonte e Titânio: cada um com fundo, movimento e cores próprios.'],
+      ['screen', 'Janela de vidro', 'No Windows 11 com transparência ligada, o papel de parede aparece desfocado atrás do Resenha.'],
+      ['hash', 'Menu do servidor e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
+      ['edit', 'Nome com efeito', 'Holográfico, neon, ouro, fogo… em Configurações > Perfil.'],
+      ['download', 'Atualização mais leve', 'O atualizador não usa mais PowerShell e não deixa pasta para trás.'],
+    ],
+  },
+};
+function openWhatsNew(version) {
+  const info = WHATS_NEW[version]; if (!info) return;
+  const themes = window.VISIBLE_THEMES.filter((k) => k !== 'arcLight' && k !== 'arcDark');
+  const card = (k) => { const v = themePreview(k), t = THEMES[k] || THEMES.system;
+    return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(k === 'system' ? 'Resenha' : t.name)}</span></button>`; };
+  const m = openModal(`<header><div><span class="wn-tag">Novidades</span><h2>O que há de novo na ${esc(version)}</h2><p>Dá uma olhada e experimenta um tema novo.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
+    <div class="body whats-new">
+      <ul class="wn-list">${info.items.map(([ic, t, d]) => `<li><span class="wn-ic">${icon(ic, 18)}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></li>`).join('')}</ul>
+      <div class="section-title">Experimente os temas</div>
+      <div class="theme-grid wn-themes">${themes.map(card).join('')}</div>
+    </div>
+    <footer><button class="btn" id="wn-more">Mais opções de aparência</button><span class="grow"></span><button class="btn primary" data-close>Bora!</button></footer>`, { wide: true, cls: 'whats-new-modal' });
+  $$('.theme-card', m.el).forEach((b) => b.onclick = () => { settings.theme = b.dataset.theme; saveSettings(); applyTheme(settings.theme, settings.themeColor); $$('.theme-card', m.el).forEach((x) => x.classList.toggle('sel', x === b)); });
+  $('#wn-more', m.el).onclick = () => { m.close(); openSettings('aparencia'); };
+}
+async function maybeWhatsNew() {
+  if (!native?.version) return;
+  let v = ''; try { v = await native.version(); } catch { return; }
+  const seen = LS.get('whatsNewSeen', null); LS.set('whatsNewSeen', v);
+  if (seen === v || !WHATS_NEW[v]) return;
+  if (!seen && !me.name) return; // instalação nova: começa sem pop-up
+  setTimeout(() => openWhatsNew(v), 900);
+}
+maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
 native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; renderCall(); });
 document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } });
