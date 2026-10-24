@@ -604,3 +604,49 @@ html.acrylic.light body::before { opacity: .72; }
 .whats-new .wn-themes { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
 @keyframes wn-in { from { opacity: 0; translate: 0 8px; } }
 html.reduce-motion .whats-new .wn-list li { animation: none; }
+
+/* ---------- Refinamento pós-2.1.5 (R1–R9) ---------- */
+/* R1: só o indicador deslizante marca a seleção de Chat/DMs, no mesmo formato de pílula do trilho */
+html.glass #chat .right-nav.has-slider button[aria-pressed="true"] { background: transparent !important; box-shadow: none; }
+#chat .right-nav .m-slider-tabs { border-radius: 999px; }
+html.glass #chat .right-nav .m-slider-tabs { background: var(--g-fill-h, rgba(255,255,255,.1)); box-shadow: 0 2px 10px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08); }
+html.glass.light #chat .right-nav .m-slider-tabs { background: #fff; }
+/* R2: campo de mensagem com um único contorno; o brilho do foco acompanha a pílula */
+html.glass #chat #composer, html.glass #chat #composer:focus-within { background: transparent; border: 0; box-shadow: none; border-radius: 26px; }
+html.glass #composer #input:focus, html.glass #composer #input:focus-visible { outline: none !important; } /* o foco fica no brilho da pílula (.composer-row:focus-within) */
+html.glass #composer #reply-bar:not(.hidden), html.glass #composer #pending-files:not(:empty) { border-radius: 16px; margin-bottom: 6px; }
+html.glass #composer #reply-bar:not(.hidden) ~ .composer-row, html.glass #composer #pending-files:not(:empty) + .composer-row { border-radius: 999px !important; }
+/* R3: cards de arquivo cabem no chat estreito */
+.att-file { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.att-file .fi { min-width: 0; }
+.att-file.unavailable .fn { color: var(--text-hi); }
+.att-file.unavailable p { overflow-wrap: anywhere; margin: 2px 0 0; }
+.att-file audio { max-width: 100%; min-width: 0; }
+.atts { min-width: 0; max-width: 100%; }
+/* R7: rodapé como um bloco só, com curvas concêntricas à lateral */
+html.glass #sidebar #voice-panel, html.glass #sidebar #user-panel { border-top: 0 !important; margin: 0 8px; background: var(--g-fill, rgba(255,255,255,.04)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+html.glass #sidebar #voice-panel:not(.hidden) { border-radius: 14px 14px 5px 5px; margin-top: 6px; }
+html.glass #sidebar #user-panel { border-radius: 14px; margin-bottom: 8px; }
+html.glass #sidebar #voice-panel:not(.hidden) + #user-panel { border-radius: 5px 5px 14px 14px; margin-top: 2px; }
+html.glass #sidebar #up-user { border-radius: 10px; }
+/* R9: o ícone da sala identifica a sala aberta, ao lado do nome */
+#sidebar .side-brand > img { display: none !important; }
+#room-icon { flex: none; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; overflow: hidden; font-weight: 800; font-size: 17px; color: #fff;
+  background: var(--ri-color, var(--blurple)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-side) 70%, transparent), 0 6px 16px rgba(0,0,0,.28); }
+#room-icon img { width: 100%; height: 100%; object-fit: cover; }
+#main[data-sidebar-compact=true] #room-icon { width: 36px; height: 36px; border-radius: 11px; font-size: 14px; }
+#sidebar.has-cover::before { height: 188px; }
+/* R8: o menu do servidor acompanha a largura da lateral (não passa da borda na lateral estreita) */
+html.glass #sidebar #room-menu.server-menu { left: 10px; right: 10px; width: auto; min-width: 0; max-width: none; }
+/* R8 (causa): com capa na sala, "#sidebar.has-cover > *" deixava o menu em position: relative, no fluxo da lateral,
+   então ele empurrava/sobrepunha os canais e passava da borda. O menu volta a flutuar sobre a lateral. */
+#sidebar.has-cover > #room-menu { position: absolute; z-index: 80; }
+
+/* R6: janela com cantos arredondados no Windows (main.js: ROUNDED_WIN). O raio externo é o dos painéis (22px) + o respiro (6px).
+   O fundo vira uma sombra interna do body para não "vazar" para a tela inteira; maximizada, a janela volta a ser reta. */
+html.win-round, html.win-round body { background: transparent !important; }
+html.win-round body { box-shadow: inset 0 0 0 200vmax var(--bg-rail); }
+html.win-round:not(.win-max) body { clip-path: inset(0 round 28px); }
+html.win-round:not(.win-max) body::after { content: ''; position: fixed; inset: 0; border-radius: 28px; pointer-events: none; z-index: 2147483647;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09); }
+html.win-round.light:not(.win-max) body::after { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }

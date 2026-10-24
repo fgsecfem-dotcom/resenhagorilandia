@@ -99,7 +99,8 @@ html.reduce-motion :is(#main, #home)::before { animation: none !important; }
 
 /* Âmbar (referência Savance): barra lateral quase preta e painéis de vidro escuro sobre a luz quente */
 html[data-tk="ambar"] #sidebar { background: rgba(8,7,6,.86) !important; }
-html[data-tk="ambar"] :is(#chat, #call #call-controls, .modal, #room-menu.server-menu) { background-color: rgba(24,20,17,.62); }
+html[data-tk="ambar"] :is(#chat, #call #call-controls, .modal) { background-color: rgba(24,20,17,.62); }
+html[data-tk="ambar"] #room-menu.server-menu { background-color: rgba(20,17,14,.93); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); }
 
 /* ---------- Identidade do Resenha (tema padrão): grafite neutro + vidro esfumaçado + laranja só em detalhes ---------- */
 html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) { --hl: #ff8a3d; }

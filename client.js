@@ -841,7 +841,7 @@ function handle(m) {
     case 'command-result': finishCommand(m); break;
     case 'dm': receiveDM(m.msg); break;
     case 'error': toast(m.msg, 'err', 5000); break;
-    case 'user-join': S.users.set(m.user.id, m.user); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
+    case 'user-join': S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
     case 'user-leave': {
       const u = S.users.get(m.id);
       if (u && V.joined && u.voiceChannel === V.channel && Date.now() > (S.quietUntil || 0)) sfx('leave');
@@ -851,6 +851,7 @@ function handle(m) {
     case 'user-update': {
       const prev = S.users.get(m.user.id) || {};
       S.users.set(m.user.id, m.user);
+      if (prev.nameFx !== m.user.nameFx || prev.nameColor !== m.user.nameColor || prev.avatar !== m.user.avatar) refreshAuthor(m.user.id);
       if (m.user.id !== S.myId && V.joined) {
         const wasHere = prev.voiceChannel === V.channel, isHere = m.user.voiceChannel === V.channel;
         const quiet = Date.now() < (S.quietUntil || 0);
@@ -972,6 +973,14 @@ function renderHeader() {
     let about = $('#room-about');
     if (!about && sub) { about = document.createElement('div'); about.id = 'room-about'; sub.after(about); }
     if (about) { about.textContent = look.about || ''; about.classList.toggle('hidden', !look.about); }
+    const brand = $('.side-brand');
+    if (brand) {
+      let ri = $('#room-icon'); if (!ri) { ri = document.createElement('span'); ri.id = 'room-icon'; ri.setAttribute('aria-hidden', 'true'); brand.prepend(ri); }
+      const img = S.roomIcon || look.cover || '';
+      ri.style.setProperty('--ri-color', look.color || serverColor(S.code || S.roomName));
+      ri.innerHTML = img ? `<img src="${esc(img)}" alt="">` : esc(initials(S.roomName || 'S'));
+      ri.classList.toggle('has-img', !!img);
+    }
   }
 }
 function statusIcons(u) {
@@ -2221,13 +2230,13 @@ function linkify(text, mentions) {
 }
 const fileUrl = (a, dl) => `${S.base}${a.url}?t=${S.token}${dl ? '&dl=1' : ''}`;
 function attHTML(a) {
-  if(a.unavailable)return `<div class="att-file">${icon('file',30)}<div>${esc(a.name)}<p class="muted small">Arquivo não disponível neste anfitrião. Peça para enviar novamente.</p></div></div>`;
+  if(a.unavailable)return `<div class="att-file unavailable">${icon('file',30)}<div class="fi"><div class="fn" title="${esc(a.name)}">${esc(a.name)}</div><p class="muted small">Arquivo não disponível neste anfitrião. Peça para enviar novamente.</p></div></div>`;
   const url = fileUrl(a);
   const t = a.type || '';
   if (t.startsWith('image/')) return `<img class="att-img" src="${url}" data-full="${url}" data-name="${esc(a.name)}" data-dl="${fileUrl(a, 1)}" loading="lazy" alt="${esc(a.name)}">`;
   if (t.startsWith('video/')) return `<video class="att-video" src="${url}" controls preload="metadata"></video>`;
   const audio = t.startsWith('audio/') ? `<audio controls preload="none" src="${url}"></audio>` : '';
-  return `<div class="att-file">${icon('file', 30)}<div class="fi"><div class="fn att-dl" data-dl="${fileUrl(a, 1)}" title="Baixar">${esc(a.name)}</div><div class="fs">${fmtSize(a.size)}</div>${audio}</div><span class="icon-btn att-dl" data-dl="${fileUrl(a, 1)}" title="Baixar">${icon('download', 20)}</span></div>`;
+  return `<div class="att-file">${icon('file', 30)}<div class="fi"><div class="fn att-dl" data-dl="${fileUrl(a, 1)}" title="${esc(a.name)} · clique para baixar">${esc(a.name)}</div><div class="fs">${fmtSize(a.size)}</div>${audio}</div><span class="icon-btn att-dl" data-dl="${fileUrl(a, 1)}" title="Baixar">${icon('download', 20)}</span></div>`;
 }
 const curMessages = () => S.history[S.textChannel] || [];
 function msgHTML(m, prev) {
@@ -2258,6 +2267,11 @@ function renderMessages(keepScroll) {
   list.forEach((m, i) => { h += msgHTML(m, list[i - 1]); });
   $('#msg-list').innerHTML = h;
   if (!keepScroll || atBottom) scrollBottom(true); else box.scrollTop = prevTop;
+}
+// Redesenha só as mensagens desse autor (efeito/cor/avatar mudou), sem mexer na rolagem.
+function refreshAuthor(uid) {
+  const list = curMessages(); if (!list.some((m) => m.userId === uid)) return;
+  list.forEach((m, i) => { if (m.userId === uid && !m.bot) { const el = $(`#msg-list .msg.head[data-id="${CSS.escape(m.id)}"]`); if (el) el.outerHTML = msgHTML(m, list[i - 1]); } });
 }
 function rerenderMsg(id) {
   const list = curMessages();
@@ -3197,6 +3211,14 @@ async function applyWindowMaterial() {
 applyWindowMaterial();
 // "O que há de novo": aparece uma vez, na primeira abertura de uma versão com novidades, só para quem já usava o app.
 const WHATS_NEW = {
+  '2.1.6': {
+    items: [
+      ['screen', 'Janela arredondada', 'No Windows, os cantos da janela acompanham os painéis. Maximizada, fica reta.'],
+      ['hash', 'Menu do servidor e chat mais limpos', 'Menu sem misturar com os canais, seletor e campo de mensagem com um contorno só.'],
+      ['edit', 'Efeito do nome no chat', 'Quando alguém troca o efeito, o chat atualiza na hora.'],
+      ['image', 'Ícone da sala', 'O ícone da sala aparece ao lado do nome dela.'],
+    ],
+  },
   '2.1.5': {
     items: [
       ['sparkles', 'Identidade nova', 'Grafite fosco, vidro esfumaçado e um laranja só nos detalhes.'],
