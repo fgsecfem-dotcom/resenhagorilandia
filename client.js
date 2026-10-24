@@ -70,7 +70,8 @@ const V = {
   gateOpen: false, gateHold: 0, vadOpen: false, vadLevel: 0,
   master: null, screenMaster: null, peers: new Map(), speaking: new Set(), selfLevel: -100,
   screen: null, screenSenders: new Map(), watching: new Map(), previewHidden: true,
-  relayId: null, relayed: new Set(), relayVia: new Map(), relayOut: new Map(), // live relay, see routeViewer() windowVisible: true, focus: null, monitor: null,
+  relayId: null, relayed: new Set(), relayVia: new Map(), relayOut: new Map(), directOnly: new Set(), // live relay, see routeViewer()
+  windowVisible: true, focus: null, monitor: null,
   djAudio: null, djGain: null, djAnalyser: null, djTrack: null,
 };
 const semisToRatio = (s) => Math.pow(2, s / 12);
@@ -1092,7 +1093,7 @@ function updateTile(key, u, isScreen) {
     $('[data-live-pause]', tools)?.addEventListener('click', (e) => { e?.stopPropagation(); if (v.paused) v.play().catch(() => {}); else v.pause(); renderCall(); });
     $('[data-full]', tools)?.addEventListener('click', (e) => { e?.stopPropagation(); (document.fullscreenElement ? document.exitFullscreen() : WEB_VIEWER && !t.requestFullscreen && v?.webkitEnterFullscreen ? Promise.resolve(v.webkitEnterFullscreen()) : t.requestFullscreen()).catch(() => {}); });
     }
-    t.querySelector('.label').innerHTML = `<span>${esc(u.name)}${self ? ' · sua tela' : ''}</span>`;
+    const via = !self && V.relayVia?.get(u.id); t.querySelector('.label').innerHTML = `<span>${esc(u.name)}${self ? ' · sua tela' : ''}${via ? ' · via ' + esc(S.users.get(via)?.name || 'repasse') : ''}</span>`;
     t.title = watching ? (V.focus === key ? 'Clique para diminuir' : 'Clique para ampliar') : '';
     if (typeof roomUI !== 'undefined' && roomUI) roomUI.updateLive(t, u, self, watching, myVoiceUsers().filter((x) => x.id !== u.id).slice(0, 6).map((x) => ({ id: x.id, name: x.id === S.myId ? 'Você' : x.name, color: x.color, avatar: x.avatar, muted: x.muted || x.deafened })));
   } else if (u.id === DJ_ID) {
@@ -1126,7 +1127,7 @@ function setWatching(uid, active) {
     V.relayVia.delete(uid);
     for (const [viewer, out] of [...V.relayOut]) if (out.owner === uid) stopRelayingTo(viewer); // the streamer re-routes them
   }
-  sig(uid, watchMsg(u.screenStreamId, !!active));
+  sig(uid, watchMsg(u.screenStreamId, !!active, V.directOnly?.has(uid) ? { noRelay: true } : {}));
   applyUserVolume(uid);
   renderCall();
 }
@@ -1923,7 +1924,7 @@ function onRelaySignal(from, p, data) {
   if ('relayLost' in data) { // from the streamer: the relay went away, ask again
     const via = V.relayVia.get(from); if (via) sig(via, { relayWatch: false, owner: from });
     V.relayVia.delete(from);
-    if (V.watching.get(from) && V.watching.get(from) === data.streamId) sig(from, watchMsg(data.streamId));
+    if (V.watching.get(from) && V.watching.get(from) === data.streamId) sig(from, watchMsg(data.streamId, true, V.directOnly?.has(from) ? { noRelay: true } : {}));
     return true;
   }
   if ('relayFail' in data) { // from the relay: it cannot forward, go direct
@@ -1933,6 +1934,34 @@ function onRelaySignal(from, p, data) {
   }
   return false;
 }
+// 2.1.3: a live que chega por repasse depende do upload e do PC de quem repassa. Se ela chegar ruim
+// (imagem baixa, poucos quadros ou quase sem dados) por ~8 s seguidos, pede direto para quem transmite.
+
+const relayHealth = new Map();
+function goDirect(owner) {
+  const via = V.relayVia.get(owner); relayHealth.delete(owner); V.directOnly.add(owner);
+  if (via) sig(via, { relayWatch: false, owner });
+  V.relayVia.delete(owner);
+  const sid = V.watching.get(owner); if (sid) sig(owner, watchMsg(sid, true, { noRelay: true }));
+  toast('A live de ' + (S.users.get(owner)?.name || 'quem transmite') + ' chegava fraca pelo repasse. Agora vem direto.', '', 4000);
+}
+async function checkRelayQuality() {
+  for (const [owner, via] of [...V.relayVia]) {
+    const p = V.peers.get(via), sid = V.watching.get(owner), track = sid && p?.streams?.get(sid)?.getVideoTracks()[0];
+    if (!track) { relayHealth.delete(owner); continue; }
+    let r = null; try { (await p.pc.getStats(track)).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') r = x; }); } catch {}
+    if (!r) continue;
+    const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
+    const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
+    h.bytes = r.bytesReceived; h.at = now; relayHealth.set(owner, h);
+    if (kbps === null || now - h.since < 8000) continue; // deixa a conexão estabilizar
+    const low = (r.frameHeight > 0 && r.frameHeight < 600) || (r.framesPerSecond != null && r.framesPerSecond < 15) || kbps < 800;
+    h.bad = low ? h.bad + 1 : 0;
+    if (h.bad >= 4) goDirect(owner);
+  }
+}
+window.__relayCheck = setInterval(() => { if (V.relayVia.size) checkRelayQuality(); }, 2000);
+
 // Shown in "Alterar transmissão": which encoder runs, what limits it, and how many copies the PC encodes.
 async function liveEncoderInfo() {
   const copies = [...V.screenSenders.values()].length;
