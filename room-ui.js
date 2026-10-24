@@ -63,7 +63,8 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   const peopleButton=document.createElement('button');peopleButton.id='participants-toggle';peopleButton.className='participants-toggle hidden';peopleButton.setAttribute('aria-expanded','true');
   $('#call-stage').after(peopleButton);
   let peopleHidden=false;
-  peopleButton.onclick=()=>{peopleHidden=!peopleHidden;main.dataset.peopleHidden=String(peopleHidden);peopleButton.setAttribute('aria-expanded',String(!peopleHidden));updatePeople();onResize();};
+  peopleButton.onclick=()=>{peopleHidden=!peopleHidden;main.dataset.peopleHidden=String(peopleHidden);peopleButton.setAttribute('aria-expanded',String(!peopleHidden));updatePeople();onResize();
+    const strip=$('.focus-strip');let done=false;const settle=()=>{if(done)return;done=true;onResize();document.querySelectorAll('.tile.is-screen').forEach(tile=>tile.refreshFrame?.());};strip?.addEventListener('transitionend',e=>{if(e.target===strip&&e.propertyName==='height')settle();},{once:false});setTimeout(settle,520);};
   function updatePeople(){const strip=$('.focus-strip');peopleButton.classList.toggle('hidden',!strip);peopleButton.textContent=(peopleHidden?'Mostrar participantes':'Ocultar participantes')+(strip?' · '+strip.children.length:'');}
   const stageObserver=new MutationObserver(()=>{updatePeople();document.querySelectorAll('.tile.is-screen').forEach(tile=>tile.refreshFrame?.());});stageObserver.observe($('#call-stage'),{childList:true,subtree:true});
   function open(view='chat'){
@@ -134,7 +135,7 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
     // Controls may be kept between renders: add each extra element once and refresh its text.
     const mic=$('[data-live-mic]',tools);if(mic){const label=$('.live-mic-name',mic)||mic.appendChild(Object.assign(document.createElement('span'),{className:'live-mic-name'}));label.textContent=$('#up-name').textContent;}
     const name=$('.streamer-name',tools)||tools.insertBefore(Object.assign(document.createElement('span'),{className:'streamer-name'}),tools.firstChild);name.textContent=u.name;
-    if(!self&&!$('.live-volume',tools)){const volume=document.createElement('label');volume.className='live-volume';volume.innerHTML=icon('volume',16)+'<input type="range" min="0" max="200" step="1" aria-label="Volume da transmissão"><output></output>';const input=$('input',volume),output=$('output',volume);input.value=liveVolume(u);output.textContent=input.value+'%';input.oninput=()=>{output.textContent=input.value+'%';setLiveVolume(u,Number(input.value));};volume.addEventListener('pointerdown',e=>e.stopPropagation());volume.addEventListener('click',e=>e.stopPropagation());tools.insertBefore(volume,$('[data-stop]',tools));}
+    if(!self&&!$('.live-volume',tools)){const volume=document.createElement('label');volume.className='live-volume';volume.innerHTML=icon('volume',16)+'<input type="range" min="0" max="200" step="1" aria-label="Volume da transmissão"><output></output>';const input=$('input',volume),output=$('output',volume);input.value=liveVolume(u);output.textContent=input.value+'%';const fill=()=>volume.style.setProperty('--p',(input.value/2)+'%');fill();input.oninput=()=>{output.textContent=input.value+'%';fill();setLiveVolume(u,Number(input.value));};volume.addEventListener('pointerdown',e=>e.stopPropagation());volume.addEventListener('click',e=>e.stopPropagation());tools.insertBefore(volume,$('[data-stop]',tools));}
   }
   return {open,close,isDMVisible,dmModal,floatingModal,updateUnread,updatePeople,updateLive,reset(){close();},dispose(){stageObserver.disconnect();titles.disconnect();}};
 }

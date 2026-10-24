@@ -25,6 +25,7 @@ const LS = {
 const COLORS = ['#5865f2', '#eb459e', '#57f287', '#fee75c', '#ed4245', '#f47b67', '#3ba55c', '#faa61a', '#9b59b6', '#1abc9c'];
 const me = LS.get('profile', { name: '', color: COLORS[Math.floor(Math.random() * COLORS.length)], avatar: null });
 const settings = Object.assign({
+  mutedRooms: {},
   inputDevice: 'default', outputDevice: 'default', micGain: 100, autoSens: true, threshold: -55,
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'system', themeColor: 'lavanda',
@@ -252,8 +253,8 @@ async function renderServerRow(){
   const cur=normCode(S.code),fav=favoriteCode();
   const list=visibleRooms(storedRooms).sort((a,b)=>(normCode(b.code)===fav)-(normCode(a.code)===fav));
   row.innerHTML=list.map(r=>{
-    const code=normCode(r.code),isCur=code===cur,img=isCur&&S.roomIcon!==undefined?S.roomIcon:r.icon,name=isCur&&S.roomName?S.roomName:r.name,dotColor=(isCur&&S.roomLook?.color)||r.look?.color||serverColor(code);
-    return `<button class="server-dot ${isCur?'active':''}" data-server="${esc(code)}" title="${esc(name)}${code===fav?' · abre ao iniciar':''}" aria-label="${esc(name)}" aria-current="${isCur}" style="--dot:${dotColor}">${img?`<img src="${esc(img)}" alt="">`:`<span>${esc(initials(name))}</span>`}${code===fav?`<i class="server-fav" aria-hidden="true">${icon('star',9)}</i>`:''}</button>`;
+    const code=normCode(r.code),isCur=code===cur,img=isCur&&S.roomIcon!==undefined?S.roomIcon:r.icon,name=isCur&&S.roomName?S.roomName:r.name,dotColor=(isCur&&S.roomLook?.color)||r.look?.color||serverColor(code),cover=isCur&&S.roomLook?S.roomLook.cover:r.look?.cover;
+    return `<button class="server-dot ${isCur?'active':''}" data-server="${esc(code)}" title="${esc(name)}${code===fav?' · abre ao iniciar':''}" aria-label="${esc(name)}" aria-current="${isCur}" style="--dot:${dotColor}">${img?`<img src="${esc(img)}" alt="">`:cover?`<img class="from-cover" src="${esc(cover)}" alt="">`:`<span>${esc(initials(name))}</span>`}${code===fav?`<i class="server-fav" aria-hidden="true">${icon('star',9)}</i>`:''}</button>`;
   }).join('')+`<button class="server-dot ghost" data-server-add title="Entrar ou criar servidor" aria-label="Entrar ou criar servidor">${icon('add',16)}</button><button class="server-dot ghost home" data-server-home title="Página inicial" aria-label="Página inicial">${icon('home',16)}</button>`;
   row.classList.remove('hidden');
   $$('[data-server]',row).forEach(b=>b.onclick=()=>switchServer(b.dataset.server));
@@ -845,7 +846,7 @@ function handle(m) {
       if (m.user.id !== S.myId && V.joined) {
         const wasHere = prev.voiceChannel === V.channel, isHere = m.user.voiceChannel === V.channel;
         const quiet = Date.now() < (S.quietUntil || 0);
-        if (!wasHere && isHere && !quiet) sfx('join');
+        if (!wasHere && isHere && !quiet) { sfx('join'); if (m.user.id !== DJ_ID) { toast(m.user.name + ' entrou na call', '', 2600); if (!roomMuted() && (document.hidden || !document.hasFocus())) native?.notify?.({ title: m.user.name + ' entrou na call', body: (chanById(V.channel)?.name || 'Call') + ' · ' + (S.roomName || 'Resenha') }); } }
         if (wasHere && !isHere) { if (!quiet) sfx('leave'); closePeer(m.user.id); }
         // Som quando um amigo da call começa (sobe) ou encerra (desce) uma live.
         if (wasHere && isHere && !quiet && !prev.sharing && m.user.sharing) sfx('share');
@@ -879,8 +880,8 @@ function handle(m) {
       else if (msg.userId !== S.myId) { S.unread.add(msg.channelId); renderChannels(); }
       if (msg.userId !== S.myId) {
         const ment = mentionsMe(msg);
-        if (ment) sfx('mention');
-        if (!document.hasFocus() || document.hidden) { if (!ment) sfx('msg'); native && native.notify({ title: (ment ? '🔔 ' : '') + msg.name + ' em #' + (chanById(msg.channelId)?.name || ''), body: msg.text || '📎 Anexo' }); }
+        if (ment && !roomMuted()) sfx('mention');
+        if (!roomMuted() && (!document.hasFocus() || document.hidden)) { if (!ment) sfx('msg'); native && native.notify({ title: (ment ? '🔔 ' : '') + msg.name + ' em #' + (chanById(msg.channelId)?.name || ''), body: msg.text || '📎 Anexo' }); }
       }
       break;
     }
@@ -2832,18 +2833,39 @@ if (native) native.onShortcut((a) => {
 });
 
 // ---------------- Menu da sala ----------------
+// Silenciar sala: sem som e sem aviso de mensagens desta sala (vale só neste PC).
+const roomKey = () => normCode(S.code) || S.addr?.text || '';
+const roomMuted = () => !!settings.mutedRooms?.[roomKey()];
+function toggleRoomMute() { const k = roomKey(); if (!k) return; settings.mutedRooms = { ...(settings.mutedRooms || {}) }; if (settings.mutedRooms[k]) delete settings.mutedRooms[k]; else settings.mutedRooms[k] = true; saveSettings(); toast(roomMuted() ? 'Sala silenciada: sem sons e avisos de mensagens.' : 'Sons e avisos da sala de volta.', 'ok', 2600); }
+const roomPeople = () => [...S.users.values()].filter((u) => u.id !== DJ_ID);
+// Pessoas na sala: todos podem ver; o anfitrião também passa o posto daqui.
+function openMembers(transfer = false) {
+  const people = roomPeople().sort((a, b) => (!!b.isHost - !!a.isHost) || (!!b.voiceChannel - !!a.voiceChannel) || String(a.name).localeCompare(String(b.name)));
+  const row = (u) => { const ch = u.voiceChannel && chanById(u.voiceChannel); const st = u.sharing ? '<span class="mb-live">ao vivo</span>' : ch ? 'na call ' + esc(ch.name) : 'na sala';
+    const act = u.id === S.myId ? '<span class="muted small">você</span>' : transfer ? (u.canHost ? `<button class="btn small-btn" data-host="${esc(u.id)}">Tornar anfitrião</button>` : '<span class="muted small">só no app de PC</span>') : `<button class="btn small-btn" data-dm="${esc(u.id)}">Mensagem</button>`;
+    return `<div class="mb-row">${avatarHTML(u)}<div class="mb-info"><b>${esc(u.name)}${u.isHost ? ' <span class="tag">HOST</span>' : ''}</b><span>${st}</span></div>${act}</div>`; };
+  const m = openModal(`<header><div><h2>${transfer ? 'Transferir anfitrião' : 'Pessoas na sala'}</h2><p>${transfer ? 'Escolha quem passa a hospedar. Todo mundo reconecta sozinho.' : people.length + (people.length === 1 ? ' pessoa conectada' : ' pessoas conectadas')}</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body members-list">${people.map(row).join('')}</div>`);
+  $$('[data-host]', m.el).forEach((b) => b.onclick = () => { m.close(); transferHost(b.dataset.host); });
+  $$('[data-dm]', m.el).forEach((b) => b.onclick = () => { m.close(); openDM(b.dataset.dm); });
+}
 function roomMenu() {
   const menu = $('#room-menu');
   if (!menu.classList.contains('hidden')) return menu.classList.add('hidden');
-  menu.innerHTML = `<div class="dd-item" data-a="invite">Convidar pessoas ${icon('userPlus', 16)}</div>
-    <div class="dd-item" data-a="copy">${S.code ? 'Copiar código da sala' : 'Copiar endereço'} ${icon('copy', 16)}</div>
-    <div class="dd-item" data-a="newtext">Criar canal de texto ${icon('hash', 16)}</div>
-    <div class="dd-item" data-a="newvoice">Criar canal de voz ${icon('volume', 16)}</div>
-    ${native?.rooms && S.code ? `<div class="dd-item" data-a="fav">${favoriteCode() === normCode(S.code) ? 'Não abrir ao iniciar' : 'Abrir ao iniciar o Resenha'} ${icon('star', 16)}</div>` : ''}
-    ${S.isHost ? `<div class="dd-item" data-a="look">Personalizar sala ${icon('image', 16)}</div>` : ''}
-    <div class="dd-item" data-a="settings">Configurações ${icon('settings', 16)}</div>
-    <div class="dd-item danger" data-a="leave">${S.isHost ? 'Fechar sala' : 'Sair da sala'} ${icon('logout', 16)}</div>`;
+  const look = S.roomLook || {}, people = roomPeople(), host = people.find((u) => u.isHost), live = people.filter((u) => u.sharing && u.id !== S.myId);
+  const color = look.color || serverColor(S.code || S.roomName), fav = native?.rooms && S.code ? favoriteCode() === normCode(S.code) : null, muted = roomMuted();
+  const item = (a, label, ic, cls = '') => `<div class="dd-item ${cls}" data-a="${a}">${label} ${icon(ic, 16)}</div>`;
+  const quick = (a, label, ic, on = false) => `<button class="rm-quick-btn ${on ? 'on' : ''}" data-a="${a}" aria-pressed="${on}">${icon(ic, 18)}<span>${label}</span></button>`;
+  menu.classList.add('server-menu');
+  menu.innerHTML = `<div class="rm-head" style="--room-color:${esc(color)}${look.cover ? `;--room-cover:url('${esc(look.cover)}')` : ''}"><div class="rm-cover ${look.cover ? 'has-cover' : ''}"></div>
+      <div class="rm-id"><span class="rm-icon">${S.roomIcon ? `<img src="${esc(S.roomIcon)}" alt="">` : esc(initials(S.roomName || 'S'))}</span>
+      <div class="rm-text"><b>${esc(S.roomName || 'Sala')}</b>${look.about ? `<span>${esc(look.about)}</span>` : ''}<span class="rm-meta">${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}${host ? ' · anfitrião ' + esc(host.id === S.myId ? 'você' : host.name) : ''}</span></div></div></div>
+    <div class="rm-quick">${quick('invite', 'Convidar', 'userPlus')}${quick('mute', muted ? 'Silenciada' : 'Silenciar', muted ? 'headphonesOff' : 'headphones', muted)}${fav !== null ? quick('fav', fav ? 'Favorita' : 'Favoritar', 'star', fav) : ''}</div>
+    ${live.length ? `<div class="rm-sec"><div class="rm-label">Ao vivo agora</div>${live.map((u) => `<div class="dd-item rm-live" data-a="watch" data-uid="${esc(u.id)}"><span class="rm-dot"></span>${esc(u.name)}<span class="rm-go">${V.watching?.has(u.id) ? 'Assistindo' : 'Assistir'}</span></div>`).join('')}</div>` : ''}
+    <div class="rm-sec">${item('members', 'Pessoas na sala', 'userPlus')}${item('profile', 'Meu perfil', 'edit')}${item('newtext', 'Criar canal de texto', 'hash')}${item('newvoice', 'Criar canal de voz', 'volume')}${item('copy', S.code ? 'Copiar código ' + esc(fmtCode(S.code)) : 'Copiar endereço', 'copy')}</div>
+    ${S.isHost ? `<div class="rm-sec"><div class="rm-label">Só o anfitrião</div>${item('look', 'Personalizar sala', 'image')}${S.code && people.some((u) => u.id !== S.myId && u.canHost) ? item('transfer', 'Transferir anfitrião', 'crown') : ''}</div>` : ''}
+    <div class="rm-sec">${item('settings', 'Configurações', 'settings')}${item('leave', S.isHost ? 'Fechar sala' : 'Sair da sala', 'logout', 'danger')}</div>`;
   menu.classList.remove('hidden');
+  $$('.rm-quick-btn', menu).forEach((b) => b.onclick = () => { menu.classList.add('hidden'); const a = b.dataset.a; if (a === 'invite') openInvite(); if (a === 'mute') toggleRoomMute(); if (a === 'fav') toggleFavorite(); });
   $$('.dd-item', menu).forEach((it) => it.onclick = async () => {
     menu.classList.add('hidden');
     const a = it.dataset.a;
@@ -2851,6 +2873,10 @@ function roomMenu() {
     if (a === 'settings') openSettings();
     if (a === 'fav') toggleFavorite();
     if (a === 'look') openRoomLook();
+    if (a === 'members') openMembers();
+    if (a === 'transfer') openMembers(true);
+    if (a === 'profile') openSettings('perfil');
+    if (a === 'watch') { setWatching(it.dataset.uid, true); }
     if (a === 'icon') pickServerIcon();
     if (a === 'noicon') wsSend({ t: 'room', name: S.roomName, icon: '' });
     if (a === 'newtext') createChannel('text');
@@ -2876,14 +2902,17 @@ function roomMenu() {
 
 // ---------------- Atualização ----------------
 let updateInfo=null,updateDismissedVersion=null;
-function hideUpdateBar(){ updateDismissedVersion=updateInfo?.version||null; $('#update-bar').classList.add('hidden');document.body.classList.remove('has-update'); }
+function hideUpdateBar(){ updateDismissedVersion=updateInfo?.version||null; const bar=$('#update-bar'); if(bar.classList.contains('hidden'))return; bar.classList.add('up-leave'); setTimeout(()=>{if(!bar.classList.contains('up-leave'))return;bar.classList.add('hidden');bar.classList.remove('up-leave');},document.documentElement?.classList?.contains('glass')?260:0); document.body.classList.remove('has-update'); }
 function showUpdateState(state){
  if(!native||!state)return;
  if(state.phase==='idle'&&!state.pending){updateInfo=null;hideUpdateBar();return;}
  const info=state.info||state.pending||updateInfo;if(!info)return;updateInfo=info;if(updateDismissedVersion===info.version&&state.phase!=='error')return;
- const bar=$('#update-bar');bar.classList.remove('hidden');document.body.classList.add('has-update');
+ const bar=$('#update-bar'),glass=!!document.documentElement?.classList?.contains('glass'),wasHidden=bar.classList.contains('hidden');bar.classList.remove('hidden');if(!glass)document.body.classList.add('has-update');
  const labels={downloading:'Baixando em segundo plano: '+(state.percent||0)+'%',verifying:'Conferindo SHA-256…',extracting:'Preparando atualização…',ready:'Pronta para instalar. “Depois” instala ao sair do app ou na próxima abertura.'};
- bar.innerHTML=`<span>Nova versão ${esc(info.version)} disponível. ${esc(state.error||labels[state.phase]||'')}</span><button class="btn small-btn" id="up-notes">Novidades</button>${['downloading','verifying','extracting'].includes(state.phase)?'':`<button class="btn primary small-btn" id="up-go">${info.manual||state.phase==='error'?'Baixar pelo site':state.phase==='ready'?'Reiniciar e atualizar':'Preparar atualização'}</button>`}<button class="btn small-btn" id="up-later">Depois</button>`;
+ const busyPhase=['downloading','verifying','extracting'].includes(state.phase),pct=state.phase==='downloading'?(state.percent||0):100;
+ bar.classList.toggle('is-error',state.phase==='error');
+ bar.innerHTML=(glass?`<div class="up-ico">${icon(state.phase==='error'?'refresh':'download',20)}</div><div class="up-text"><b>Resenha ${esc(info.version)} chegou</b><span>${esc(state.error||labels[state.phase]||'Uma versão nova está disponível.')}</span></div>${busyPhase?`<div class="up-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${state.phase==='downloading'?pct:100}%" class="${state.phase==='downloading'?'':'indeterminate'}"></i></div>`:''}<div class="up-actions">`:`<span>Nova versão ${esc(info.version)} disponível. ${esc(state.error||labels[state.phase]||'')}</span>`)+`<button class="btn small-btn" id="up-notes">Novidades</button>${['downloading','verifying','extracting'].includes(state.phase)?'':`<button class="btn primary small-btn" id="up-go">${info.manual||state.phase==='error'?'Baixar pelo site':state.phase==='ready'?'Reiniciar e atualizar':'Preparar atualização'}</button>`}<button class="btn small-btn" id="up-later">Depois</button>`+(glass?'</div>':'');
+ bar.classList.remove('up-leave');if(glass&&wasHidden){bar.classList.remove('up-enter');void bar.offsetWidth;bar.classList.add('up-enter');}
  $('#up-later').onclick=hideUpdateBar;
  $('#up-notes').onclick=()=>openModal(`<header><h2>Novidades da ${esc(info.version)}</h2><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body"><div class="notes" style="max-height:40vh;overflow:auto;white-space:pre-wrap">${esc(info.notes||'Sem notas publicadas.')}</div></div>`);
  const go=$('#up-go');if(go)go.onclick=async()=>{
@@ -3106,7 +3135,7 @@ function bind() {
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 
-window.__resenha = { WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
+window.__resenha = { showUpdateState, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
 if (!LS.get('arcThemeMigrated', false)) { settings.theme = 'system'; saveSettings(); LS.set('arcThemeMigrated', true); }
 applyTheme(settings.theme,settings.themeColor);
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
