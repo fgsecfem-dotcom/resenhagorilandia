@@ -3,6 +3,7 @@ import { createCommandController } from './command-controller.js';
 import { esc, clamp, fmtCode } from './format-utils.js';
 import { setScreenRemoteDescription } from './screen-startup.js';
 import { createRoomUI } from './room-ui.js';
+import { createMusic } from './music.js';
 // Resenha: cliente (UI + voz WebRTC + chat + DJ). Módulo ES.
 let RnnoiseWorkletNode;
 let roomUI = null;
@@ -818,6 +819,7 @@ function handle(m) {
       S.peerSweep = setTimeout(() => { for (const id of [...V.peers.keys()]) { const u = S.users.get(id); if (!u || u.voiceChannel !== V.channel) closePeer(id); } renderCall(); }, 20000);
       for (const list of Object.values(S.history)) for (const msg of list) cacheAttachments(msg);
       showMain();
+      if (LS.get('musicIntro', false)) { LS.set('musicIntro', false); setTimeout(() => roomUI?.open('music'), 700); } // 2.2: primeira sala depois de atualizar
       renderMessages();
       renderAll();
       renderServerRow();
@@ -843,6 +845,7 @@ function handle(m) {
     case 'error': toast(m.msg, 'err', 5000); break;
     case 'user-join': S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
     case 'user-leave': {
+      music?.userLeft(m.id);
       const u = S.users.get(m.id);
       if (u && V.joined && u.voiceChannel === V.channel && Date.now() > (S.quietUntil || 0)) sfx('leave');
       S.users.delete(m.id); closePeer(m.id); S.typing.delete(m.id); renderAll(); renderTyping();
@@ -1055,6 +1058,23 @@ function installLiveOverlay(tile) {
   tile.disposeOverlay = () => clearTimeout(timer);
   reveal();
 }
+// Halo "Apple Intelligence": ao passar o mouse, um anel fino sai da borda e some (uma vez por entrada do mouse).
+// Capa do álbum: em todos os temas, na cor de cada um. Botão de tocar e botões da call: só no Holofoil.
+const AI_HOVER = '.right-music .mu-art, .right-music .mu-play, #call-controls .cc-btn';
+function aiHalo(el) {
+  const h = document.documentElement;
+  if (h.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!el.matches('.mu-cover') && h.dataset.tk !== 'holofoil') return; // capa: todos os temas; o resto só no Holofoil
+  if (el._aiAt && performance.now() - el._aiAt < 900) return; el._aiAt = performance.now();
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const o = document.createElement('i'); o.className = 'ai-halo'; o.setAttribute('aria-hidden', 'true');
+  o.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border-radius:${getComputedStyle(el).borderRadius};--s:${(1 + 16 / Math.max(r.width, r.height)).toFixed(3)}`;
+  document.body.append(o); o.addEventListener('animationend', () => o.remove(), { once: true }); setTimeout(() => o.remove(), 1500);
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('pointerover', (e) => {
+  const el = e.target.closest?.(AI_HOVER); if (!el || el.contains(e.relatedTarget)) return;
+  if (el.matches('.mu-art')) { if (!e.target.closest('.mu-vol')) aiHalo(el.querySelector('.mu-cover') || el); } else aiHalo(el);
+});
 function makeTile(key) {
   const t = document.createElement('div');
   t.className = 'tile'; t.dataset.key = key;
@@ -1232,10 +1252,31 @@ function renderCall() {
   $('#cc-share').title = !V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar';
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
+// Arranjo da call por tema (2.2): Bento = quem fala grande à esquerda; Cinema = quem fala no alto e os outros numa faixa.
+// O destaque só troca de pessoa depois de 3 s, para a tela não ficar pulando a cada fala.
+let stageFocus = null, stageFocusAt = 0;
+const stageArrangement = () => ({ bento: 'bento', cinema: 'cinema' })[document.documentElement.dataset?.tk] || null;
 function layoutGrid() {
   const grid = $('#call-stage .grid'); if (!grid) return;
   const n = grid.children.length || 1;
   const W = grid.clientWidth, H = grid.clientHeight, gap = 10;
+  const mode = stageArrangement(), kids = [...grid.children];
+  kids.forEach((el) => el.classList.remove('stage-focus'));
+  grid.dataset.arrange = mode && n >= 3 ? mode : '';
+  if (mode && n >= 3) {
+    const focus = (stageFocus && tileCache.get('user:' + stageFocus)?.parentElement === grid && tileCache.get('user:' + stageFocus)) || kids[0];
+    focus.classList.add('stage-focus');
+    if (mode === 'bento') {
+      const rows = n - 1, big = Math.floor((W - gap) * 0.62), small = W - gap - big;
+      grid.style.gridTemplateColumns = `${big}px ${small}px`;
+      grid.style.gridTemplateRows = `repeat(${rows}, ${Math.floor((H - gap * (rows - 1)) / rows)}px)`;
+    } else {
+      const strip = Math.max(72, Math.min(120, Math.floor(H * 0.24))), cols = n - 1;
+      grid.style.gridTemplateColumns = `repeat(${cols}, ${Math.floor((W - gap * (cols - 1)) / cols)}px)`;
+      grid.style.gridTemplateRows = `${H - gap - strip}px ${strip}px`;
+    }
+    return;
+  }
   let best = { cols: 1, w: 0, h: 0, rows: 1 };
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
@@ -1247,11 +1288,57 @@ function layoutGrid() {
   grid.style.gridTemplateRows = `repeat(${best.rows}, ${Math.floor(best.h)}px)`;
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
+addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
+// Barra de ícones flutuante (só aparece no tema Vision): atalhos práticos para início, call, chat e configurações.
+(() => {
+  const main = document.getElementById('main'); if (!main || document.getElementById('theme-rail')) return;
+  const rail = document.createElement('nav'); rail.id = 'theme-rail'; rail.setAttribute('aria-label', 'Atalhos');
+  const items = [['home', 'Início', () => $('#server-row [data-server-home]')?.click()], ['volume', 'Call', () => { roomUI?.close?.(); }],
+    ['chat', 'Chat', () => roomUI?.open('chat')], ['settings', 'Configurações', () => openSettings()]];
+  rail.innerHTML = items.map(([ic, t], i) => `<button type="button" data-i="${i}" title="${t}" aria-label="${t}">${icon(ic, 17)}</button>`).join('');
+  rail.querySelectorAll('button').forEach((b) => b.onclick = () => items[+b.dataset.i][2]());
+  main.append(rail);
+})();
+// Física do Vision (os dois temas Vision): cada bloco se inclina na direção do mouse, sobe e volta com mola, cada um por si.
+// Painéis grandes mexem pouco (leitura); cartões pequenos mexem mais. Só roda enquanto há movimento; respeita "reduzir animações".
+(() => {
+  const SEL = '#main #sidebar, #main #chat, #call .tile:not(.is-screen), #call #call-controls, #music-mini, #theme-rail';
+  const BASE = { sidebar: [0, 4], chat: [0, -5] };
+  const bodies = new Map(); let raf = 0, px = -1e4, py = -1e4, on = false;
+  const root = document.documentElement;
+  const active = () => /^(vision|visionNoite)$/.test(root.dataset?.tk || '') && !root.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function step() {
+    raf = 0; if (!on) return; let moving = false;
+    for (const el of document.querySelectorAll(SEL)) {
+      const r = el.getBoundingClientRect(); if (!r.width) continue;
+      let b = bodies.get(el); if (!b) bodies.set(el, b = { rx: 0, ry: 0, z: 0, vx: 0, vy: 0, vz: 0 });
+      const base = BASE[el.id] || [0, 0], dx = (px - (r.left + r.width / 2)) / r.width, dy = (py - (r.top + r.height / 2)) / r.height;
+      const inside = Math.abs(dx) < .5 && Math.abs(dy) < .5, near = Math.max(0, 1 - Math.hypot(dx, dy) * .9), big = r.width * r.height > 120000;
+      const amp = inside ? (big ? 3.5 : 8) : (big ? 1.5 : 3) * near;
+      const ty = base[1] + Math.max(-1, Math.min(1, dx)) * amp, tx = base[0] - Math.max(-1, Math.min(1, dy)) * amp * .8, tz = inside ? (big ? 8 : 22) : 0;
+      const k = .09, d = .78;
+      b.vx = (b.vx + (tx - b.rx) * k) * d; b.vy = (b.vy + (ty - b.ry) * k) * d; b.vz = (b.vz + (tz - b.z) * k) * d; b.rx += b.vx; b.ry += b.vy; b.z += b.vz;
+      if (Math.abs(b.vx) + Math.abs(b.vy) + Math.abs(b.vz) > .01 || Math.abs(tx - b.rx) + Math.abs(ty - b.ry) + Math.abs(tz - b.z) > .02) moving = true;
+      el.style.transform = `perspective(1200px) translateZ(${b.z.toFixed(2)}px) rotateX(${b.rx.toFixed(2)}deg) rotateY(${b.ry.toFixed(2)}deg)`;
+    }
+    if (moving) raf = requestAnimationFrame(step);
+  }
+  const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
+  addEventListener('pointermove', (e) => { if (!on) return; px = e.clientX; py = e.clientY; kick(); }, { passive: true });
+  document.documentElement.addEventListener('pointerleave', () => { px = py = -1e4; kick(); });
+  addEventListener('blur', () => { px = py = -1e4; kick(); });
+  const sync = () => { on = active(); if (!on) { for (const el of bodies.keys()) el.style.transform = ''; bodies.clear(); } else kick(); };
+  addEventListener('resenha-theme', sync); new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['class'] }); sync();
+})();
 
 function renderAll() { renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
+  if (stageArrangement()) {
+    const now = Date.now(), who = [...S.users.keys()].find((id) => isSpeaking(id));
+    if (who && who !== stageFocus && now - stageFocusAt > 3000) { stageFocus = who; stageFocusAt = now; layoutGrid(); }
+  }
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   for (const [k, t] of tileCache) if (k.startsWith('user:')) t.classList.toggle('speaking', isSpeaking(k.slice(5)));
   $$('.live-person').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
@@ -1534,6 +1621,7 @@ function closePeer(uid) {
   }
 }
 function onSignal(from, data) {
+  if (data && data.listen) return music?.onListen(from, data.listen); // Ouvir junto (música), não é voz
   if (!V.joined) return;
   const u = S.users.get(from); if (!u || u.voiceChannel !== V.channel) return;
   const p = getPeer(from);
@@ -2715,6 +2803,7 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Tamanho da interface <span id="st-fs-v">${settings.fontScale}%</span></label><input type="range" id="st-fs" min="85" max="125" step="5" value="${settings.fontScale}"></div>
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
+          <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
           <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${settings.reduceMotion ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
@@ -2824,6 +2913,7 @@ async function openSettings(tab = 'voz') {
     $$('[data-app-icon]', el).forEach((x) => x.classList.toggle('sel', x === b));
     if (native?.setAppIcon) { const r = await native.setAppIcon(settings.appIcon, await PIPOCA.rasterize(settings.appIcon)); toast(r?.ok ? 'Ícone trocado. A barra de tarefas pode levar alguns segundos para atualizar.' : 'Não consegui trocar o ícone da janela.', r?.ok ? 'ok' : '', 3500); }
   });
+  if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
   // Aparência
@@ -3211,6 +3301,17 @@ async function applyWindowMaterial() {
 applyWindowMaterial();
 // "O que há de novo": aparece uma vez, na primeira abertura de uma versão com novidades, só para quem já usava o app.
 const WHATS_NEW = {
+  '2.2.0': {
+    hero: 'spotify',
+    items: [
+      ['music', 'Spotify dentro do Resenha', 'Conecte uma vez e toque com a sua conta Premium, sem abrir o app do Spotify. Busca, suas playlists, fila que dá pra arrastar e a música segue sozinha quando a fila acaba. (Windows)'],
+      ['userPlus', 'Ouvir junto', 'Chame quem está na sala pra ouvir a mesma música, cada um na própria conta. Sair não tira ninguém da call.'],
+      ['image', 'Temas com personalidade', 'Líquido (preto e translúcido), Holofoil (cristal com reflexo de arco-íris), Vision e Vision · noite com física, Cosmos, Neon, Brasa, Bento e Cinema: cada um com material, movimento e arranjo próprios.'],
+      ['screen', 'A call se arruma sozinha', 'No Bento e no Cinema, quem está falando ganha o destaque.'],
+      ['sparkles', 'Detalhes redesenhados', 'Interruptores em gota, abas com um traço só, campos sem brilho neon e volumes em pílula, com rodinha do mouse.'],
+      ['music', 'Ícone do Spotify em cada tema', 'A aba de música troca o desenho do ícone conforme o tema: cromado, iridescente, pintado, globo de discoteca.'],
+    ],
+  },
   '2.1.6': {
     items: [
       ['screen', 'Janela arredondada', 'No Windows, os cantos da janela acompanham os painéis. Maximizada, fica reta.'],
@@ -3230,26 +3331,46 @@ const WHATS_NEW = {
     ],
   },
 };
+const WN_STYLE = '3'; // 1 Cromado · 2 Bolha Aqua · 3 Adesivo holográfico
 function openWhatsNew(version) {
   const info = WHATS_NEW[version]; if (!info) return;
   const themes = window.VISIBLE_THEMES.filter((k) => k !== 'arcLight' && k !== 'arcDark');
   const card = (k) => { const v = themePreview(k), t = THEMES[k] || THEMES.system;
     return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(k === 'system' ? 'Resenha' : t.name)}</span></button>`; };
+  const pipoca = $('.side-brand > img')?.src || $('#rail-home img')?.src || '';
+  // Destaque da 2.2: Resenha + Spotify. Marca do Spotify nas cores oficiais e aviso de que não há afiliação.
+  const hero = info.hero === 'spotify' ? `<section class="wn-hero" aria-label="Resenha × Spotify">
+      <div class="wn-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="wn-kicker" aria-hidden="true">Resenha × Spotify</span>
+      <div class="wn-duo"><span class="wn-logo wn-resenha">${pipoca ? `<img src="${esc(pipoca)}" alt="Resenha">` : 'R'}</span><span class="wn-plus" aria-hidden="true">×</span>
+        <span class="wn-logo wn-spotify"><svg viewBox="0 0 24 24" width="46" height="46" aria-label="Spotify"><circle cx="12" cy="12" r="11" fill="#1ed760"/><g fill="none" stroke="#000" stroke-linecap="round" stroke-width="1.8"><path d="M6.4 9.3c3.6-1.1 7.9-.85 11.3 1.2"/><path d="M7 12.4c3-.88 6.6-.64 9.4 1.05"/><path d="M7.6 15.3c2.4-.65 5-.45 7.1.83"/></g></svg></span></div>
+      <h3>Agora tem Spotify no Resenha</h3><p>Sua música, na sua call: com a sua conta, sem abrir outro app.</p>
+      <div class="wn-chips"><span>${icon('music', 14)}Sua conta Premium</span><span>${icon('music', 14)}Suas playlists</span><span>${icon('userPlus', 14)}Ouvir junto</span></div>
+      </section>` : '';
   const m = openModal(`<header><div><span class="wn-tag">Novidades</span><h2>O que há de novo na ${esc(version)}</h2><p>Dá uma olhada e experimenta um tema novo.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
-    <div class="body whats-new">
+    <div class="body whats-new">${hero}
       <ul class="wn-list">${info.items.map(([ic, t, d]) => `<li><span class="wn-ic">${icon(ic, 18)}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></li>`).join('')}</ul>
       <div class="section-title">Experimente os temas</div>
       <div class="theme-grid wn-themes">${themes.map(card).join('')}</div>
     </div>
-    <footer><button class="btn" id="wn-more">Mais opções de aparência</button><span class="grow"></span><button class="btn primary" data-close>Bora!</button></footer>`, { wide: true, cls: 'whats-new-modal' });
+    <footer><button class="btn" id="wn-more">Mais opções de aparência</button><span class="grow"></span>${info.hero === 'spotify' && native?.spotify ? '<button class="btn wn-spotify-btn" id="wn-spotify">Ir para a música</button>' : ''}<button class="btn primary" data-close>Bora!</button></footer>${info.hero === 'spotify' ? '<p class="wn-legal">O Resenha não é afiliado, patrocinado ou endossado pelo Spotify. Spotify é marca registrada da Spotify AB.</p>' : ''}`,
+    { wide: true, cls: 'whats-new-modal wn-y2k', onClose: info.hero === 'spotify' && native?.spotify ? showMusicIntro : undefined });
+  $('.whats-new-modal', m.el)?.setAttribute('data-wn', WN_STYLE); // estilo Y2K do destaque (glass.css)
+  $('#wn-spotify', m.el)?.addEventListener('click', () => { music?.setEnabled(true); m.close(); });
   $$('.theme-card', m.el).forEach((b) => b.onclick = () => { settings.theme = b.dataset.theme; saveSettings(); applyTheme(settings.theme, settings.themeColor); $$('.theme-card', m.el).forEach((x) => x.classList.toggle('sel', x === b)); });
   $('#wn-more', m.el).onclick = () => { m.close(); openSettings('aparencia'); };
 }
+// Mostra a aba de música agora, se já estiver numa sala; senão, na próxima vez que entrar numa.
+function showMusicIntro() { if (S.myId && $('#main') && !$('#main').classList.contains('hidden')) { LS.set('musicIntro', false); roomUI?.open('music'); } }
 async function maybeWhatsNew() {
   if (!native?.version) return;
   let v = ''; try { v = await native.version(); } catch { return; }
   const seen = LS.get('whatsNewSeen', null); LS.set('whatsNewSeen', v);
-  if (seen === v || !WHATS_NEW[v]) return;
+  if (seen === v) return;
+  // 2.2: na primeira abertura o Spotify já vem ligado e a aba de música aparece (quando o app suporta).
+  const spotifyIntro = native?.spotify && /^2\.2\./.test(v) && !/^2\.2\./.test(seen || '');
+  if (spotifyIntro) { LS.set('musicIntro', true); setTimeout(() => { music.setEnabled(true); if (!WHATS_NEW[v] || (!seen && !me.name)) showMusicIntro(); }, 600); }
+  if (!WHATS_NEW[v]) return;
   if (!seen && !me.name) return; // instalação nova: começa sem pop-up
   setTimeout(() => openWhatsNew(v), 900);
 }
@@ -3259,6 +3380,21 @@ native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible
 document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } });
 bind();
 roomUI = createRoomUI({icon,openDM,contacts:()=>[...new Map([...Object.values(LS.get(dmStorageKey()+'.contacts',{})),...Object.values(friends),...[...S.users.values()].filter(u=>u.id!==S.myId&&u.id!==DJ_ID)].map(u=>[u.id,u])).values()],onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
+// Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
+const PILL = '#call .live-volume input[type=range], #ctx-menu .ctx-row input[type=range], .dj-vol input[type=range]';
+const pillFill = (el) => el.style.setProperty('--p', ((el.value - el.min) / ((el.max - el.min) || 1) * 100) + '%');
+document.addEventListener('input', (e) => { if (e.target.matches?.(PILL)) pillFill(e.target); }, true);
+// Só olha onde esses controles nascem (menu do usuário e janelas soltas), não a tela inteira: o vigia anterior travava a animação.
+const pillInit = () => document.querySelectorAll(PILL).forEach((el) => { if (!el.dataset.pill) { el.dataset.pill = '1'; pillFill(el); } });
+const pillWatch = new MutationObserver(pillInit); pillWatch.observe(document.body, { childList: true }); if ($('#ctx-menu')) pillWatch.observe($('#ctx-menu'), { childList: true, subtree: true });
+document.addEventListener('pointerover', (e) => { if (e.target.matches?.(PILL) && !e.target.dataset.pill) pillInit(); }, true);
+document.addEventListener('wheel', (e) => {
+  const el = e.target.closest?.('.live-volume, #ctx-menu .ctx-row, .dj-vol')?.querySelector('input[type=range]'); if (!el) return;
+  e.preventDefault(); const step = (el.max - el.min) / 20; el.value = Math.max(+el.min, Math.min(+el.max, +el.value - Math.sign(e.deltaY) * step));
+  el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+}, { passive: false });
+const music = createMusic({ settings, saveSettings, icon, toast, roomUI, native, esc,
+  room: { users: () => [...S.users.values()].filter((u) => u.id !== DJ_ID), me: () => S.myId, now: serverNow, send: (to, data) => sig(to, { listen: data }) } }); window.__resenha.music = music;
 // Wide windows show the conversation next to the call; narrower ones open it on demand.
 if (innerWidth >= 1280) roomUI.open('chat');
 initHome();

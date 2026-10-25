@@ -1,142 +1,421 @@
-/* Resenha 2.1.5 · temas caprichados, em versão elegante.
-   Poucos temas, cada um com personalidade própria, mas com contenção: painéis de vidro escuro, cor em poucos
-   lugares, item ativo como pílula clara com texto escuro, sombras suaves (sem neon) e movimento calmo.
-   Só vale para: noturno, titanio, ametista, fucsia, horizonte, ambar. Os outros temas não mudam. */
+/* Resenha 2.2 · temas.
+   Todos mantêm a mesma organização da tela (salas · call · chat). Cada tema muda quatro coisas:
+   material dos painéis, jeito de se mover, um ajuste de arranjo e um detalhe próprio.
+   Líquido = tema padrão (system/arcDark/arcLight). Os outros: vision, cosmos, neon, brasa, bento, cinema. */
+
+@font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url('fonts/InstrumentSerif.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; src: url('fonts/SpaceGrotesk-variable.woff2') format('woff2'); font-weight: 300 700; font-display: swap; }
 
 /* ---------- Variáveis de cada tema ---------- */
-/* --hl: cor de destaque · --pill / --pill-ink: pílula clara do item ativo · --speak: quem está falando */
-html[data-tk="noturno"]   { --hl: #8fb8ff; --pill: #d6e4ff; --pill-ink: #0a1633; --speak: #8fb8ff; --soft: rgba(143,184,255,.10); }
-html[data-tk="titanio"]   { --hl: #e4e7ec; --pill: #eef0f3; --pill-ink: #15171b; --speak: #f1f2f5; --soft: rgba(255,255,255,.07); }
-html[data-tk="ametista"]  { --hl: #c4b5fd; --pill: #ddd2ff; --pill-ink: #1d1240; --speak: #c4b5fd; --soft: rgba(196,181,253,.10); }
-html[data-tk="fucsia"]    { --hl: #f5a3d7; --pill: #ffd3ee; --pill-ink: #3a0d2c; --speak: #f5a3d7; --soft: rgba(245,163,215,.09); }
-html[data-tk="horizonte"] { --hl: #93c5fd; --pill: #cfe3ff; --pill-ink: #0a1a33; --speak: #93c5fd; --soft: rgba(147,197,253,.09); }
-html[data-tk="ambar"]     { --hl: #f2c48f; --pill: #8fc9f5; --pill-ink: #0b1d2e; --cta: #f6d3b0; --cta-ink: #2a1a0c; --speak: #8fc9f5; --soft: rgba(242,196,143,.08); }
+/* --hl: destaque · --pill/--pill-ink: item ativo · --speak: quem fala · --soft: hover · --disp: fonte dos títulos */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"], [data-tk="vidro"]) { --hl: #ff8a3d; --speak: #3ecf7a; --soft: rgba(255,255,255,.05); --disp: Figtree, sans-serif; }
+html[data-tk="holofoil"] { --hl: #2a8f9a; --speak: #3ecf7a; --soft: rgba(255,255,255,.05); --disp: Figtree, sans-serif; } /* 2.2: Holofoil, petróleo holográfico */
+html.light:is([data-tk="system"], [data-tk="arcLight"]) { --hl: #ea580c; }
+html:is([data-tk="vision"], [data-tk="visionNoite"]) { --hl: #ffffff; --pill: rgba(255,255,255,.92); --pill-ink: #2a3236; --speak: #ffffff; --soft: rgba(255,255,255,.10); --disp: Figtree, sans-serif; --r-panel: 26px; --r-tile: 22px; }
+html[data-tk="cosmos"] { --hl: #a9c1ff; --pill: #d8e3ff; --pill-ink: #0b1430; --speak: #a9c1ff; --soft: rgba(169,193,255,.09); --disp: 'Fredoka', Figtree, sans-serif; --r-panel: 26px; --r-tile: 24px; }
+html[data-tk="neon"] { --hl: #8f7dff; --pill: #d9d3ff; --pill-ink: #150d3a; --speak: #8f7dff; --soft: rgba(143,125,255,.09); --disp: 'Space Grotesk', Figtree, sans-serif; --r-panel: 16px; --r-tile: 14px; }
+html[data-tk="brasa"] { --hl: #3ef0c3; --pill: #3ef0c3; --pill-ink: #06231b; --speak: #3ef0c3; --soft: rgba(255,230,210,.06); --disp: Figtree, sans-serif; --r-panel: 20px; --r-tile: 18px; }
+html[data-tk="bento"] { --hl: #1f3a5f; --pill: #1f3a5f; --pill-ink: #f4efe6; --speak: #b4532a; --soft: rgba(31,58,95,.06); --disp: 'Instrument Serif', Georgia, serif; --r-panel: 20px; --r-tile: 18px; }
+html[data-tk="cinema"] { --hl: #ff3b47; --pill: #ffd7da; --pill-ink: #3a070c; --speak: #ff3b47; --soft: rgba(255,255,255,.05); --disp: Figtree, sans-serif; --r-panel: 18px; --r-tile: 16px; }
 
-/* Jeito de mexer: todos calmos, cada um com seu tempo. */
-html[data-tk="noturno"] body   { --spring-move: cubic-bezier(.22,1,.36,1); --spring-move-dur: 480ms; --spring-press: cubic-bezier(.3,1.25,.5,1); --spring-press-dur: 220ms; }
-html[data-tk="titanio"] body   { --spring-move: cubic-bezier(.25,.9,.3,1);  --spring-move-dur: 300ms; --spring-press: cubic-bezier(.25,.9,.3,1);  --spring-press-dur: 150ms; }
-html[data-tk="ametista"] body  { --spring-move: cubic-bezier(.16,1.06,.3,1); --spring-move-dur: 560ms; --spring-press: cubic-bezier(.2,1.3,.4,1); --spring-press-dur: 280ms; }
-html[data-tk="fucsia"] body    { --spring-move: cubic-bezier(.2,1.12,.35,1); --spring-move-dur: 380ms; --spring-press: cubic-bezier(.25,1.35,.4,1); --spring-press-dur: 200ms; }
-html[data-tk="horizonte"] body { --spring-move: cubic-bezier(.33,1.08,.4,1); --spring-move-dur: 440ms; --spring-press: cubic-bezier(.3,1.25,.45,1); --spring-press-dur: 220ms; }
-html[data-tk="ambar"] body     { --spring-move: cubic-bezier(.2,.95,.3,1);  --spring-move-dur: 420ms; --spring-press: cubic-bezier(.25,1.15,.4,1); --spring-press-dur: 200ms; }
+/* Jeito de mexer de cada tema */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"], [data-tk="vidro"], [data-tk="holofoil"]) body { --spring-move: cubic-bezier(.3,1.25,.4,1); --spring-move-dur: 520ms; --spring-press: cubic-bezier(.3,1.4,.45,1); --spring-press-dur: 260ms; } /* viscoso */
+html:is([data-tk="vision"], [data-tk="visionNoite"]) body { --spring-move: cubic-bezier(.22,1,.36,1); --spring-move-dur: 460ms; --spring-press: cubic-bezier(.25,1.2,.4,1); --spring-press-dur: 240ms; }   /* flutuante */
+html[data-tk="cosmos"] body { --spring-move: cubic-bezier(.16,1,.3,1); --spring-move-dur: 640ms; --spring-press: cubic-bezier(.2,1.3,.4,1); --spring-press-dur: 300ms; }    /* sem pressa */
+html[data-tk="neon"] body   { --spring-move: cubic-bezier(.25,.9,.3,1); --spring-move-dur: 260ms; --spring-press: cubic-bezier(.25,.9,.3,1); --spring-press-dur: 140ms; }    /* elétrico */
+html[data-tk="brasa"] body  { --spring-move: cubic-bezier(.2,.95,.3,1); --spring-move-dur: 400ms; --spring-press: cubic-bezier(.25,1.15,.4,1); --spring-press-dur: 200ms; }  /* firme */
+html[data-tk="bento"] body  { --spring-move: cubic-bezier(.3,1.5,.4,1); --spring-move-dur: 480ms; --spring-press: cubic-bezier(.3,1.6,.4,1); --spring-press-dur: 260ms; }    /* elástico */
+html[data-tk="cinema"] body { --spring-move: cubic-bezier(.22,1,.36,1); --spring-move-dur: 700ms; --spring-press: cubic-bezier(.25,1.1,.4,1); --spring-press-dur: 220ms; }   /* cinematográfico */
 
-/* ---------- Interações (mesma estrutura, cor de cada tema) ---------- */
-:is(html[data-tk="noturno"], html[data-tk="titanio"], html[data-tk="ametista"], html[data-tk="fucsia"], html[data-tk="horizonte"], html[data-tk="ambar"]) {
+/* ================= Peças comuns (todos os temas) ================= */
+html.glass {
+  /* Interruptor "gota": a bolinha estica enquanto corre (uma ponta sai antes da outra) e acende na cor do tema */
+  & label.check input[type="checkbox"], & .sw-drop { -webkit-appearance: none; appearance: none; position: relative; flex: none; width: 40px !important; height: 24px !important; min-height: 24px; max-height: 24px; align-self: center; margin: 0; padding: 0; border-radius: 999px; cursor: pointer;
+    background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); transition: background .3s; }
+  & label.check input[type="checkbox"]::before { content: ''; position: absolute; top: 4px; left: 4px; right: 20px; height: 16px; border-radius: 999px; box-shadow: inset 0 0 0 2px var(--muted);
+    transition: left .38s cubic-bezier(.3,1.35,.4,1) .06s, right .38s cubic-bezier(.3,1.35,.4,1), background .25s, box-shadow .25s; }
+  & label.check input[type="checkbox"]:checked { background: color-mix(in srgb, var(--hl) 16%, transparent); }
+  & label.check input[type="checkbox"]:checked::before { left: 20px; right: 4px; background: var(--hl); box-shadow: 0 0 10px color-mix(in srgb, var(--hl) 45%, transparent);
+    transition: left .38s cubic-bezier(.3,1.35,.4,1), right .38s cubic-bezier(.3,1.35,.4,1) .06s, background .25s, box-shadow .25s; }
+  & label.check input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+  & label.check input[type="checkbox"]:focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 60%, transparent) !important; outline-offset: 2px; }
+
+  /* Abas: só texto e um traço fino que desliza (motion.js) — sem caixas em volta */
+  & .tabs, & #chat .right-nav { background: transparent !important; box-shadow: none !important; }
+  & .m-slider-tabs, & #chat .right-nav .m-slider-tabs { border-radius: 2px !important; background: var(--hl) !important; box-shadow: none !important; }
+  & .tabs .tab, & #chat .right-nav button:not(.right-close) { background: transparent !important; box-shadow: none !important; color: var(--muted) !important; font-weight: 600; transition: color .2s; }
+  & .tabs .tab:hover, & #chat .right-nav button:not(.right-close):hover { color: var(--text) !important; }
+  & .tabs .tab.active, & #chat .right-nav button[aria-pressed="true"] { color: var(--text-hi) !important; }
+  & #chat .right-nav { border-bottom: 1px solid var(--g-edge, var(--line)) !important; border-radius: 0 !important; }
+
+  /* Campos de texto: sem brilho neon; ao focar, o fundo clareia e surge um traço fino embaixo */
+  & :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]), textarea, select):focus,
+  & :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]), textarea, select):focus-visible {
+    outline: none !important; box-shadow: inset 0 -1.5px 0 var(--hl) !important; background-color: color-mix(in srgb, var(--text) 8%, transparent) !important; transition: box-shadow .25s, background-color .25s; }
+  & #composer #input:focus, & #composer #input:focus-visible, & #chat .right-music .mu-searchbox .mu-search:focus { box-shadow: none !important; background-color: transparent !important; }
+}
+
+/* ================= Base dos temas com personalidade (não o padrão) ================= */
+:is(html:is([data-tk="vision"], [data-tk="visionNoite"]), html[data-tk="cosmos"], html[data-tk="neon"], html[data-tk="brasa"], html[data-tk="bento"], html[data-tk="cinema"]) {
   & #main #sidebar, & #main #chat { border-radius: var(--r-panel, 22px) !important; }
   & #sidebar .channel { transition: background-color .18s ease, color .18s ease; }
   & #sidebar .channel:hover { background: var(--soft) !important; }
-  & #sidebar .channel.active, & #sidebar .channel.voice.connected { background: var(--pill) !important; color: var(--pill-ink) !important; box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 14px rgba(0,0,0,.22); font-weight: 600; }
-  & #sidebar .channel.active svg, & #sidebar .channel.voice.connected svg, & #sidebar .channel.voice.connected .vc-time, & #sidebar .channel.voice.connected * { color: var(--pill-ink) !important; }
-  & .btn.primary, & #composer .send-btn, & .rm-quick-btn.on {
-    background: var(--cta, var(--pill)) !important; color: var(--cta-ink, var(--pill-ink)) !important; border-color: transparent !important;
-    box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 4px 14px rgba(0,0,0,.25); transition: filter .15s, scale var(--spring-press-dur) var(--spring-press); }
-  & .btn.primary svg, & #composer .send-btn svg { color: var(--cta-ink, var(--pill-ink)) !important; }
-  & .btn.primary:hover, & #composer .send-btn:hover { filter: brightness(1.05); }
+  & #sidebar .channel.active, & #sidebar .channel.voice.connected { background: var(--pill) !important; color: var(--pill-ink) !important; font-weight: 600; }
+  & #sidebar .channel.active svg, & #sidebar .channel.voice.connected * { color: var(--pill-ink) !important; }
+  & .btn.primary, & #composer .send-btn, & .rm-quick-btn.on { background: var(--hl) !important; color: var(--pill-ink) !important; border-color: transparent !important; transition: filter .15s, scale var(--spring-press-dur) var(--spring-press); }
+  & .btn.primary svg, & #composer .send-btn svg { color: var(--pill-ink) !important; }
+  & .btn.primary:hover, & #composer .send-btn:hover { filter: brightness(1.06); }
   & .btn.primary:active, & #composer .send-btn:active { scale: .97; }
   & :is(.dd-item, .ctx-item):hover { background: var(--soft) !important; color: var(--text-hi); }
   & #call #call-controls .cc-btn:hover { color: var(--hl) !important; }
-  & #call .tile.speaking { box-shadow: var(--g-shine, none), inset 0 0 0 1.5px var(--speak), 0 0 0 4px color-mix(in srgb, var(--speak) 12%, transparent) !important; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 1.5px var(--speak), 0 0 0 4px color-mix(in srgb, var(--speak) 12%, transparent) !important; }
   & #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--speak) !important; }
   & .server-dot.active { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--hl) !important; }
-  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 70%, transparent) !important; outline-offset: 2px; }
-  & input:not([type="range"]):not([type="checkbox"]):focus, & textarea:focus, & select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hl) 55%, transparent) !important; }
-  & input[type="range"], & input[type="checkbox"], & progress { accent-color: var(--hl); }
-  & .right-nav button[aria-pressed="true"] { background: rgba(255,255,255,.10) !important; color: var(--text-hi) !important; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset; }
-  & #chat .msg.mine .text { background: var(--cta, var(--pill)) !important; color: var(--cta-ink, var(--pill-ink)) !important; box-shadow: none !important; }
-  & #chat .msg.mine .text a { color: var(--cta-ink, var(--pill-ink)) !important; }
+  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 65%, transparent) !important; outline-offset: 2px; }
+  & input[type="range"], & progress { accent-color: var(--hl); }
+  & #chat .msg.mine .text { background: color-mix(in srgb, var(--hl) 22%, var(--bg-panel)) !important; color: var(--text-hi) !important; box-shadow: none !important; }
   & #update-bar .up-progress i, & .up-progress i { background: var(--hl); }
-  & ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12) !important; border-radius: 99px; }
-  & ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22) !important; }
-  & ::selection { background: color-mix(in srgb, var(--hl) 35%, transparent); color: #fff; }
-  /* Fundo vivo: camada por trás de tudo, bem discreta (só transform/opacity, sem desfoque em tempo real) */
+  & ::selection { background: color-mix(in srgb, var(--hl) 35%, transparent); }
+  & #room-name, & #call-title, & #chat-title, & .modal header h2 { font-family: var(--disp); }
+}
+html:not(.light):is([data-tk="vision"], [data-tk="visionNoite"], [data-tk="cosmos"], [data-tk="neon"], [data-tk="brasa"], [data-tk="cinema"]) ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12) !important; border-radius: 99px; }
+
+/* Camada de fundo animada: atrás de tudo, só transform/opacity (sem desfoque em tempo real) */
+:is(html[data-tk="system"], html[data-tk="arcDark"], html[data-tk="vidro"], html[data-tk="holofoil"], html:is([data-tk="vision"], [data-tk="visionNoite"]), html[data-tk="cosmos"], html[data-tk="neon"], html[data-tk="brasa"], html[data-tk="cinema"]) {
   & #main, & #home { isolation: isolate; }
-  & #main::before, & #home::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; } /* fixed: não cria barra de rolagem */
+  & #main::before, & #home::before, & #main::after { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
 }
 
-/* ---------- Noturno: estrelas que piscam devagar ---------- */
-html[data-tk="noturno"] :is(#main, #home)::before {
-  background:
-    radial-gradient(1.4px 1.4px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 28% 8%, #fff 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 47% 22%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 63% 12%, #fff 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 78% 28%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 91% 9%, #fff 50%, transparent 51%);
-  animation: tk-twinkle 6s ease-in-out infinite alternate;
-}
-@keyframes tk-twinkle { 0% { opacity: .25; } 100% { opacity: .8; } }
 
-/* ---------- Titânio: reflexo metálico lento ---------- */
-html[data-tk="titanio"] :is(#main, #home)::before {
-  inset: -20% -60%; background: linear-gradient(105deg, transparent 44%, rgba(255,255,255,.045) 49%, rgba(255,255,255,.07) 50%, rgba(255,255,255,.045) 51%, transparent 56%);
-  animation: tk-sheen 18s cubic-bezier(.45,0,.2,1) infinite;
-}
-@keyframes tk-sheen { 0% { translate: -40% 0; } 60%, 100% { translate: 40% 0; } }
+@keyframes lq-melt { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(6%, 4%) scale(1.12); } 100% { transform: translate(-5%, 3%) scale(.94); } }
 
-/* ---------- Ametista: aurora lilás bem suave ---------- */
-html[data-tk="ametista"] :is(#main, #home)::before {
-  inset: -10%; background: radial-gradient(38% 30% at 32% 0%, rgba(196,181,253,.16), transparent 70%), radial-gradient(30% 26% at 70% 4%, rgba(139,92,246,.14), transparent 70%);
-  animation: tk-drift 24s ease-in-out infinite alternate;
-}
-/* ---------- Fúcsia: clarão rosado que respira devagar ---------- */
-html[data-tk="fucsia"] :is(#main, #home)::before {
-  inset: auto; left: -12%; top: -18%; width: 60%; height: 60%; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(245,120,200,.20), transparent); animation: tk-breathe 10s ease-in-out infinite;
-}
-/* ---------- Horizonte: brilho azul que se move devagar ---------- */
-html[data-tk="horizonte"] :is(#main, #home)::before {
-  inset: auto; right: -14%; top: -12%; width: 55%; height: 60%; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(59,130,246,.18), transparent); animation: tk-breathe 12s ease-in-out infinite;
-}
-/* ---------- Âmbar: luz quente que passeia ---------- */
-html[data-tk="ambar"] :is(#main, #home)::before {
-  inset: -10%; background: radial-gradient(40% 40% at 80% 10%, rgba(242,180,110,.16), transparent 70%);
-  animation: tk-drift 26s ease-in-out infinite alternate;
-}
-@keyframes tk-drift { 0% { translate: -4% 0; } 100% { translate: 5% 3%; } }
-@keyframes tk-breathe { 50% { opacity: .55; translate: 2% 3%; } }
-
-/* Sem movimento quando o sistema ou o Resenha pedem menos animação */
-@media (prefers-reduced-motion: reduce) { :is(#main, #home)::before { animation: none !important; } }
-html.reduce-motion :is(#main, #home)::before { animation: none !important; }
-
-/* Âmbar (referência Savance): barra lateral quase preta e painéis de vidro escuro sobre a luz quente */
-html[data-tk="ambar"] #sidebar { background: rgba(8,7,6,.86) !important; }
-html[data-tk="ambar"] :is(#chat, #call #call-controls, .modal) { background-color: rgba(24,20,17,.62); }
-html[data-tk="ambar"] #room-menu.server-menu { background-color: rgba(20,17,14,.93); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); }
-
-/* ---------- Identidade do Resenha (tema padrão): grafite neutro + vidro esfumaçado + laranja só em detalhes ---------- */
-html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) { --hl: #ff8a3d; }
-html.light:is([data-tk="system"], [data-tk="arcLight"]) { --hl: #ea580c; }
-html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) {
+/* Detalhes do tema padrão (mantidos da 2.1.5): laranja só no essencial */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"], [data-tk="vidro"], [data-tk="holofoil"]) {
   & #sidebar .channel { transition: background-color .18s ease; }
   & #sidebar .channel:hover { background: rgba(255,255,255,.05) !important; }
   & #sidebar .channel.active { background: rgba(255,255,255,.08) !important; color: var(--text-hi) !important; }
-  /* Detalhe laranja: o ícone do canal ativo ganha um quadradinho laranja, como na referência */
   & #sidebar .channel.active > svg:first-child { color: #fff !important; background: var(--hl); border-radius: 7px; padding: 3px; box-sizing: content-box; margin: -3px 0; }
   & .btn.primary { background: rgba(255,255,255,.12) !important; color: var(--text-hi) !important; border-color: transparent !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
   & .btn.primary:hover { background: rgba(255,255,255,.18) !important; }
   & #composer .send-btn { background: var(--hl) !important; color: #fff !important; box-shadow: none !important; }
-  & #composer .send-btn:hover { filter: brightness(1.08); }
-  & :is(.btn.primary, #composer .send-btn):active { scale: .97; }
   & :is(.dd-item, .ctx-item):hover { background: rgba(255,255,255,.06) !important; }
-  & #call #call-controls .cc-btn:hover { color: #fff !important; }
   & #call #call-controls .cc-btn.on::after { background: var(--hl) !important; }
   & .server-dot.active { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--hl) !important; }
-  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 75%, transparent) !important; outline-offset: 2px; }
-  & input:not([type="range"]):not([type="checkbox"]):focus, & textarea:focus { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22) !important; }
-  & input[type="range"], & input[type="checkbox"], & progress { accent-color: var(--hl); }
-  & .right-nav button[aria-pressed="true"] { background: rgba(255,255,255,.10) !important; color: var(--text-hi) !important; }
+  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--hl) 70%, transparent) !important; outline-offset: 2px; }
   & #chat .msg.mine .text { background: rgba(255,255,255,.12) !important; color: var(--text-hi) !important; box-shadow: none !important; }
   & #update-bar .up-progress i, & .up-progress i { background: var(--hl); }
   & ::selection { background: color-mix(in srgb, var(--hl) 35%, transparent); }
   & ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12) !important; border-radius: 99px; }
 }
-html.light:is([data-tk="system"], [data-tk="arcLight"]) :is(.right-nav button[aria-pressed="true"], #sidebar .channel.active, .btn.primary, #chat .msg.mine .text) { background: rgba(0,0,0,.07) !important; }
-
-/* Vidro do tema padrão (como a referência): com a janela translúcida, o papel de parede desfocado aparece de verdade
-   atrás dos painéis; os painéis são vidro esfumaçado com borda clara e reflexo no topo. */
+html.light:is([data-tk="system"], [data-tk="arcLight"]) :is(#sidebar .channel.active, .btn.primary, #chat .msg.mine .text) { background: rgba(0,0,0,.07) !important; }
+/* Vidro do Windows (janela translúcida) no tema padrão */
 html.acrylic:is([data-tk="system"], [data-tk="arcDark"]):not(.light) body::before { opacity: .42; }
 html.acrylic.light:is([data-tk="system"], [data-tk="arcLight"]) body::before { opacity: .5; }
-html.acrylic:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"]) :is(#main #sidebar, #main #chat, #call .tile, #call #call-controls, #home .card, .modal, #room-menu.server-menu) {
-  background-color: rgba(28,28,30,.38) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.09), 0 20px 50px rgba(0,0,0,.25) !important; }
-html.acrylic.light:is([data-tk="system"], [data-tk="arcLight"]) :is(#main #sidebar, #main #chat, #call .tile, #call #call-controls, #home .card, .modal, #room-menu.server-menu) {
-  background-color: rgba(255,255,255,.5) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(0,0,0,.06), 0 18px 40px rgba(0,0,0,.08) !important; }
-html.acrylic:is([data-tk="system"], [data-tk="arcDark"]) #call .tile.speaking { box-shadow: inset 0 0 0 2px var(--green), inset 0 1px 0 rgba(255,255,255,.14) !important; }
+
+/* ================= VISION: vidro fosco claro, painéis soltos ================= */
+html:is([data-tk="vision"], [data-tk="visionNoite"]) {
+  &.desktop-app #main { padding: 12px !important; }
+  & :is(#main, #home)::before { background: radial-gradient(36% 30% at 24% 82%, rgba(255,255,255,.18), transparent 70%), radial-gradient(30% 26% at 80% 16%, rgba(255,255,255,.14), transparent 70%); animation: vi-drift 30s ease-in-out infinite alternate; }
+  & #main #sidebar, & #main #chat, & .modal, & #room-menu.server-menu, & #ctx-menu, & #music-mini {
+    background-color: rgba(255,255,255,.14) !important; backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.26), inset 0 1px 0 rgba(255,255,255,.55), 0 24px 50px rgba(0,0,0,.24) !important; }
+  & #call .tile:not(.is-screen) { background-color: rgba(255,255,255,.11) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22) !important; transition: transform var(--spring-move-dur) var(--spring-move), background-color .3s; }
+  & #call .tile:not(.is-screen):hover { transform: translateY(-3px) scale(1.015); background-color: rgba(255,255,255,.17) !important; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 2px #fff, 0 10px 30px rgba(0,0,0,.18) !important; }
+  & #call #call-controls { border-radius: 999px !important; background-color: rgba(255,255,255,.2) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.34), 0 12px 28px rgba(0,0,0,.2) !important; backdrop-filter: blur(24px); }
+  & #call #call-controls .cc-btn { border-radius: 999px !important; }
+  & #chat .msg.mine .text { background: rgba(255,255,255,.26) !important; }
+}
+@keyframes vi-drift { 0% { transform: translate(-3%, 0); } 100% { transform: translate(3%, 2%); } }
+
+/* ================= COSMOS: estrelas e horizonte de planeta ================= */
+html[data-tk="cosmos"] {
+  & :is(#main, #home)::before { background:
+      radial-gradient(1.4px 1.4px at 8% 16%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 24% 8%, #fff 50%, transparent 51%), radial-gradient(1.6px 1.6px at 41% 22%, #fff 50%, transparent 51%),
+      radial-gradient(1.1px 1.1px at 57% 10%, #fff 50%, transparent 51%), radial-gradient(1.3px 1.3px at 73% 26%, #fff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 89% 12%, #fff 50%, transparent 51%),
+      radial-gradient(1.2px 1.2px at 14% 52%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 36% 64%, #dfe8ff 50%, transparent 51%), radial-gradient(1.2px 1.2px at 66% 48%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 84% 60%, #dfe8ff 50%, transparent 51%);
+    animation: co-twinkle 6s ease-in-out infinite alternate; }
+  /* estrela cadente de vez em quando */
+  & #main::after { inset: auto; top: 12%; left: -20%; width: 140px; height: 1.5px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.9)); transform: rotate(-16deg); animation: co-shoot 14s linear infinite; }
+  /* horizonte do planeta brilhando atrás da call */
+  & #call { isolation: isolate; }
+  & #call::before { content: ''; position: absolute; z-index: -1; left: 12%; right: 12%; bottom: -62%; height: 90%; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle at 50% 18%, #2d50bd, #0c1b55 60%, #050a22); box-shadow: 0 -12px 80px rgba(110,140,255,.42); animation: co-breathe 8s ease-in-out infinite; }
+  & #main #sidebar, & #main #chat { background-color: rgba(13,22,49,.62) !important; }
+  & #call .tile:not(.is-screen) { background-color: rgba(30,48,120,.22) !important; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 1.5px #a9c1ff, 0 0 26px rgba(169,193,255,.35) !important; }
+  & #room-name, & #call-title { color: #cfdcff; }
+}
+@keyframes co-twinkle { 0% { opacity: .35; } 100% { opacity: .9; } }
+@keyframes co-shoot { 0%, 88% { left: -20%; opacity: 0; } 90% { opacity: 1; } 100% { left: 110%; opacity: 0; } }
+@keyframes co-breathe { 50% { box-shadow: 0 -16px 110px rgba(110,140,255,.62); } }
+
+/* ================= NEON: feixe de luz e reflexo nos cartões ================= */
+html[data-tk="neon"] {
+  & :is(#main, #home)::before { background: radial-gradient(30% 24% at 50% 106%, rgba(107,92,255,.28), transparent 70%), radial-gradient(28% 24% at 86% 0%, rgba(75,179,255,.10), transparent 70%); }
+  & #main #sidebar, & #main #chat { background-color: rgba(14,12,28,.78) !important; box-shadow: inset 0 0 0 1px rgba(143,125,255,.16) !important; }
+  & #call .tile:not(.is-screen) { background-image: linear-gradient(165deg, rgba(143,125,255,.12), rgba(255,255,255,.01)) !important; box-shadow: inset 0 0 0 1px rgba(143,125,255,.24) !important; overflow: hidden; }
+  & #call .tile:not(.is-screen)::before { content: ''; position: absolute; z-index: 2; inset: 0 -60%; pointer-events: none; background: linear-gradient(105deg, transparent 44%, rgba(255,255,255,.08) 50%, transparent 56%); animation: ne-sweep 6s linear infinite; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 1px #8f7dff, 0 0 26px rgba(143,125,255,.38) !important; }
+  /* feixe de luz sob os controles da call */
+  & #call #call-controls { overflow: visible; }
+  & #call #call-controls::after { content: ''; position: absolute; left: 8%; right: 8%; bottom: -14px; height: 6px; border-radius: 99px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, #6b5cff, #4bb3ff, #6b5cff, transparent); filter: blur(4px); box-shadow: 0 0 40px 10px rgba(107,92,255,.38); animation: ne-beam 3.6s ease-in-out infinite; }
+  & #sidebar .channel.active { box-shadow: inset 2px 0 0 #8f7dff; }
+}
+@keyframes ne-sweep { from { transform: translateX(-35%); } to { transform: translateX(35%); } }
+@keyframes ne-beam { 50% { opacity: .55; transform: scaleX(.92); } }
+
+/* ================= BRASA: quente, com relevo e medidor pontilhado ================= */
+html[data-tk="brasa"] {
+  & :is(#main, #home)::before { inset: -10%; background: radial-gradient(40% 38% at 30% 36%, rgba(160,70,28,.30), transparent 72%); animation: br-drift 26s ease-in-out infinite alternate; }
+  & #main #sidebar, & #main #chat { background-color: rgba(26,17,13,.8) !important; }
+  & #call .tile:not(.is-screen) { background-image: linear-gradient(180deg, rgba(255,255,255,.055), rgba(0,0,0,.22)) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 22px rgba(0,0,0,.35) !important; }
+  /* medidor pontilhado de voz no pé de cada pessoa (pulsa como equalizador quando ela fala) */
+  & #call .tile:not(.is-screen)::before { content: ''; position: absolute; z-index: 2; left: 14px; right: 14px; bottom: 10px; height: 5px; border-radius: 3px; pointer-events: none; opacity: .5;
+    background: repeating-linear-gradient(90deg, rgba(255,154,61,.75) 0 7px, transparent 7px 10px); -webkit-mask: linear-gradient(90deg, #000 30%, transparent 70%); mask: linear-gradient(90deg, #000 30%, transparent 70%); }
+  & #call .tile.speaking::before { opacity: 1; background: repeating-linear-gradient(90deg, #3ef0c3 0 7px, transparent 7px 10px); -webkit-mask: linear-gradient(90deg, #000 75%, transparent); mask: linear-gradient(90deg, #000 75%, transparent); animation: br-eq .9s ease-in-out infinite; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 1.5px #3ef0c3, 0 10px 22px rgba(0,0,0,.35) !important; }
+}
+@keyframes br-drift { 0% { transform: translate(-3%, 0); } 100% { transform: translate(4%, 3%); } }
+@keyframes br-eq { 50% { opacity: .55; } }
+
+/* ================= BENTO: papel creme, serifa e destaque para quem fala ================= */
+html[data-tk="bento"] {
+  & #main #sidebar, & #main #chat, & .modal, & #room-menu.server-menu, & #ctx-menu, & #music-mini {
+    background: #f3eee4 !important; backdrop-filter: none !important; box-shadow: inset 0 1px 0 #fff, 0 10px 26px rgba(70,55,30,.16) !important; }
+  & #call .tile:not(.is-screen) { background: #fbf8f2 !important; box-shadow: inset 0 0 0 1px rgba(29,39,51,.07), 0 8px 18px rgba(70,55,30,.12) !important; animation: be-pop .55s var(--spring-move) both; }
+  & #call .tile.speaking:not(.is-screen) { background: #1f3a5f !important; color: #f4efe6; box-shadow: 0 0 0 3px #e8c9a8, 0 12px 26px rgba(31,58,95,.28) !important; }
+  & #call .tile.speaking .tile-name, & #call .tile.speaking .name { color: #f4efe6 !important; }
+  & #call #call-controls { background: #1d2733 !important; box-shadow: 0 10px 24px rgba(29,39,51,.25) !important; }
+  & #call #call-controls .cc-btn { color: #f4efe6 !important; }
+  & #room-name { font-size: 20px; font-weight: 400; letter-spacing: -.01em; } & #call-title { font-size: 20px; font-weight: 400; }
+  & #chat .msg .author { color: #b4532a; }
+  & #call .tile .label { background: rgba(29,39,51,.78) !important; color: #f4efe6 !important; }
+  & #call .tile.speaking .label { background: rgba(244,239,230,.16) !important; }
+  /* efeitos de nome foram feitos para fundo escuro: no papel, ficam mais escuros para continuar legíveis */
+  & :is(#sidebar, #chat, .modal) .uname { filter: brightness(.55) saturate(1.5); }
+  & #call .tile .label .uname { filter: none; }
+  & #chat .msg.mine .text { background: #1f3a5f !important; color: #f4efe6 !important; }
+  & ::-webkit-scrollbar-thumb { background: rgba(29,39,51,.18) !important; border-radius: 99px; }
+}
+@keyframes be-pop { from { transform: scale(.94); opacity: 0; } }
+
+/* ================= CINEMA: sala escura, luz vermelha em quem fala ================= */
+html[data-tk="cinema"] {
+  & :is(#main, #home)::before { inset: auto; left: 30%; top: 14%; width: 46%; height: 60%; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,40,55,.26), transparent); animation: ci-breathe 7s ease-in-out infinite; }
+  & #main #sidebar, & #main #chat { background-color: rgba(14,9,9,.82) !important; }
+  & #call .tile:not(.is-screen):not(.speaking) { opacity: .8; transition: opacity .5s, box-shadow .5s; }
+  & #call .tile:not(.is-screen):not(.speaking):hover { opacity: 1; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 18px 46px rgba(255,40,55,.34), 0 0 0 1px rgba(255,59,71,.5) !important; }
+  & #call .tile.is-screen { box-shadow: 0 24px 70px rgba(255,40,55,.22) !important; }
+}
+@keyframes ci-breathe { 50% { opacity: .65; transform: scale(1.08); } }
+
+/* Sem movimento quando o sistema ou o Resenha pedem menos animação */
+@media (prefers-reduced-motion: reduce) { :is(#main, #home)::before, #main::after, #call::before, #call .tile::before, #call #call-controls::after, #call .tile { animation: none !important; } }
+html.reduce-motion :is(#main, #home)::before, html.reduce-motion #main::after, html.reduce-motion #call::before, html.reduce-motion #call .tile::before, html.reduce-motion #call #call-controls::after, html.reduce-motion #call .tile { animation: none !important; }
+
+/* ================= 2.2 · ajustes para ficar fiel às prévias ================= */
+
+
+/* VISION: fundo cinza tipo foto, painéis soltos e levemente inclinados, barra de ícones flutuando à esquerda */
+html:is([data-tk="vision"], [data-tk="visionNoite"]) {
+  &.desktop-app #main { padding: 14px 14px 14px 66px !important; perspective: 1400px; }
+  & #main #sidebar { transform: rotateY(4deg); transform-origin: right center; }
+  & #main #chat { transform: rotateY(-5deg); transform-origin: left center; }
+  & #theme-rail { display: flex; }
+}
+#theme-rail { display: none; position: absolute; z-index: 30; left: 14px; top: 50%; transform: translateY(-50%); flex-direction: column; gap: 8px; padding: 8px; border-radius: 999px;
+  background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3), inset 0 1px 0 rgba(255,255,255,.6), 0 18px 40px rgba(0,0,0,.22); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
+#theme-rail button { width: 34px; height: 34px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.12); cursor: pointer; transition: transform .3s var(--spring-press, ease), background .2s; }
+#theme-rail button:hover { transform: scale(1.08); background: rgba(255,255,255,.24); }
+#theme-rail button.on { background: #fff; color: #3a4246; }
+#main.hidden #theme-rail { display: none; }
+
+/* NEON: a fonte do tema na interface inteira */
+html[data-tk="neon"] body { font-family: 'Space Grotesk', Figtree, sans-serif; }
+
+/* BENTO e CINEMA: arranjo da call (layoutGrid monta as colunas; aqui o destaque ocupa o espaço grande) */
+#call-stage .grid[data-arrange="bento"] > .stage-focus { grid-row: 1 / -1; grid-column: 1; }
+#call-stage .grid[data-arrange="cinema"] > .stage-focus { grid-column: 1 / -1; grid-row: 1; order: -1; }
+#call-stage .grid[data-arrange] > .tile { transition: box-shadow .5s, opacity .5s, background-color .5s; }
+html[data-tk="bento"] #call-stage .grid[data-arrange] > .stage-focus:not(.is-screen) { background: #1f3a5f !important; color: #f4efe6; box-shadow: 0 0 0 3px #e8c9a8, 0 14px 30px rgba(31,58,95,.26) !important; }
+html[data-tk="bento"] #call-stage .grid[data-arrange] > .stage-focus .avatar { width: 96px !important; height: 96px !important; }
+html[data-tk="cinema"] #call-stage .grid[data-arrange] > .stage-focus { opacity: 1 !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 22px 60px rgba(255,40,55,.38) !important; }
+html[data-tk="cinema"] #call-stage .grid[data-arrange] > .tile:not(.stage-focus) .avatar { width: 44px !important; height: 44px !important; }
+
+html:is([data-tk="vision"], [data-tk="visionNoite"]) #voice-panel :is(.vp-title, #vp-title, .vp-sub, #vp-sub) { color: #fff !important; }
+
+
+
+/* ===== COSMOS · céu profissional: nebulosas suaves que se movem devagar, estrelas finas e estrela cadente (sem cúpula no meio) ===== */
+html[data-tk="cosmos"] {
+  & #call::before { content: none; }
+  & :is(#main, #home)::before { background:
+      radial-gradient(1.3px 1.3px at 8% 16%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 24% 8%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 41% 22%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 57% 10%, #fff 50%, transparent 51%), radial-gradient(1.2px 1.2px at 73% 26%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 89% 12%, #fff 50%, transparent 51%),
+      radial-gradient(1.1px 1.1px at 14% 52%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 36% 64%, #dfe8ff 50%, transparent 51%), radial-gradient(1.1px 1.1px at 66% 48%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 84% 60%, #dfe8ff 50%, transparent 51%), radial-gradient(1px 1px at 46% 86%, #fff 50%, transparent 51%), radial-gradient(1.2px 1.2px at 92% 90%, #fff 50%, transparent 51%);
+    animation: co-twinkle 6s ease-in-out infinite alternate; }
+  & #main::after { inset: -15%; width: auto; height: auto; top: -15%; left: -15%; transform: none; background:
+      radial-gradient(30% 26% at 22% 18%, rgba(88,120,255,.20), transparent 70%),
+      radial-gradient(26% 24% at 82% 30%, rgba(150,110,255,.16), transparent 70%),
+      radial-gradient(34% 28% at 60% 92%, rgba(70,150,255,.12), transparent 72%);
+    animation: co-nebula 40s ease-in-out infinite alternate; }
+  & #call::after { content: ''; position: absolute; z-index: 0; top: 14%; left: -30%; width: 120px; height: 1.5px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.9)); transform: rotate(-14deg); animation: co-shoot 16s linear infinite; }
+}
+@keyframes co-nebula { 0% { transform: translate(-2%, -1%) scale(1); } 100% { transform: translate(3%, 2%) scale(1.06); } }
+html.reduce-motion[data-tk="cosmos"] #call::after, html.reduce-motion #main::after { animation: none !important; }
+
+/* Os controles da call ancoram as próprias camadas (vidro do Líquido, feixe do Neon) */
+html.glass #call #call-controls { position: relative; }
+
+/* ===== LÍQUIDO 2.2 · vidro fumê (referência: visionOS) — duas versões: "preto" (arcDark/system) e "translúcido" (vidro) =====
+   Painéis cinza translúcidos com desfoque forte, filete de luz no topo, cantos grandes; cartões internos um pouco mais claros;
+   pílulas escuras para campos e horários. Sem refração ondulada: vidro limpo. */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="vidro"], [data-tk="holofoil"]):not(.light) {
+  --lg-panel: rgba(30,30,33,.62); --lg-card: rgba(255,255,255,.065); --lg-pill: rgba(0,0,0,.26); --lg-edge: rgba(255,255,255,.08); --lg-top: rgba(255,255,255,.16);
+  & #main #sidebar, & #main #chat {
+    background: var(--lg-panel) !important; -webkit-backdrop-filter: blur(34px) saturate(1.35); backdrop-filter: blur(34px) saturate(1.35);
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 30px 70px rgba(0,0,0,.36) !important; border-radius: 28px !important; }
+  & #call .tile:not(.is-screen) {
+    background: var(--lg-panel) !important; -webkit-backdrop-filter: blur(28px) saturate(1.3); backdrop-filter: blur(28px) saturate(1.3);
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 18px 44px rgba(0,0,0,.30) !important; }
+  & #call .tile.speaking:not(.is-screen) { box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1.5px rgba(79,220,140,.9), 0 0 0 5px rgba(79,220,140,.10), 0 18px 44px rgba(0,0,0,.30) !important; }
+  /* barra de controles como a barra inferior da referência: pílula escura, botões redondos */
+  & #call #call-controls { background: rgba(28,28,31,.72) !important; -webkit-backdrop-filter: blur(30px) saturate(1.3); backdrop-filter: blur(30px) saturate(1.3); border-radius: 999px !important;
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 18px 40px rgba(0,0,0,.35) !important; }
+  & #call #call-controls .cc-btn { border-radius: 999px !important; background: rgba(255,255,255,.07) !important; transition: transform var(--spring-press-dur) var(--spring-press), background .2s; }
+  & #call #call-controls .cc-btn:hover { background: rgba(255,255,255,.14) !important; transform: translateY(-1px); }
+  /* cartões internos e pílulas escuras */
+  & #music-mini, & #voice-panel, & #user-panel, & #chat .msg .text, & #chat .att-file { background: var(--lg-card) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.07) !important; }
+  & #composer .composer-row, & .right-music .mu-searchbox, & #btn-code, & #sidebar .channel.active { background: var(--lg-pill) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06) !important; }
+  & #sidebar .channel.active { background: rgba(255,255,255,.10) !important; }
+  & .modal, & #room-menu.server-menu, & #ctx-menu, & .dropdown { background: rgba(38,38,42,.80) !important; -webkit-backdrop-filter: blur(34px) saturate(1.35); backdrop-filter: blur(34px) saturate(1.35);
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 30px 70px rgba(0,0,0,.45) !important; }
+}
+/* versão PRETA: fundo quase preto com formas grafite bem suaves (o vidro aparece nas bordas e no desfoque) */
+html:is([data-tk="system"], [data-tk="arcDark"]):not(.light) {
+  --lg-panel: rgba(24,24,27,.66);
+  & :is(#main, #home)::before { inset: -10%; background: radial-gradient(30% 34% at 16% 20%, rgba(78,78,88,.40), transparent 70%), radial-gradient(28% 32% at 86% 82%, rgba(64,64,74,.36), transparent 70%), radial-gradient(18% 22% at 58% 44%, rgba(90,90,100,.20), transparent 70%); animation: lg-drift 40s ease-in-out infinite alternate; }
+}
+/* versão TRANSLÚCIDA: cena suave atrás (parede, ripas de madeira, sofá, piso) que o vidro desfoca, como na referência */
+html[data-tk="vidro"]:not(.light) {
+  --lg-panel: rgba(58,58,62,.52); --lg-card: rgba(255,255,255,.075);
+  & :is(#main, #home)::before { inset: 0; background:
+      radial-gradient(42% 40% at 14% 30%, rgba(150,150,152,.55), transparent 70%),
+      radial-gradient(28% 18% at 22% 70%, rgba(40,40,44,.75), transparent 72%),
+      radial-gradient(30% 20% at 84% 66%, rgba(36,36,40,.7), transparent 72%),
+      linear-gradient(180deg, transparent 62%, rgba(205,205,208,.55) 82%, rgba(225,225,228,.62) 100%),
+      repeating-linear-gradient(90deg, rgba(70,52,40,.0) 0 18px, rgba(58,44,34,.55) 18px 26px) 62% 0 / 40% 64% no-repeat,
+      linear-gradient(180deg, #6a6a6e 0%, #4c4c50 45%, #3a3a3e 62%, #8f8f92 100%); }
+  & #main::after { background: radial-gradient(60% 50% at 50% 40%, transparent 40%, rgba(0,0,0,.28) 100%); }
+}
+@keyframes lg-drift { 0% { transform: translate(-2%, -1%); } 100% { transform: translate(3%, 2%); } }
+
+/* ===== 2.2 · sem esfumaçado de luz: fundos de tom uniforme; cada tema mantém só o próprio detalhe ===== */
+html:is([data-tk="system"], [data-tk="arcDark"]):not(.light) :is(#main, #home)::before { background: none !important; animation: none !important; }
+html:is([data-tk="vision"], [data-tk="visionNoite"]) :is(#main, #home)::before { background: none !important; animation: none !important; }
+html[data-tk="cosmos"] #main::after { background: none !important; animation: none !important; }
+html[data-tk="neon"] :is(#main, #home)::before { background: none !important; }
+html[data-tk="brasa"] :is(#main, #home)::before { background: none !important; animation: none !important; }
+html[data-tk="cinema"] :is(#main, #home)::before { background: none !important; animation: none !important; }
+/* translúcido: cena só com tons suaves (parede → piso), sem ripas nem bordas duras que viravam faixas através do vidro */
+html[data-tk="vidro"]:not(.light) :is(#main, #home)::before { inset: 0; background: linear-gradient(180deg, #5d5d61 0%, #515155 38%, #46464a 58%, #6e6e72 78%, #86868a 100%) !important; }
+html[data-tk="vidro"]:not(.light) #main::after { background: none !important; }
+
+/* ===== VISION · física (client.js inclina e move cada bloco com mola); o CSS não fixa mais a inclinação ===== */
+html:is([data-tk="vision"], [data-tk="visionNoite"]) {
+  & #main #sidebar, & #main #chat { transform: none; }
+  & #call .tile:not(.is-screen), & #call .tile:not(.is-screen):hover { transform: none; transition: background-color .3s; }
+  & :is(#main #sidebar, #main #chat, #call .tile, #call #call-controls, #music-mini, #theme-rail) { will-change: transform; transform-style: preserve-3d; }
+  & #call, & #call-stage, & #call-stage .grid { transform-style: preserve-3d; }
+  & #call-stage { perspective: 1200px; }
+  & .btn, & .cc-btn, & .channel, & #theme-rail button { transition: transform .35s cubic-bezier(.3,1.5,.4,1), background-color .2s !important; }
+  & .btn:hover, & #call #call-controls .cc-btn:hover { transform: translateY(-2px) scale(1.04); }
+  & .btn:active, & #call #call-controls .cc-btn:active { transform: scale(.95); }
+}
+/* ===== VISION · noite: o mesmo vidro fosco, em versão escura ===== */
+html[data-tk="visionNoite"] {
+  & #main #sidebar, & #main #chat, & .modal, & #room-menu.server-menu, & #ctx-menu, & #music-mini {
+    background-color: rgba(44,50,57,.52) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.22), 0 24px 50px rgba(0,0,0,.45) !important; }
+  & #call .tile:not(.is-screen) { background-color: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.11), inset 0 1px 0 rgba(255,255,255,.16) !important; }
+  & #call .tile.speaking { box-shadow: inset 0 0 0 2px rgba(255,255,255,.9), 0 10px 30px rgba(0,0,0,.35) !important; }
+  & #call #call-controls { background-color: rgba(44,50,57,.6) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 12px 28px rgba(0,0,0,.4) !important; }
+  & #theme-rail { background: rgba(44,50,57,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), inset 0 1px 0 rgba(255,255,255,.22), 0 18px 40px rgba(0,0,0,.4); }
+  & #theme-rail button { background: rgba(255,255,255,.08); } & #theme-rail button.on { background: #fff; color: #1b1f23; }
+  & #chat .msg.mine .text { background: rgba(255,255,255,.16) !important; }
+  & #sidebar .channel.active, & #sidebar .channel.voice.connected { background: rgba(255,255,255,.9) !important; color: #1b1f23 !important; }
+}
+
+/* 2.2: Holofoil (petróleo holográfico). Base chapada (--hl); nos destaques, um degradê iridescente
+   (petróleo → turquesa → azul-lilás → verde-água) que corre devagar. Sem vidro, sem reflexo, sem clarão. */
+html[data-tk="holofoil"] {
+  --holo: linear-gradient(115deg, #1f7a85 0%, #2fa3a8 20%, #5a8fd8 40%, #8a7be0 50%, #3fbfae 70%, #1f7a85 100%);
+  & .mu-play, & #sidebar .channel.active > svg:first-child, & .m-slider-tabs, & #chat .right-nav .m-slider-tabs, & .mu-bar-fill,
+  & #music-mini .mm-bar::after, & .mu-views button::after, & label.check input[type="checkbox"]:checked::before {
+    background: var(--holo) !important; background-size: 200% 100% !important; animation: holo-flow 10s linear infinite;
+  }
+  & .mu-bar-fill { opacity: 1; }
+}
+@keyframes holo-flow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+html.reduce-motion :is(.mu-play, #sidebar .channel.active > svg, .m-slider-tabs, .mu-bar-fill, .mu-views button, label.check input) { animation: none !important; }
+html.reduce-motion :is(#music-mini .mm-bar, .mu-views button, label.check input[type="checkbox"]:checked)::after, html.reduce-motion label.check input[type="checkbox"]:checked::before { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.mu-play, .m-slider-tabs, .mu-bar-fill), :is(.mu-views button, #music-mini .mm-bar)::after, label.check input[type="checkbox"]:checked::before { animation: none !important; } }
+
+/* 2.2: toque "Apple Intelligence" no Holofoil (inspirado no ripple do Apple Intelligence; versão web sem shaders).
+   1) Quem fala: luz de borda difusa, por dentro do tile, com as cores do holográfico mudando bem devagar.
+   2) Halo (.ai-halo, criado pelo client.js): anel que sai da borda ao passar o mouse na capa, no tocar e nos botões da call. */
+@property --ai-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes ai-spin { to { --ai-a: 360deg; } }
+@keyframes ai-halo { 0% { opacity: 0; transform: scale(1); } 18% { opacity: .55; } 100% { opacity: 0; transform: scale(var(--s, 1.05)); } }
+html[data-tk="holofoil"] {
+  --ai-ring: conic-gradient(from var(--ai-a), #2fa3a8, #5a8fd8 22%, #a08ae6 40%, #e9a6c6 52%, #8a7be0 64%, #3fbfae 82%, #2fa3a8);
+  & #call .tile.speaking:not(.is-screen) { box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px rgba(160,200,235,.22), 0 18px 44px rgba(0,0,0,.30) !important; }
+  & #call .tile.speaking:not(.is-screen)::before {
+    content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit; padding: 1.5px;
+    background: conic-gradient(from var(--ai-a), rgba(255,255,255,.95), rgba(150,215,235,.32) 7%, rgba(90,143,216,.3) 20%, rgba(160,138,230,.38) 36%, rgba(233,166,198,.4) 46%, rgba(255,255,255,.8) 52%, rgba(233,166,198,.3) 58%, rgba(63,191,174,.3) 72%, rgba(90,143,216,.26) 88%, rgba(255,255,255,.95));
+    animation: ai-spin 9s linear infinite;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+}
+html.reduce-motion #call .tile.speaking::before { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { #call .tile.speaking::before { animation: none !important; } }
+
+/* 2.2: halo ao passar o mouse (capa do álbum em todos os temas; no Holofoil também no tocar e nos botões da call).
+   Cada tema usa a própria cor de destaque; o Holofoil usa o anel holográfico (--ai-ring). */
+.ai-halo { position: fixed; z-index: 9000; pointer-events: none; padding: 1.5px; box-sizing: border-box;
+  background: var(--ai-ring, conic-gradient(from var(--ai-a), var(--hl, #fff), color-mix(in srgb, var(--hl, #fff) 35%, #fff) 30%, var(--hl, #fff) 55%, color-mix(in srgb, var(--hl, #fff) 55%, transparent) 80%, var(--hl, #fff)));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: ai-halo .95s cubic-bezier(.2,.7,.3,1) forwards, ai-spin 2.4s linear; }
+
+/* ---------- 2.2: Holofoil — vidro de cristal com dispersão (CSS puro, sem WebGL nem filtro SVG) ----------
+   Camadas: borda de cristal em degradê (truque padding-box/border-box), franja de arco-íris por dentro
+   (quente de um lado, fria do outro), reflexo no topo e um leve reflexo colorido por fora.
+   Versão escolhida: cores do Cristal com a leveza do Gelo (borda fina, brilho suave, sem chanfro grosso). */
+html[data-tk="holofoil"] {
+  --hf-fill: linear-gradient(160deg, rgba(72,74,84,.42) 0%, rgba(16,16,20,.9) 42%, rgba(10,10,12,.94) 70%, rgba(40,42,52,.55) 100%);
+  --hf-rim: conic-gradient(from 210deg, rgba(255,255,255,.9), rgba(255,255,255,.22) 10%, rgba(120,205,255,.7) 17%, rgba(255,120,205,.6) 21%, rgba(255,255,255,.14) 29%, rgba(255,255,255,.1) 47%, rgba(255,214,140,.6) 60%, rgba(120,255,214,.5) 64%, rgba(255,255,255,.24) 72%, rgba(255,255,255,.9));
+  --hf-in: inset 0 1px 0 rgba(255,255,255,.55), inset 3px 0 8px -5px rgba(255,90,175,.32), inset -3px 0 8px -5px rgba(70,190,255,.32), inset 0 -10px 30px -20px rgba(255,255,255,.14);
+  --hf-out: 0 24px 60px rgba(0,0,0,.55);
+  --hf-blur: blur(26px) saturate(1.3);
+}
+html[data-tk="holofoil"][data-tk] {
+  & #main #sidebar, & #main #chat, & #call .tile:not(.is-screen), & #call #call-controls, & .overlay > .modal, & #music-mini {
+    border: var(--hf-bw, 1.5px) solid transparent !important; box-sizing: border-box;
+    background: var(--hf-fill) padding-box, linear-gradient(var(--hf-base, #0b0b0d), var(--hf-base, #0b0b0d)) padding-box, var(--hf-rim) border-box !important;
+    -webkit-backdrop-filter: var(--hf-blur); backdrop-filter: var(--hf-blur);
+    box-shadow: var(--hf-in), var(--hf-out) !important; }
+  & #call .tile.speaking:not(.is-screen) { box-shadow: var(--hf-in), inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 20px -8px rgba(150,180,245,.28), var(--hf-out), 0 0 0 1px rgba(255,255,255,.04), 0 0 26px -10px rgba(160,170,245,.45) !important; }
+  & #call #call-controls :is(.cc-btn, #cc-leave), & #call #call-controls :is(.cc-btn, #cc-leave):hover {
+    background: transparent !important; box-shadow: none !important; border: 0 !important; transform: none !important; }
+  & #call #call-controls .cc-btn:hover svg { filter: drop-shadow(0 0 6px rgba(160,200,255,.45)); }
+  & .right-music .mu-play {
+    border: 1.5px solid transparent !important; animation: none !important; color: #fff !important;
+    background: radial-gradient(80% 60% at 30% 20%, rgba(255,255,255,.16), transparent 60%) padding-box, linear-gradient(160deg, #2a2b32, #0e0e12 60%, #1c1d24) padding-box, var(--hf-rim) border-box !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 3px 0 7px -4px rgba(255,90,175,.4), inset -3px 0 7px -4px rgba(70,190,255,.4), 0 10px 26px -8px rgba(0,0,0,.7), 0 6px 22px -10px rgba(150,180,255,.3) !important; }
+  & .right-music .mu-cover { box-shadow: 0 0 0 1px rgba(255,255,255,.14), inset 0 1px 0 rgba(255,255,255,.4), 0 20px 50px -14px rgba(0,0,0,.7), 0 8px 30px -12px rgba(150,180,255,.25); }
+  & #main::before, & #home::before { background: radial-gradient(70% 50% at 50% 110%, rgba(40,60,80,.25), transparent 70%), #030304 !important; }
+}

@@ -650,3 +650,150 @@ html.win-round:not(.win-max) body { clip-path: inset(0 round 28px); }
 html.win-round:not(.win-max) body::after { content: ''; position: fixed; inset: 0; border-radius: 28px; pointer-events: none; z-index: 2147483647;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.09); }
 html.win-round.light:not(.win-max) body::after { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+/* Item 8 (rodada 2): volumes da live, do card de cada pessoa e do DJ na linguagem do player (pílula estilo iOS/macOS).
+   Cápsula grossa preenchida, sem bolinha; cresce com mola no hover/arraste; rodinha do mouse ajusta (resenha-pill.js no client). */
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range] {
+  -webkit-appearance: none; appearance: none; height: 18px; min-height: 0; border-radius: 999px; cursor: default; outline: none;
+  background: linear-gradient(90deg, rgba(255,255,255,.92) var(--p, 50%), rgba(255,255,255,.16) var(--p, 50%));
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.10); transition: height .22s cubic-bezier(.2,.8,.2,1), transform .3s cubic-bezier(.22,1.3,.36,1); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:hover { height: 22px; }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:active { transform: scaleY(1.06); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl, #ff8a3d) 55%, transparent); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; opacity: 0; }
+html.glass.light :is(#ctx-menu .ctx-row, .dj-vol) input[type=range] { background: linear-gradient(90deg, rgba(20,20,22,.82) var(--p, 50%), rgba(0,0,0,.10) var(--p, 50%)); }
+html.glass #ctx-menu .ctx-row input[type=range], html.glass .dj-vol input[type=range] { width: 100%; }
+html.reduce-motion :is(#call .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range] { transition: none !important; }
+/* Item 9 (rodada 2): cantos concêntricos. Peça interna = raio da borda (28 px) − distância até ela, para as curvas ficarem paralelas. */
+html.glass #sidebar .server-dot { border-radius: 14px !important; }                 /* 12 px da borda: 28 − 12 ≈ 16 → 14 (mantém o formato de "quadrado suave") */
+html.glass #sidebar .server-dot.active::after, html.glass #sidebar .server-dot:focus-visible { border-radius: 17px; }
+html.glass #win-controls button { border-radius: 999px !important; }               /* dentro do trilho em pílula: círculo acompanha a pílula */
+/* "O que há de novo" 2.2: destaque Resenha + Spotify (sem clarões: superfície uniforme, só o anel verde no ícone) */
+.whats-new .wn-hero { position: relative; text-align: center; padding: 26px 18px 18px; margin-bottom: 18px; border-radius: var(--r-panel, 22px); overflow: hidden;
+  background: var(--g-fill, var(--bg-panel)); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px var(--g-edge, var(--line)); }
+.whats-new .wn-duo { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 16px; }
+.whats-new .wn-logo { width: 78px; height: 78px; display: grid; place-items: center; flex: none; box-shadow: 0 14px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2); }
+.whats-new .wn-resenha { border-radius: 24px; background: var(--bg-float, #1c1c1f); overflow: hidden; animation: wn-from-left .8s cubic-bezier(.3,1.45,.4,1) both; }
+.whats-new .wn-resenha img { width: 100%; height: 100%; object-fit: cover; }
+.whats-new .wn-spotify { border-radius: 50%; background: #000; box-shadow: 0 14px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(30,215,96,.55); animation: wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both; }
+.whats-new .wn-plus { font-size: 28px; font-weight: 300; color: var(--muted); animation: wn-pop .6s cubic-bezier(.3,1.6,.4,1) .45s both; }
+.whats-new .wn-hero h3 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; color: var(--text-hi); animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .35s both; }
+.whats-new .wn-hero p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .42s both; }
+.whats-new .wn-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 12px; }
+.whats-new .wn-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-hi);
+  background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
+.whats-new .wn-chips span:nth-child(1) { animation-delay: .5s; } .whats-new .wn-chips span:nth-child(2) { animation-delay: .56s; } .whats-new .wn-chips span:nth-child(3) { animation-delay: .62s; }
+.whats-new .wn-chips svg { color: #1ed760; }
+.whats-new-modal .wn-legal { margin: 0; padding: 0 22px 12px; text-align: center; font-size: 10px; line-height: 1.3; color: var(--muted2, var(--muted)); opacity: .7; }
+html.light .whats-new .wn-chips span { background: rgba(0,0,0,.05); }
+.whats-new-modal .wn-spotify-btn { background: #1ed760 !important; color: #04140a !important; border-color: transparent !important; font-weight: 700; }
+@keyframes wn-from-left { from { opacity: 0; transform: translateX(-46px) rotate(-8deg) scale(.8); } }
+@keyframes wn-from-right { from { opacity: 0; transform: translateX(46px) rotate(8deg) scale(.8); } }
+@keyframes wn-pop { from { opacity: 0; transform: scale(.3); } }
+html.reduce-motion .whats-new :is(.wn-resenha, .wn-spotify, .wn-plus, .wn-hero h3, .wn-hero p, .wn-chips span) { animation: none !important; }
+
+/* 2.2: destaque Resenha × Spotify no estilo Y2K. O estilo vai na moldura, no ×, no título e nos brilhos;
+   o ícone do Spotify fica como é (verde sobre preto), como pedem as regras de marca deles. */
+.wn-y2k .wn-hero { background: #050507; color-scheme: dark; isolation: isolate; }
+.wn-y2k .wn-hero :is(h3, p) { color: #f4f6f8; } .wn-y2k .wn-hero p { color: #b9c0c8; }
+.wn-y2k .wn-hero .wn-chips span { color: #eef1f4; background: rgba(255,255,255,.06); }
+.wn-y2k .wn-kicker { display: inline-block; margin-bottom: 14px; font: 700 11px/1 'Space Grotesk', Figtree, sans-serif; letter-spacing: .32em; text-transform: uppercase; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .1s both; }
+.wn-y2k .wn-sparks { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+.wn-y2k .wn-sparks i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); animation: wn-twinkle 2.6s ease-in-out infinite; }
+.wn-y2k .wn-sparks i:nth-child(1) { left: 14%; top: 22%; } .wn-y2k .wn-sparks i:nth-child(2) { right: 16%; top: 16%; width: 10px; height: 10px; animation-delay: -.8s; }
+.wn-y2k .wn-sparks i:nth-child(3) { left: 24%; bottom: 26%; width: 8px; height: 8px; animation-delay: -1.5s; } .wn-y2k .wn-sparks i:nth-child(4) { right: 22%; bottom: 34%; width: 12px; height: 12px; animation-delay: -2s; }
+.wn-y2k .wn-sparks i:nth-child(5) { left: 50%; top: 8%; width: 7px; height: 7px; animation-delay: -1.1s; }
+@keyframes wn-twinkle { 0%, 100% { opacity: .2; transform: scale(.6) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+.wn-y2k .wn-spotify { background: #000 !important; }
+
+/* 1 · Cromado: metal prateado com faixa branca dura, grade sutil ao fundo */
+.wn-y2k[data-wn="1"] { --chrome: linear-gradient(180deg, #ffffff 0%, #dfe3e8 20%, #8a929c 44%, #ffffff 50%, #39404a 55%, #a3acb6 76%, #f1f3f6 100%); }
+.wn-y2k[data-wn="1"] .wn-hero { background: radial-gradient(90% 70% at 50% 0%, #1a1d24, #050507 70%), #050507;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.10), inset 0 1px 0 rgba(255,255,255,.18); }
+.wn-y2k[data-wn="1"] .wn-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 24px), repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 24px);
+  -webkit-mask: radial-gradient(70% 80% at 50% 40%, #000, transparent 75%); mask: radial-gradient(70% 80% at 50% 40%, #000, transparent 75%); }
+.wn-y2k[data-wn="1"] :is(.wn-kicker, .wn-hero h3, .wn-plus) { background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 1px 0 rgba(0,0,0,.8)) drop-shadow(0 0 10px rgba(180,210,255,.25)); }
+.wn-y2k[data-wn="1"] .wn-hero h3 { font: 800 26px/1.15 'Space Grotesk', Figtree, sans-serif; letter-spacing: -.01em; }
+.wn-y2k[data-wn="1"] .wn-plus { font-size: 34px; font-weight: 700; }
+.wn-y2k[data-wn="1"] .wn-logo { padding: 4px; background: var(--chrome) !important; box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 14px 30px rgba(0,0,0,.6), 0 0 26px rgba(170,200,255,.22); }
+.wn-y2k[data-wn="1"] .wn-resenha img { border-radius: 20px; }
+.wn-y2k[data-wn="1"] .wn-spotify { background: radial-gradient(circle, #000 0 62%, transparent 63%), var(--chrome) !important; }
+.wn-y2k[data-wn="1"] .wn-chips span { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 1px 0 rgba(255,255,255,.35); background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.02)); }
+
+/* 2 · Bolha Aqua: vidro brilhante ciano e lima, bolhas com reflexo no topo */
+.wn-y2k[data-wn="2"] .wn-hero { background: linear-gradient(180deg, #04131c, #031016 60%, #061a14); box-shadow: inset 0 0 0 1px rgba(120,230,255,.18), inset 0 1px 0 rgba(200,250,255,.25); }
+.wn-y2k[data-wn="2"] .wn-sparks i { background: #bff6ff; filter: drop-shadow(0 0 6px rgba(90,220,255,.9)); }
+.wn-y2k[data-wn="2"] .wn-kicker { color: #8ff0ff; text-shadow: 0 0 12px rgba(80,220,255,.6); }
+.wn-y2k[data-wn="2"] .wn-hero h3 { font: 700 26px/1.15 Fredoka, Figtree, sans-serif; background: linear-gradient(180deg, #ffffff 0%, #aef3ff 45%, #3fd0ff 52%, #b8ff6a 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 2px 0 rgba(0,40,60,.9)); }
+.wn-y2k[data-wn="2"] .wn-logo { position: relative; padding: 5px; border-radius: 26px; background: linear-gradient(180deg, rgba(160,240,255,.55), rgba(40,170,220,.35)) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(200,250,255,.7), inset 0 -8px 16px rgba(0,120,170,.45), 0 12px 30px rgba(0,140,200,.35), 0 0 30px rgba(80,220,255,.25); }
+.wn-y2k[data-wn="2"] .wn-spotify { border-radius: 50%; background: radial-gradient(circle, #000 0 60%, transparent 61%), linear-gradient(180deg, rgba(160,240,255,.55), rgba(40,170,220,.35)) !important; }
+.wn-y2k[data-wn="2"] .wn-logo::after { content: ''; position: absolute; left: 14%; right: 14%; top: 6%; height: 34%; border-radius: 50% / 60% 60% 40% 40%; background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,0)); pointer-events: none; }
+.wn-y2k[data-wn="2"] .wn-resenha img { border-radius: 21px; }
+.wn-y2k[data-wn="2"] .wn-plus { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-size: 20px; font-weight: 700; color: #04222e; background: radial-gradient(circle at 35% 30%, #fff, #8ff0ff 45%, #29b6e6); box-shadow: 0 0 16px rgba(80,220,255,.6); }
+.wn-y2k[data-wn="2"] .wn-chips span { color: #dffbff; background: rgba(90,220,255,.10); box-shadow: inset 0 0 0 1px rgba(140,235,255,.4), inset 0 1px 0 rgba(255,255,255,.4); }
+.wn-y2k[data-wn="2"] .wn-chips svg { color: #b8ff6a; }
+
+/* 3 · Adesivo holográfico: moldura de foil iridescente que gira, título furta-cor */
+@property --wn-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes wn-foil { to { --wn-a: 360deg; } }
+.wn-y2k[data-wn="3"] { --foil: conic-gradient(from var(--wn-a), #ff9de6, #9ad8ff, #b8ffd9, #fff4a8, #ffb3c7, #c6a8ff, #ff9de6); }
+.wn-y2k[data-wn="3"] .wn-hero { background: radial-gradient(80% 60% at 50% 0%, #15121c, #050507 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.wn-y2k[data-wn="3"] .wn-sparks i { background: linear-gradient(135deg, #ffd6f5, #c9f0ff); }
+.wn-y2k[data-wn="3"] :is(.wn-kicker, .wn-hero h3, .wn-plus) { background: linear-gradient(90deg, #ffb3e6, #a8dcff, #c4ffe0, #fff0a8, #ffb3e6); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: wn-irid 6s linear infinite; }
+@keyframes wn-irid { to { background-position: 200% 0; } }
+.wn-y2k[data-wn="3"] .wn-hero h3 { font: 700 26px/1.15 'Space Grotesk', Figtree, sans-serif; }
+.wn-y2k[data-wn="3"] .wn-plus { font-size: 32px; font-weight: 700; }
+.wn-y2k[data-wn="3"] .wn-logo { padding: 3px; background: var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-left .8s cubic-bezier(.3,1.45,.4,1) both; box-shadow: 0 0 0 1px rgba(255,255,255,.25), 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(200,170,255,.25); }
+.wn-y2k[data-wn="3"] .wn-spotify { background: radial-gradient(circle, #000 0 63%, transparent 64%), var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both; }
+.wn-y2k[data-wn="3"] .wn-resenha img { border-radius: 21px; }
+.wn-y2k[data-wn="3"] .wn-chips span { box-shadow: inset 0 0 0 1px rgba(255,200,240,.3); }
+html.reduce-motion .wn-y2k :is(.wn-sparks i, .wn-logo, .wn-kicker, .wn-hero h3, .wn-plus) { animation: none !important; }
+.wn-y2k[data-wn="2"] .wn-spotify::after { content: none; } /* nada por cima do ícone do Spotify */
+
+/* 2.2: ícone do Spotify como adesivo holográfico (arte própria em CSS, inspirada na referência do Felipe):
+   disco verde furta-cor, faixas escuras translúcidas, borda de foil e a ponta descolando no canto. */
+@keyframes wn-holo-shift { to { background-position: 0 0, 200% 50%, 0 0; } }
+.wn-y2k[data-wn="3"] .wn-spotify { position: relative; overflow: visible; padding: 3px; animation: wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both !important;
+  background: var(--foil) !important; box-shadow: 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(120,255,190,.18) !important; }
+.wn-y2k[data-wn="3"] .wn-spotify::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; z-index: 0;
+  background: radial-gradient(60% 45% at 68% 22%, rgba(255,255,255,.38), transparent 70%),
+    linear-gradient(115deg, #17a34a 0%, #39e08a 14%, #2fc6d8 28%, #6f6cf0 38%, #2fd49a 50%, #b4f25e 62%, #22c35e 74%, #4fd8d0 86%, #17a34a 100%),
+    radial-gradient(120% 90% at 20% 90%, rgba(10,60,30,.45), transparent 60%);
+  background-size: 100% 100%, 200% 100%, 100% 100%; animation: wn-holo-shift 7s linear infinite; }
+.wn-y2k[data-wn="3"] .wn-spotify svg { position: relative; z-index: 1; width: 64px; height: 64px; }
+.wn-y2k[data-wn="3"] .wn-spotify svg circle { fill: transparent; }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: rgba(28,14,46,.78); stroke-width: 2.1; mix-blend-mode: multiply; }
+/* a ponta descolando: corta o canto (cor do fundo) e mostra o verso prateado dobrado */
+.wn-y2k[data-wn="3"] .wn-spotify::after { content: ''; position: absolute; z-index: 2; top: -2px; right: -2px; width: 30px; height: 30px; border-radius: 0 0 0 60%;
+  background: linear-gradient(225deg, #050507 0 49%, transparent 50%), linear-gradient(45deg, #f2f6ff, #c7d3ff 30%, #ffe1f4 55%, #d2ffec 80%, #ffffff);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); filter: drop-shadow(-3px 4px 4px rgba(0,0,0,.55)); }
+html.reduce-motion .wn-y2k[data-wn="3"] .wn-spotify::before { animation: none !important; }
+
+/* 2.2: adesivo holográfico (v2): o disco é recortado na diagonal e a aba dobrada é o pedaço cortado espelhado
+   (círculo de mesmo raio com centro refletido na linha do corte), então o canto descola de verdade. Ícone 78×78. */
+.wn-y2k[data-wn="3"] .wn-spotify { padding: 0; background: none !important; box-shadow: none !important; filter: drop-shadow(0 14px 16px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(110,255,170,.16)); }
+.wn-y2k[data-wn="3"] .wn-spotify::before { inset: 0; box-sizing: border-box; border: 3px solid transparent;
+  background: radial-gradient(55% 40% at 62% 24%, rgba(255,255,255,.34), transparent 70%) padding-box,
+    linear-gradient(118deg, #169a47 0%, #34d97f 15%, #8bef78 27%, #2fc8b4 39%, #5fd2f0 46%, #2fd49a 55%, #c6f468 66%, #22bf5c 78%, #47d6c4 90%, #169a47 100%) padding-box,
+    var(--foil) border-box;
+  background-size: 100% 100%, 200% 100%, 100% 100%;
+  clip-path: polygon(0 0, 38px 0, 100% 40px, 100% 100%, 0 100%); }
+@keyframes wn-holo-shift { to { background-position: 0 0, 200% 50%, 0 0; } }
+.wn-y2k[data-wn="3"] .wn-spotify::after { inset: 0; top: 0; right: 0; width: auto; height: auto; border-radius: 0; filter: none;
+  background: linear-gradient(135deg, #ffffff 0%, #dfe7ff 25%, #ffe0f3 45%, #d6ffef 65%, #b9c6ff 85%, #f4f6ff 100%);
+  clip-path: path('M 38 0 A 39 39 0 0 0 78 40 Z'); }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: rgba(22,12,40,.72); }
+
+/* 2.2: ícone do Spotify (v3, referência do Felipe): quadrado arredondado verde estilo macOS, disco branco-menta
+   em relevo e faixas verdes afundadas. Contorno holográfico (--foil) mantido. Arte própria em CSS. */
+.wn-y2k[data-wn="3"] .wn-spotify { border-radius: 24px !important; padding: 3px; background: var(--foil) !important;
+  animation: wn-foil 5s linear infinite, wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both !important;
+  filter: drop-shadow(0 14px 16px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(110,255,170,.14)); }
+.wn-y2k[data-wn="3"] .wn-spotify::before { inset: 3px; border: 0; border-radius: 21px; clip-path: none; animation: none;
+  background: radial-gradient(90% 70% at 30% 10%, rgba(255,255,255,.18), transparent 60%), linear-gradient(165deg, #1ff28d 0%, #00dd74 45%, #00be60 100%); }
+.wn-y2k[data-wn="3"] .wn-spotify::after { inset: auto; left: 12%; top: 12%; width: 76%; height: 76%; border-radius: 50%; clip-path: none; z-index: 1;
+  background: radial-gradient(80% 80% at 32% 26%, #ffffff 0%, #f6fffb 38%, #dafdf0 62%, #7ff2c8 86%, #2ee3a6 100%);
+  box-shadow: 0 7px 12px -2px rgba(0,90,45,.55), 0 2px 3px rgba(0,90,45,.35), inset 0 -5px 9px rgba(0,190,125,.38), inset 0 2px 2px rgba(255,255,255,.9); }
+.wn-y2k[data-wn="3"] .wn-spotify svg { z-index: 2; width: 68px; height: 68px; margin-top: 2px; }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: #10c066; stroke-width: 1.55; mix-blend-mode: normal;
+  filter: drop-shadow(0 .5px 0 rgba(255,255,255,.9)); }

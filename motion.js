@@ -219,8 +219,14 @@
       if (!el || !el.offsetWidth) { pill.style.opacity = '0'; return; }
       if (!placed) pill.style.transition = 'none'; // primeira vez: aparece já no lugar
       pill.style.opacity = '1';
-      pill.style.width = el.offsetWidth + 'px'; pill.style.height = el.offsetHeight + 'px';
-      pill.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop}px)`;
+      if (kind === 'tabs') { // abas (2.2): um traço fino que desliza sob a aba ativa, em vez de pílula
+        const w = Math.max(16, el.offsetWidth - 24);
+        pill.style.width = w + 'px'; pill.style.height = '2px';
+        pill.style.transform = `translate(${el.offsetLeft + (el.offsetWidth - w) / 2}px, ${el.offsetTop + el.offsetHeight - 2}px)`;
+      } else {
+        pill.style.width = el.offsetWidth + 'px'; pill.style.height = el.offsetHeight + 'px';
+        pill.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop}px)`;
+      }
       if (!placed) { pill.offsetWidth; pill.style.transition = ''; placed = true; }
     };
     if (hover) {
