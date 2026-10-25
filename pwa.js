@@ -4,7 +4,8 @@
 // Aqui o navegador "fala" HTTP e WebSocket por dentro desses canais. Fotos e anexos passam pelo service worker (sw.js).
 'use strict';
 (() => {
-  const BROKERS = ['wss://broker.hivemq.com:8884/mqtt', 'wss://broker.emqx.io:8084/mqtt', 'wss://test.mosquitto.org:8081'];
+  const SIGNAL_URL = 'wss://resenha-signal.resenha-signal.workers.dev/ws'; // descoberta própria; MQTT público de reserva
+  const BROKERS = [SIGNAL_URL, 'wss://broker.hivemq.com:8884/mqtt', 'wss://broker.emqx.io:8084/mqtt', 'wss://test.mosquitto.org:8081'];
   const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }];
   const CHUNK = 16 * 1024, enc = new TextEncoder(), dec = new TextDecoder();
   const norm = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -33,7 +34,21 @@
       const b = new Uint8Array(out.length + 12); b.set(iv); b.set(out.subarray(out.length - 16), 12); b.set(out.subarray(0, out.length - 16), 28);
       return b;
     };
+    // cliente do Worker com a mesma interface usada abaixo (connected, publish, end)
+    const relay = (url) => {
+      const te = new TextEncoder(), tb = te.encode(topic); let ws = null, alive = true, ping = 0;
+      const c = { connected: false, publish(t, buf) { if (ws && ws.readyState === 1) { const f = new Uint8Array(1 + tb.length + buf.length); f[0] = tb.length; f.set(tb, 1); f.set(buf, 1 + tb.length); ws.send(f); } }, end() { alive = false; clearInterval(ping); try { ws && ws.close(); } catch {} } };
+      const open = () => {
+        if (!alive) return; ws = new WebSocket(url); ws.binaryType = 'arraybuffer';
+        ws.onopen = () => { c.connected = true; ws.send(JSON.stringify({ s: topic })); ping = setInterval(() => { try { ws.send('{"p":1}'); } catch {} }, 25000); };
+        ws.onmessage = async (e) => { if (typeof e.data === 'string') return; const b = new Uint8Array(e.data), n = b[0]; const m = await open2(b.subarray(1 + n)); if (!m || !m.mid || seen.has(m.mid)) return; seen.add(m.mid); onMsg(m); };
+        ws.onclose = () => { c.connected = false; clearInterval(ping); if (alive) setTimeout(open, 3000); };
+      };
+      const open2 = open_; open(); return c;
+    };
+    const open_ = open;
     const clients = BROKERS.map((url) => {
+      if (url === SIGNAL_URL) return relay(url);
       const c = window.mqtt.connect(url, { connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30, clean: true, clientId: 'rs_' + rnd(6) });
       c.on('connect', () => c.subscribe(topic, { qos: 0 }));
       c.on('message', async (t, payload) => { if (t !== topic) return; const m = await open(payload); if (!m || !m.mid || seen.has(m.mid)) return; seen.add(m.mid); onMsg(m); });

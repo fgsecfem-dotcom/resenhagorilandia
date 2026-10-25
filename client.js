@@ -3369,10 +3369,12 @@ async function maybeWhatsNew() {
   if (seen === v) return;
   // 2.2: na primeira abertura o Spotify já vem ligado e a aba de música aparece (quando o app suporta).
   const spotifyIntro = native?.spotify && /^2\.2\./.test(v) && !/^2\.2\./.test(seen || '');
-  if (spotifyIntro) { LS.set('musicIntro', true); setTimeout(() => { music.setEnabled(true); if (!WHATS_NEW[v] || (!seen && !me.name)) showMusicIntro(); }, 600); }
-  if (!WHATS_NEW[v]) return;
+  // 2.2.x: quem chega de antes da 2.2 vê as novidades da 2.2 (correções 2.2.1+ não têm tela própria)
+  const wn = WHATS_NEW[v] ? v : (/^2\.2\./.test(v) && !/^2\.2\./.test(seen || '') ? '2.2.0' : null);
+  if (spotifyIntro) { LS.set('musicIntro', true); setTimeout(() => { music.setEnabled(true); if (!wn || (!seen && !me.name)) showMusicIntro(); }, 600); }
+  if (!wn) return;
   if (!seen && !me.name) return; // instalação nova: começa sem pop-up
-  setTimeout(() => openWhatsNew(v), 900);
+  setTimeout(() => openWhatsNew(wn), 900);
 }
 maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });

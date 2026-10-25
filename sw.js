@@ -1,7 +1,7 @@
 // Resenha PWA · service worker.
 // 1) Guarda os arquivos do app para abrir rápido (e atualiza quando sai versão nova: a página pergunta antes de trocar).
 // 2) Pedidos para ".../tun/..." (fotos, anexos, banner, upload) vão para a página, que busca pelo túnel até o anfitrião.
-const VERSION = "2.2.0-a144b3bfea";
+const VERSION = "2.2.1-5c4c76f426";
 const CACHE = 'resenha-pwa-' + VERSION;
 const FILES = ["","boot-card.js","boot.js","brand.svg","client.js","command-controller.js","dm-storage.js","fonts/Figtree-OFL.txt","fonts/Figtree-variable.ttf","fonts/Fredoka-600.woff2","fonts/InstrumentSerif.woff2","fonts/OFL-temas.txt","fonts/SpaceGrotesk-variable.woff2","format-utils.js","glass.css","home.css","icon.png","icon.svg","icons.js","index.html","manifest.webmanifest","mobile-setup.css","mobile.css","mobile.js","motion.js","mqtt.min.js","music.css","music.js","performance.js","pipoca.js","pwa-boot.js","pwa-icon-180.png","pwa-icon-192.png","pwa-icon-512.png","pwa-maskable-512.png","pwa.js","room-ui.css","room-ui.js","room.css","screen-startup.js","styles-stitch.css","styles-v11.css","styles-v12.css","styles.css","themes-pro.css","themes.js","tunnel.js","ui.css","vendor/ns/LICENSE","vendor/ns/index.js","vendor/ns/rnnoise.wasm","vendor/ns/rnnoiseWorklet.js","vendor/ns/rnnoise_simd.wasm","worklets/voice-fx.js"];
 const BASE = new URL('./', self.location).pathname;
