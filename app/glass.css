@@ -1,0 +1,799 @@
+/* Resenha · estilo vidro e foco (inspirado na Apple TV). Lote 1: sala.
+   Desempenho: o fundo é uma pintura fixa e suave, então os painéis usam só cor translúcida (sem blur).
+   O blur de verdade fica nos elementos flutuantes e desliga quando há live na tela. */
+html.glass {
+  --g-fill: rgba(255,255,255,.055);
+  --g-fill-2: rgba(255,255,255,.09);
+  --g-fill-h: rgba(255,255,255,.13);
+  --g-edge: rgba(255,255,255,.10);
+  --g-shine: inset 0 1px 0 rgba(255,255,255,.10);
+}
+
+/* Parede de fundo: pintada uma vez, nunca anima. */
+html.glass #main {
+  background:
+    radial-gradient(60% 55% at 12% 8%, color-mix(in srgb, var(--blurple) 44%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 92% 18%, color-mix(in srgb, var(--link) 24%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 55% 110%, color-mix(in srgb, var(--blurple) 28%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+
+/* Painéis: vidro "falso" (translúcido, sem blur). */
+html.glass #main #sidebar, html.glass #main #chat {
+  background: var(--g-fill); box-shadow: var(--g-shine), 0 0 0 1px var(--g-edge) inset;
+}
+html.glass.desktop-app #main #sidebar, html.glass.desktop-app #main #chat { border-radius: 22px; }
+html.glass #main #call { background: transparent; }
+html.glass #sidebar .side-actions, html.glass #sidebar #voice-panel, html.glass #sidebar #user-panel,
+html.glass #chat .right-nav { border-color: var(--g-edge); }
+html.glass #sidebar .code-chip { background: var(--g-fill); border-color: var(--g-edge); }
+html.glass #sidebar .channel:hover, html.glass #sidebar #room-header:hover,
+html.glass #sidebar #user-panel .icon-btn:hover { background: var(--g-fill-2); }
+html.glass #sidebar .channel.active { background: var(--g-fill-h); }
+html.glass #sidebar .server-dot.active { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--text-hi); }
+html.glass #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--green); }
+html.glass #chat .right-nav button[aria-pressed=true] { background: var(--g-fill-h); }
+html.glass #chat #composer, html.glass #chat .msg.bot .text { background: var(--g-fill); border-color: var(--g-edge); }
+html.glass #chat .msg:hover { background: rgba(255,255,255,.035); }
+html.glass #call .chat-toggle { background: var(--g-fill); border-color: var(--g-edge); }
+
+/* Cards da call em vidro. */
+html.glass #call .tile:not(.is-screen), html.glass #call .vc-card, html.glass #call .stream-invite {
+  background: var(--g-fill-2); box-shadow: var(--g-shine);
+}
+html.glass #call .vc-card { border-color: var(--g-edge); }
+/* Passar o mouse, como no app Apple TV: sem zoom nem luz; o card escurece de leve e o contorno de vidro aparece (0,2 s). */
+html.glass #call .tile::after, html.glass #call .vc-card::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3;
+  background: rgba(0,0,0,.16);
+  box-shadow: inset .5px .5px rgba(255,255,255,.22), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.14);
+  opacity: 0; transition: opacity .2s ease;
+}
+html.glass #call .vc-card { position: relative; }
+html.glass #call .grid > .tile:hover::after, html.glass #call .focus-strip > .tile:hover::after, html.glass #call .vc-card:hover::after { opacity: 1; }
+html.glass #call .grid > .tile, html.glass #call .focus-strip > .tile { cursor: pointer; }
+html.glass #call .tile.speaking { box-shadow: var(--g-shine), inset 0 0 0 3px var(--green); }
+
+/* Dock flutuante em pílula de vidro. */
+html.glass #call #call-controls {
+  border-radius: 999px; border-color: var(--g-edge); background: rgba(30,32,40,.55);
+  backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--g-shine), 0 12px 30px rgba(0,0,0,.35);
+}
+/* Dock unificado: uma barra de vidro com ícones soltos (sem bolinha em cada um).
+   Passar o mouse: o ícone acende e cresce de leve na hora; clicar: afunda. Só cor e escala do ícone mudam. */
+html.glass #call #call-controls { padding: 6px 10px; gap: 2px; }
+html.glass #call #call-controls .cc-btn, html.glass #call #call-controls #cc-leave {
+  width: 50px; height: 46px; min-width: 50px; border-radius: 14px; background: transparent; color: rgba(255,255,255,.72); position: relative;
+  transition: color 90ms ease-out;
+}
+html.glass #call #call-controls .cc-btn svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call #call-controls .cc-btn:hover { background: transparent; color: #fff; transform: none; }
+html.glass #call #call-controls .cc-btn:hover svg { scale: 1.14; }
+html.glass #call #call-controls .cc-btn:active svg { scale: .86; transition-duration: 90ms; }
+html.glass #call #call-controls .cc-btn.off { background: transparent; color: #f87171; }
+html.glass #call #call-controls .cc-btn.off:hover { color: #fca5a5; }
+html.glass #call #call-controls .cc-btn.on { background: transparent; color: var(--link); }
+html.glass #call #call-controls .cc-btn.on::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+html.glass #call #call-controls #cc-leave { width: auto; padding: 0 14px 0 10px; border-radius: 14px; background: transparent; color: #f87171; }
+html.glass #call #call-controls #cc-leave:hover { background: transparent; color: #fca5a5; }
+html.glass #call #call-controls .cc-sep { height: 26px; margin: 0 6px; background: var(--g-edge); }
+html.glass #call #call-controls .cc-sep { background: var(--g-edge); }
+html.glass #call .tile .label { background: rgba(10,11,15,.55); backdrop-filter: blur(12px); }
+
+/* Fluidez: com live na sala (alguém transmitindo ou assistindo), nada de blur. As animações seguem, pois só movem camadas. */
+html.glass:has(#sidebar .live, #call .tile.is-screen) #call #call-controls { backdrop-filter: none; background: rgba(24,26,32,.92); }
+html.glass:has(#sidebar .live, #call .tile.is-screen) #call .tile .label { backdrop-filter: none; background: rgba(10,11,15,.78); }
+html.glass #call .focus-strip .tile .avatar { transform: translateY(-10px); }
+/* O quadro ampliado fica por cima da fileira enquanto as duas se movem. */
+html.glass #call .focus-main { position: relative; z-index: 2; overflow: visible; }
+html.glass #call .focus-strip { position: relative; z-index: 1; }
+/* Enquanto cresce, o quadro fica opaco (cor média do vidro) para não mostrar os outros através dele. */
+html.glass #call .tile.flipping:not(.is-screen) { background: color-mix(in srgb, var(--bg-rail) 86%, #fff); }
+html.glass #call .grid > .tile.flipping { position: relative; z-index: 4; }
+/* Janelas: só escurece o fundo (sem desfoque, que pesa com live atrás). */
+html.glass .overlay { backdrop-filter: none; background: rgba(5,6,8,.55); animation: none; }
+html.glass .overlay .modal { animation: none; background: color-mix(in srgb, var(--bg-rail) 90%, #fff); border-color: rgba(255,255,255,.10); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 30px 80px rgba(0,0,0,.5); }
+html.glass #ctx-menu { box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 18px 50px rgba(0,0,0,.45); }
+
+/* Destaque deslizante (motion.js): a pílula corre até o item com mola; os itens ficam por cima dela. */
+.has-slider { position: relative; }
+.has-slider > :not(.m-slider) { position: relative; z-index: 1; }
+.m-slider { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0;
+  transition: transform var(--spring-move-dur, .35s) var(--spring-move, ease-out), width var(--spring-move-dur, .35s) var(--spring-move, ease-out), height var(--spring-move-dur, .35s) var(--spring-move, ease-out), opacity .18s ease; }
+.m-slider-tabs { border-radius: 10px; background: var(--active); }
+html.glass .m-slider-tabs { background: rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabs.has-slider > .tab.active, .tabs.has-slider > .tab:hover { background: transparent; }
+#chat .right-nav.has-slider button[aria-pressed=true] { background: transparent; }
+html.glass #chat .right-nav.has-slider button[aria-pressed=true] { background: transparent; }
+
+/* ---------- Lote 6: tela inicial em vidro ---------- */
+html.glass #home {
+  background:
+    radial-gradient(60% 55% at 10% 6%, color-mix(in srgb, var(--blurple) 44%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 94% 16%, color-mix(in srgb, var(--link) 24%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 50% 112%, color-mix(in srgb, var(--blurple) 28%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+html.glass #home .card { background: var(--g-fill); border-color: var(--g-edge); box-shadow: var(--g-shine); border-radius: 22px; }
+html.glass #home .field input:not([type=color]):not([type=checkbox]), html.glass #home .home-color input[type=color] { background: rgba(0,0,0,.18); border-color: var(--g-edge); }
+html.glass #home .btn:not(.primary) { border-color: var(--g-edge); background: var(--g-fill); }
+html.glass #home .btn:not(.primary):hover { background: var(--g-fill-h); }
+html.glass #home .recent-item { background: var(--g-fill); }
+html.glass #home .recent-item:hover { background: var(--g-fill-2); border-color: var(--g-edge); }
+
+/* Minhas salas: fileira horizontal de cards, como as fileiras do Apple TV. */
+#home .home-rooms .room-shelf { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 2px; padding: 4px 2px 10px; scrollbar-width: thin; }
+#home .home-rooms .saved-room { flex: 0 0 216px; scroll-snap-align: start; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; border-radius: 20px; cursor: pointer; position: relative; }
+#home .saved-room-art { position: relative; height: 118px; display: grid; place-items: center;
+  background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--room-color, #6a4bb3) 100%, #fff 18%), var(--room-color, #6a4bb3) 55%, color-mix(in srgb, var(--room-color, #6a4bb3) 70%, #000) 100%); }
+#home .saved-room-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#home .saved-room .saved-room-art .saved-room-badge { width: auto; height: auto; background: none !important; color: rgba(255,255,255,.95) !important; font-size: 40px; font-weight: 800; letter-spacing: -.02em; border-radius: 0; }
+#home .saved-room-fav { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.35); color: #fbbf24; }
+#home .saved-room-fav svg { fill: currentColor; stroke: none; }
+#home .home-rooms .saved-room-info { padding: 12px 14px 4px; gap: 3px; }
+#home .home-rooms .saved-room-info b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#home .home-rooms .saved-room-status { font-size: 12px; }
+#home .home-rooms .saved-room .btn { margin: 8px 14px 14px; min-height: 36px; }
+html.glass #home .saved-room { background: var(--g-fill-2); border-color: var(--g-edge); box-shadow: var(--g-shine); }
+/* Passar o mouse: igual aos cards da call (escurece de leve e mostra o contorno, 0,2 s). */
+#home .saved-room::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: rgba(0,0,0,.14);
+  box-shadow: inset .5px .5px rgba(255,255,255,.24), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.16); opacity: 0; transition: opacity .2s ease; }
+#home .saved-room:hover::after { opacity: 1; }
+#home .saved-room:active { scale: .985; transition: scale 90ms ease-out; }
+
+/* Card que vira a sala (motion.js): camada com a cor da sala crescendo do card até a janela. */
+.m-expand { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 90; pointer-events: none; transform-origin: 0 0; border-radius: 20px; }
+/* Conteúdo primeiro (como no Apple TV): Minhas salas logo depois da saudação. */
+#home .home-main > .home-brand { order: 0; } #home .home-main > .home-rooms { order: 1; } #home .home-main > .home-join { order: 2; }
+#home .home-main > #home-error { order: 3; } #home .home-main > .home-create { order: 4; }
+/* Sala abrindo: a arte do card pulsa devagar (só opacidade) até a sala aparecer. */
+#home .saved-room.opening .saved-room-art > * { animation: m-breathe 1.1s ease-in-out infinite; }
+#home .saved-room.opening .btn { opacity: .6; pointer-events: none; }
+@keyframes m-breathe { 50% { opacity: .45; } }
+
+/* ---------- Lote 7: live em tela cheia ---------- */
+/* Barras de controle unificadas, como o dock (sem bolinha por botão). Sem desfoque: o vídeo atrás muda a cada quadro. */
+html.glass #call .tile.is-screen:fullscreen .tile-tools { background: rgba(20,22,28,.74); border-color: rgba(255,255,255,.10); border-radius: 999px; padding: 6px 10px; gap: 2px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 36px rgba(0,0,0,.45); }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button { background: transparent !important; color: rgba(255,255,255,.78); border-radius: 14px; transition: color 90ms ease-out; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:hover { color: #fff; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:hover svg { scale: 1.14; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button:active svg { scale: .86; transition-duration: 90ms; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools .off { color: #f87171 !important; }
+html.glass #call .tile.is-screen:fullscreen .live-volume { background: transparent; }
+html.glass #call .tile.is-screen:fullscreen .live-identity, html.glass #call .tile.is-screen:fullscreen .live-back { background: rgba(20,22,28,.74); box-shadow: inset 0 1px 0 rgba(255,255,255,.10); }
+/* Controles entram e saem deslizando (mola), não só piscando. */
+html.glass #call .tile.is-screen:fullscreen .tile-tools, html.glass #call .tile.is-screen:fullscreen .live-meta {
+  transition: opacity .2s ease, translate var(--spring-move-dur, .4s) var(--spring-move, ease-out); }
+html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .tile-tools { translate: 0 18px; }
+html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .live-meta { translate: 0 -14px; }
+
+/* ---------- Lote 10: Reduzir animações (opção nas configurações) ---------- */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+
+/* ---------- Lote 9: vidro no tema claro ---------- */
+html.glass.light {
+  --g-fill: rgba(255,255,255,.55);
+  --g-fill-2: rgba(255,255,255,.72);
+  --g-fill-h: rgba(255,255,255,.92);
+  --g-edge: rgba(30,30,60,.09);
+  --g-shine: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 3px rgba(30,30,60,.05);
+}
+html.glass.light #main, html.glass.light #home {
+  background:
+    radial-gradient(60% 55% at 12% 8%, color-mix(in srgb, var(--blurple) 22%, transparent) 0, transparent 70%),
+    radial-gradient(55% 60% at 92% 18%, color-mix(in srgb, var(--link) 14%, transparent) 0, transparent 70%),
+    radial-gradient(70% 60% at 55% 110%, color-mix(in srgb, var(--blurple) 16%, transparent) 0, transparent 70%),
+    var(--bg-rail);
+}
+html.glass.light #chat .msg:hover { background: rgba(255,255,255,.5); }
+html.glass.light #call .tile::after, html.glass.light #call .vc-card::after, html.glass.light #home .saved-room::after {
+  background: rgba(30,30,60,.04); box-shadow: inset 0 0 0 1px rgba(30,30,60,.10), 0 8px 24px rgba(30,30,60,.08); }
+html.glass.light #call .tile.flipping:not(.is-screen) { background: #fff; }
+html.glass.light #call #call-controls { background: rgba(255,255,255,.66); box-shadow: var(--g-shine), 0 12px 30px rgba(30,30,60,.12); }
+html.glass.light:has(#sidebar .live, #call .tile.is-screen) #call #call-controls { background: rgba(255,255,255,.94); }
+html.glass.light #call #call-controls .cc-btn { color: var(--icon); }
+html.glass.light #call #call-controls .cc-btn:hover { color: var(--text-hi); }
+html.glass.light #call #call-controls .cc-btn.off, html.glass.light #call #call-controls #cc-leave { color: #dc2626; }
+html.glass.light #call #call-controls .cc-btn.off:hover, html.glass.light #call #call-controls #cc-leave:hover { color: #b91c1c; }
+html.glass.light .overlay { background: rgba(30,30,50,.28); }
+html.glass.light .overlay .modal { background: #fff; border-color: rgba(30,30,60,.10); box-shadow: inset 0 1px 0 #fff, 0 30px 80px rgba(30,30,60,.22); }
+html.glass.light #ctx-menu { box-shadow: 0 18px 50px rgba(30,30,60,.18); }
+html.glass.light .m-slider-tabs { background: #fff; box-shadow: 0 1px 3px rgba(30,30,60,.12), inset 0 0 0 .5px rgba(30,30,60,.08); }
+html.glass.light #home .field input:not([type=color]):not([type=checkbox]), html.glass.light #home .home-color input[type=color] { background: rgba(255,255,255,.75); }
+html.glass.light #call .tile:not(.is-screen) .label { background: rgba(255,255,255,.85); color: var(--text-hi); backdrop-filter: none; }
+html.glass.light .m-expand { opacity: .95; }
+
+/* ---------- Ajustes pós-teste da 2.1.0 ---------- */
+/* Fundo bem mais sutil: duas manchas largas nos cantos, nada de "holofote" no meio. */
+html.glass #main, html.glass #home, html.glass #boot {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--blurple) 14%, transparent) 0, transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--blurple) 9%, transparent) 0, transparent 60%),
+    var(--bg-rail);
+}
+html.glass.light #main, html.glass.light #home, html.glass.light #boot {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--blurple) 9%, transparent) 0, transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--blurple) 6%, transparent) 0, transparent 60%),
+    var(--bg-rail);
+}
+
+/* Minhas salas: sem barra de rolagem; as pontas esmaecem e as setas aparecem ao passar o mouse. */
+#home .home-rooms .shelf-wrap { position: relative; }
+#home .home-rooms .room-shelf { scrollbar-width: none; scroll-behavior: smooth; padding: 6px 4px 10px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent 100%); }
+#home .home-rooms .room-shelf::-webkit-scrollbar { display: none; }
+#home .home-rooms .room-shelf.more-r { --fade-r: 56px; }
+#home .home-rooms .room-shelf.more-l { --fade-l: 56px; }
+#home .shelf-arrow { position: absolute; top: 50%; translate: 0 -50%; z-index: 2; width: 36px; height: 56px; border: 0; border-radius: 12px; display: grid; place-items: center;
+  background: var(--g-fill-h, rgba(255,255,255,.12)); color: var(--text-hi); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s ease; box-shadow: var(--g-shine); }
+#home .shelf-arrow.prev { left: -6px; }
+#home .shelf-arrow.next { right: -6px; }
+#home .shelf-wrap:hover .shelf-arrow.on { opacity: 1; pointer-events: auto; }
+#home .saved-room-hide { position: absolute; top: 10px; left: 10px; z-index: 4; width: 26px; height: 26px; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(0,0,0,.38); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s ease; }
+#home .saved-room:hover .saved-room-hide { opacity: 1; }
+#home .rooms-old { align-self: flex-start; border: 0; background: none; padding: 2px 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+#home .rooms-old:hover { color: var(--text-hi); text-decoration: underline; }
+
+/* Tela de carregamento no visual novo: ícone em vidro, nome e uma barra fina que corre. */
+#boot img { width: 84px; height: 84px; border-radius: 22px; box-shadow: var(--g-shine, none), 0 18px 40px rgba(0,0,0,.35); margin-bottom: 12px; }
+#boot h2 { font-size: 22px; letter-spacing: -.02em; }
+#boot .boot-dots { width: 140px; height: 3px; gap: 0; margin-top: 14px; border-radius: 2px; overflow: hidden; background: var(--g-edge, rgba(255,255,255,.1)); }
+#boot .boot-dots i { width: 40%; height: 100%; border-radius: 2px; background: var(--link); opacity: 1; animation: boot-run 1.15s cubic-bezier(.45,0,.2,1) infinite; }
+#boot .boot-dots i:nth-child(n+2) { display: none; }
+@keyframes boot-run { from { translate: -110% 0; } to { translate: 260% 0; } }
+html.glass.light #boot img { box-shadow: 0 14px 34px rgba(30,30,60,.18); }
+
+/* Cor do perfil: bolinha de cor de verdade (sem quadrado dentro do círculo). */
+input[type=color] { -webkit-appearance: none; appearance: none; width: 40px !important; height: 40px !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+  background: none !important; cursor: pointer; box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--g-edge, var(--line)); transition: box-shadow .15s ease; }
+input[type=color]:hover { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--muted); }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+
+/* Live em miniatura: segue a proporção da tela transmitida (sem barras pretas) e tem controles do tamanho dela. */
+#call #pips .tile.is-screen { width: 300px !important; height: auto !important; aspect-ratio: var(--live-ar, 16 / 9) !important; min-height: 0 !important; max-height: 240px; border-radius: 14px; }
+#call #pips .tile.is-screen video { object-fit: cover; }
+#call #pips .tile.is-screen .tile-tools { top: auto !important; bottom: 8px !important; right: 8px !important; left: auto !important; padding: 3px 4px !important; gap: 0 !important; border-radius: 999px !important;
+  background: rgba(10,11,15,.7) !important; opacity: 0; transition: opacity .15s ease; }
+#call #pips .tile.is-screen:hover .tile-tools { opacity: 1; }
+#call #pips .tile.is-screen .tile-tools > :not([data-full]) { display: none !important; }
+#call #pips .tile.is-screen .tile-tools button { width: 28px !important; height: 28px !important; min-width: 28px !important; min-height: 28px !important; padding: 0 !important; background: transparent !important; color: #fff; }
+#call #pips .tile.is-screen .tile-tools button svg { width: 15px !important; height: 15px !important; }
+#call #pips .tile.is-screen .label { bottom: 8px; left: 8px; font-size: 11px; padding: 3px 8px; }
+#call #pips .tile.is-screen .live-meta { display: none; }
+
+/* Barra lateral recolhida (72 px): uma coluna arrumada, só ícones. */
+#main[data-sidebar-compact=true] > #sidebar { width: 72px !important; min-width: 72px !important; }
+#main[data-sidebar-compact=true] #sidebar .server-row { flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 6px; overflow: visible; }
+.os-darwin #main[data-sidebar-compact=true] #sidebar .server-row { padding-top: 38px; padding-left: 0; }
+#main[data-sidebar-compact=true] #sidebar .server-dot.home { margin-left: 0; }
+#main[data-sidebar-compact=true] #sidebar .side-brand { flex-direction: column; align-items: center; padding: 6px 0 4px; min-height: 0 !important; gap: 4px; }
+#main[data-sidebar-compact=true] #sidebar .side-brand > img, #main[data-sidebar-compact=true] #sidebar .side-room { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar .side-actions { flex-direction: column; align-items: center; padding: 0 0 10px; gap: 6px; }
+#main[data-sidebar-compact=true] #sidebar .code-chip { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar #btn-invite { width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 0; border-radius: 12px; flex: none; }
+#main[data-sidebar-compact=true] #sidebar #btn-invite svg { width: 18px; height: 18px; }
+#main[data-sidebar-compact=true] #sidebar #channels { padding: 4px 0 10px; display: flex; flex-direction: column; align-items: center; }
+#main[data-sidebar-compact=true] #sidebar #channels > * { width: 100%; box-sizing: border-box; }
+#main[data-sidebar-compact=true] #sidebar .cat { font-size: 0 !important; padding: 8px 14px 4px !important; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar .cat::before { content: ''; display: block; width: 24px; height: 1px; background: var(--g-edge, var(--line)); }
+#main[data-sidebar-compact=true] #sidebar .cat > *, #main[data-sidebar-compact=true] #sidebar .cat-add { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar .channel { width: 44px; height: 40px; min-height: 40px; margin: 2px auto; padding: 0 !important; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar .vu, #main[data-sidebar-compact=true] #sidebar .ou, #main[data-sidebar-compact=true] #sidebar .friend-row { justify-content: center; padding: 4px 0; margin: 0 auto; width: 44px; }
+#main[data-sidebar-compact=true] #sidebar .tag, #main[data-sidebar-compact=true] #sidebar .live { display: none !important; }
+#main[data-sidebar-compact=true] #sidebar #voice-panel { padding: 8px 0; display: flex; justify-content: center; }
+#main[data-sidebar-compact=true] #sidebar #user-panel { flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; }
+#home .shelf-arrow.next svg { scale: -1 1; }
+#main[data-sidebar-compact=true] #sidebar #channels .muted.small { display: none; }
+
+/* ---------- Ajustes de uso (2.1.1) ---------- */
+/* Fechar o chat longe do fechar do app: o X de dentro do chat some; o botão de conversa no topo da call liga e desliga. */
+.desktop-app #chat .right-nav .right-close { display: none !important; }
+.desktop-app #main[data-right-open=true] #call .chat-toggle { display: grid !important; }
+
+/* Configurações (janela com abas): altura fixa, então trocar de aba não faz a janela pular; o conteúdo aparece suave. */
+#modal-root .overlay .modal:has(.tp) { height: min(720px, calc(100vh - 48px)); }
+#modal-root .overlay .modal:has(.tp) > .body { flex: 1; min-height: 0; overflow-y: auto; }
+#modal-root .overlay .modal .tp:not(.hidden) { animation: m-tab-in .22s ease-out; }
+@keyframes m-tab-in { from { opacity: 0; translate: 0 6px; } }
+
+/* Telas carregando na janela de transmitir: espaços reservados que pulsam. */
+.sources .src.loading { pointer-events: none; }
+.sources .src.loading .th { background: var(--g-fill-2, var(--bg-panel)); animation: m-breathe 1.1s ease-in-out infinite; }
+/* Temas completos já têm cor de destaque própria: as paletas ficam apagadas. */
+html.theme-fixed .palette-grid { opacity: .35; pointer-events: none; }
+/* Escolha do ícone do app (Configurações > Aparência). */
+.icon-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; padding: 10px 6px 8px; border-radius: 14px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .15s ease; }
+.icon-card img { width: 46px; height: 46px; border-radius: 11px; transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+.icon-card:hover { background: var(--g-fill-h, var(--hover)); }
+.icon-card:hover img { scale: 1.06; }
+.icon-card.sel { border-color: var(--link); box-shadow: 0 0 0 2px var(--accent-soft); color: var(--text-hi); }
+/* Logo Pipoquinha: quadrado com cantos arredondados. */
+#sidebar .side-brand > img { width: 32px !important; height: 32px !important; border-radius: 9px; }
+#home .home-logo img { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
+#home .home-tip img { width: 64px !important; height: 64px !important; border-radius: 16px; }
+
+/* Quadro de quem está ao vivo: contorno vermelho suave e botão de vidro no centro, embaixo do avatar. */
+html.glass #call .tile:not(.is-screen):has(.live-join), #call .tile:not(.is-screen):has(.live-join) { box-shadow: var(--g-shine, none), inset 0 0 0 2px rgba(255,74,74,.55); }
+html.glass #call .tile:not(.is-screen):has(.live-join).speaking { box-shadow: var(--g-shine, none), inset 0 0 0 3px var(--green); }
+#call .tile:not(.is-screen) .tile-tools:has(.live-join) { inset: 0 !important; top: 0 !important; right: 0 !important; display: flex !important; align-items: flex-end; justify-content: center;
+  padding: 0 0 max(14px, 13cqh) !important; background: none !important; pointer-events: none; opacity: 1 !important; }
+#call .tile:not(.is-screen) .tile-tools .live-join { pointer-events: auto; max-width: none !important; min-height: 38px !important; padding: 0 16px 0 12px !important; gap: 8px !important;
+  border-radius: 999px !important; border: 1px solid rgba(255,255,255,.16) !important; background: rgba(18,19,24,.62) !important; color: #fff !important; font-size: 13px !important; font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 22px rgba(0,0,0,.35); transition: background-color .15s ease, scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+#call .tile:not(.is-screen) .tile-tools .live-join::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; box-shadow: 0 0 0 0 rgba(255,74,74,.6); animation: m-live-dot 1.6s ease-out infinite; flex: none; }
+#call .tile:not(.is-screen) .tile-tools .live-join svg { display: none; }
+#call .tile:not(.is-screen) .tile-tools .live-join:hover { background: rgba(30,32,40,.78) !important; scale: 1.04; }
+#call .tile:not(.is-screen) .tile-tools .live-join:active { scale: .95; transition-duration: 90ms; }
+@keyframes m-live-dot { 0% { box-shadow: 0 0 0 0 rgba(255,74,74,.6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(255,74,74,0); } }
+/* Na fileira de baixo (quadros pequenos) o botão encolhe para uma pílula "ao vivo". */
+#call .focus-strip .tile:not(.is-screen) .tile-tools:has(.live-join) { padding-bottom: 8px !important; }
+#call .focus-strip .tile:not(.is-screen) .tile-tools .live-join { min-height: 26px !important; padding: 0 10px 0 8px !important; font-size: 11px !important; gap: 6px !important; }
+#call .focus-strip .tile:not(.is-screen) .tile-tools .live-join::before { width: 6px; height: 6px; }
+html.glass.light #call .tile:not(.is-screen) .tile-tools .live-join { background: rgba(255,255,255,.9) !important; color: var(--text-hi) !important; border-color: rgba(30,30,60,.12) !important; box-shadow: 0 6px 18px rgba(30,30,60,.14); }
+/* PWA: aviso de versão nova. */
+#pwa-update { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: 300; border: 0; border-radius: 999px; padding: 12px 18px;
+  background: var(--blurple); color: #fff; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,.4); cursor: pointer; animation: m-tab-in .3s ease-out; }
+
+/* ---------- Celular / PWA: barra de ajuda compacta, em vidro ---------- */
+.web-viewer #mobile-tools { margin: 6px 12px 8px; padding: 8px 10px; border-radius: 16px; background: var(--g-fill, var(--bg-side)); border: 1px solid var(--g-edge, var(--line)); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.web-viewer #mobile-tools #mobile-hint { flex: 1 1 100%; margin: 0; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.web-viewer #mobile-tools .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.web-viewer #mobile-tools .mobile-actions button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill-2, var(--bg-panel)); color: var(--text-hi); font: inherit; font-size: 12px; font-weight: 600; }
+.web-viewer #web-diagnostic, .web-viewer #web-quality { display: none !important; }
+
+/* ---------- Temas completos com personalidade própria (themes.js: --wall, --g-*, --r-*) ---------- */
+html.glass:not(.light) #main, html.glass:not(.light) #home, html.glass:not(.light) #boot { background: var(--wall, radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--blurple) 14%, transparent) 0, transparent 60%), radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--blurple) 9%, transparent) 0, transparent 60%), var(--bg-rail)); }
+html.glass.desktop-app #main #sidebar, html.glass.desktop-app #main #chat { border-radius: var(--r-panel, 22px); }
+html.glass #call .tile, html.glass #call .vc-card { border-radius: var(--r-tile, 26px); }
+html.glass #home .card { border-radius: var(--r-panel, 26px); }
+html.glass #home .home-rooms .saved-room { border-radius: var(--r-tile, 24px); }
+html.glass #call #call-controls { border-radius: max(var(--r-panel, 999px), 14px); }
+html.theme-fixed.glass #call #call-controls { background: color-mix(in srgb, var(--bg-rail) 70%, transparent); }
+
+/* ---------- Sala personalizada: foto de capa do grupo, descrição e cor ---------- */
+#sidebar { position: relative; }
+#sidebar.has-cover::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 168px; z-index: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.45) 45%, color-mix(in srgb, var(--bg-side) 85%, transparent) 78%, var(--bg-side) 100%), var(--room-cover) center/cover no-repeat;
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+#sidebar.has-cover > * { position: relative; z-index: 1; }
+#sidebar.has-cover .side-brand #room-name, #sidebar.has-cover #room-sub, #sidebar.has-cover #room-about { text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+#sidebar.has-cover .server-row { padding-bottom: 6px; }
+#sidebar.has-cover .side-brand { padding-top: 34px; }
+#room-about { padding: 2px 4px 0; font-size: 12px; line-height: 1.35; color: var(--text); opacity: .85; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#room-about.hidden { display: none; }
+#main[style*="--room-color"] #sidebar .channel.active { box-shadow: inset 3px 0 0 var(--room-color); }
+#home .saved-room.has-cover .saved-room-art { background: var(--room-cover) center/cover no-repeat; }
+#home .saved-room.has-cover .saved-room-badge { display: none; }
+
+.room-look .rl-preview { position: relative; border-radius: 16px; overflow: hidden; margin-bottom: 14px; border: 1px solid var(--g-edge, var(--line)); background: var(--bg-side); }
+.room-look .rl-cover { height: 150px; }
+.room-look .rl-id { display: flex; align-items: center; gap: 12px; padding: 0 16px 14px; margin-top: -26px; }
+.room-look .rl-icon { width: 56px; height: 56px; flex: none; border-radius: 16px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 20px; overflow: hidden; box-shadow: 0 0 0 3px var(--bg-side); }
+.room-look .rl-icon img { width: 100%; height: 100%; object-fit: cover; }
+.room-look .rl-id b { display: block; font-size: 16px; color: var(--text-hi); margin-top: 22px; }
+.room-look .rl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.room-look .rl-colors { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.room-look .rl-color { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; box-shadow: 0 0 0 2px var(--bg-main); transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+.room-look .rl-color:hover { scale: 1.1; }
+.room-look .rl-color.sel { box-shadow: 0 0 0 2px var(--bg-main), 0 0 0 4px var(--text-hi); }
+.room-look .rl-colors input#rl-custom { width: 30px !important; height: 30px !important; min-width: 30px; flex: none; aspect-ratio: 1; }
+#sidebar.has-cover .side-brand #room-name, #sidebar.has-cover #room-about { color: #fff; } #sidebar.has-cover #room-sub { color: rgba(255,255,255,.78); }
+
+/* ---------- Tela de carregamento com o card da sala (boot-card.js) ---------- */
+#boot.with-card { gap: 0; }
+#boot .boot-card { width: min(360px, calc(100vw - 48px)); border-radius: var(--r-tile, 22px); overflow: hidden; text-align: left;
+  background: var(--g-fill-2, rgba(255,255,255,.07)); border: 1px solid var(--g-edge, rgba(255,255,255,.1)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 24px 60px rgba(0,0,0,.45);
+  animation: boot-card-in .5s cubic-bezier(.2,.8,.2,1) both; }
+#boot .boot-art { height: 190px; display: grid; place-items: center;
+  background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--room-color) 100%, #fff 18%), var(--room-color) 55%, color-mix(in srgb, var(--room-color) 65%, #000) 100%); }
+#boot .boot-card.has-cover .boot-art { background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.35)), var(--room-cover) center/cover no-repeat; }
+#boot .boot-art span { font-size: 56px; font-weight: 800; color: rgba(255,255,255,.95); letter-spacing: -.02em; }
+#boot .boot-art img { width: 84px; height: 84px; margin: 0; border-radius: 22px; object-fit: cover; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+#boot .boot-card.has-cover .boot-art img { align-self: end; justify-self: start; margin: 0 0 -30px 18px; width: 64px; height: 64px; border-radius: 18px; box-shadow: 0 0 0 3px var(--bg-side), 0 10px 24px rgba(0,0,0,.4); }
+#boot .boot-info { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 4px; }
+#boot .boot-card.has-cover .boot-info { padding-top: 38px; }
+#boot .boot-info h2 { font-size: 19px; }
+#boot .boot-info p { min-height: 18px; font-size: 13px; }
+#boot .boot-info .boot-dots { margin-top: 10px; width: 100%; }
+@keyframes boot-card-in { from { opacity: 0; translate: 0 14px; scale: .97; } }
+#boot .boot-card.has-cover .boot-art span { display: none; }
+
+/* ---------- 2.1.3: dock da live (fora da tela cheia) ---------- */
+/* Uma cápsula só, igual ao dock da call: botões sem fundo próprio, volume integrado, divisória fina. */
+html.glass #call .tile.is-screen:not(:fullscreen) .tile-tools { background: rgba(18,20,26,.74); border: 1px solid rgba(255,255,255,.10); border-radius: 999px !important; padding: 4px 5px; gap: 2px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 32px rgba(0,0,0,.42);
+  transition: opacity .2s ease, translate var(--spring-move-dur, .4s) var(--spring-move, ease-out); }
+html.glass #call .tile.is-screen:not(:fullscreen):not(.controls-visible) .tile-tools:not(:focus-within) { translate: 0 10px; }
+html.glass #call .tile.is-screen .tile-tools button { background: transparent !important; border: 0 !important; border-radius: 999px !important; color: rgba(255,255,255,.80); transition: color 90ms ease-out, background-color 120ms ease-out; }
+html.glass #call .tile.is-screen:not(:fullscreen) .tile-tools button { height: 34px; min-width: 34px; padding: 0 9px; }
+html.glass #call .tile.is-screen .tile-tools button:hover { background: rgba(255,255,255,.10) !important; color: #fff; }
+html.glass #call .tile.is-screen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen .tile-tools button:active svg { scale: .86; transition-duration: 90ms; }
+html.glass #call .tile.is-screen .tile-tools [data-stop] { padding: 0 14px 0 10px !important; gap: 6px; font-size: 13px; font-weight: 600; }
+html.glass #call .tile.is-screen .tile-tools [data-stop]:hover { background: rgba(248,113,113,.16) !important; color: #fecaca; }
+html.glass #call .tile.is-screen .tile-tools .live-exit-label { margin-left: 0; font-size: inherit; }
+/* Volume: trilha fina que se preenche, bolinha branca, número alinhado */
+html.glass #call .tile.is-screen .live-volume { background: transparent !important; border: 0 !important; border-radius: 0 !important; height: 34px; padding: 0 12px 0 10px !important; gap: 9px !important;
+  color: rgba(255,255,255,.80); box-shadow: 1px 0 0 rgba(255,255,255,.12); margin-right: 3px; }
+html.glass #call .tile.is-screen .live-volume input { -webkit-appearance: none; appearance: none; width: 92px; height: 4px; min-height: 0; border-radius: 4px; cursor: pointer;
+  background: linear-gradient(90deg, #fff var(--p, 50%), rgba(255,255,255,.22) var(--p, 50%)); }
+html.glass #call .tile.is-screen .live-volume input::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen .live-volume input:hover::-webkit-slider-thumb { scale: 1.2; }
+html.glass #call .tile.is-screen .live-volume input:active::-webkit-slider-thumb { scale: .92; }
+html.glass #call .tile.is-screen .live-volume output { font-size: 12px; min-width: 34px; color: rgba(255,255,255,.66); font-variant-numeric: tabular-nums; }
+html.glass #call .tile.is-screen:fullscreen .live-volume { height: 42px; }
+html.glass #call .tile.is-screen:fullscreen .live-volume input { width: 130px; }
+@container (max-width: 420px) { html.glass #call .tile.is-screen .live-volume input { width: 60px; } }
+
+/* ---------- 2.1.3: ocultar/mostrar participantes com animação ---------- */
+html.glass #call .focus-strip { transition: height var(--spring-move-dur, .42s) var(--spring-move, ease-out), margin var(--spring-move-dur, .42s) var(--spring-move, ease-out), opacity .22s ease, translate var(--spring-move-dur, .42s) var(--spring-move, ease-out); }
+html.glass #main[data-people-hidden=true] #call .focus-strip { display: flex !important; height: 0 !important; margin-top: -10px; opacity: 0; translate: 0 26px; overflow: hidden; pointer-events: none; }
+
+/* ---------- 2.1.3: ícone do servidor usa a capa quando não há ícone ---------- */
+html.glass .server-dot img.from-cover { object-fit: cover; object-position: center; }
+
+/* ---------- 2.1.3: atualizador em card flutuante ---------- */
+html.glass #update-bar { position: fixed; top: 14px; bottom: auto; left: 0; right: 0; margin-inline: auto; width: min(400px, calc(100vw - 32px)); height: auto; z-index: 900;
+  display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 12px; padding: 14px; justify-content: stretch; font-weight: 400;
+  border-radius: var(--r-panel, 16px); border: 1px solid var(--g-edge, rgba(255,255,255,.12)); color: var(--text-hi);
+  background: color-mix(in srgb, var(--bg-float) 84%, transparent); -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 22px 50px rgba(0,0,0,.45); }
+html.glass #update-bar::before { display: none; }
+html.glass #update-bar .up-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: var(--blurple); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+html.glass #update-bar.is-error .up-ico { background: color-mix(in srgb, var(--red) 70%, #000); }
+html.glass #update-bar .up-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+html.glass #update-bar .up-text b { font-size: 14px; font-weight: 700; }
+html.glass #update-bar .up-text span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+html.glass #update-bar .up-progress { grid-column: 1 / -1; height: 5px; border-radius: 5px; overflow: hidden; background: color-mix(in srgb, var(--text) 12%, transparent); }
+html.glass #update-bar .up-progress i { display: block; height: 100%; border-radius: inherit; background: var(--link); transition: width .35s var(--spring-move, ease-out); }
+html.glass #update-bar .up-progress i.indeterminate { width: 40% !important; animation: up-indet 1.1s ease-in-out infinite; }
+@keyframes up-indet { from { translate: -100% 0; } to { translate: 260% 0; } }
+html.glass #update-bar .up-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+html.glass #update-bar .small-btn { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill-2, transparent); color: var(--text-hi); font-size: 13px; }
+html.glass #update-bar .small-btn:hover { background: var(--g-fill-h, var(--hover)); }
+html.glass #update-bar .small-btn.primary { background: var(--blurple); border-color: transparent; color: #fff; }
+html.glass #update-bar #up-notes { margin-right: auto; }
+html.glass #update-bar.up-enter { animation: up-in var(--spring-move-dur, .45s) var(--spring-move, cubic-bezier(.2,.9,.3,1.2)) both; }
+html.glass #update-bar.up-leave { animation: up-out .24s ease-in both; pointer-events: none; }
+@keyframes up-in { from { opacity: 0; translate: 0 -22px; scale: .96; } }
+@keyframes up-out { to { opacity: 0; translate: 0 -14px; scale: .97; } }
+html.glass.light #update-bar { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 18px 40px rgba(0,0,0,.16); }
+
+/* ---------- 2.1.3: menu do servidor (para todos) ---------- */
+html.glass #room-menu.server-menu { padding: 0 0 6px; overflow: hidden auto; max-height: calc(100vh - 130px); border-radius: var(--r-panel, 16px); z-index: 80; background: var(--bg-float); }
+#room-menu.server-menu .rm-head { position: relative; margin-bottom: 4px; }
+#room-menu.server-menu .rm-cover { height: 72px; background: linear-gradient(135deg, var(--room-color), color-mix(in srgb, var(--room-color) 45%, #000)); }
+#room-menu.server-menu .rm-cover.has-cover { background: center / cover no-repeat var(--room-cover); }
+#room-menu.server-menu .rm-id { display: flex; gap: 10px; align-items: flex-end; padding: 0 12px; margin-top: -22px; position: relative; }
+#room-menu.server-menu .rm-icon { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; overflow: hidden; font-weight: 700; color: #fff;
+  background: var(--room-color); border: 3px solid var(--bg-float); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+#room-menu.server-menu .rm-icon img { width: 100%; height: 100%; object-fit: cover; }
+#room-menu.server-menu .rm-text { display: flex; flex-direction: column; min-width: 0; padding-bottom: 1px; }
+#room-menu.server-menu .rm-text b { font-size: 15px; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#room-menu.server-menu .rm-text span { font-size: 12px; color: var(--muted); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#room-menu.server-menu .rm-text .rm-meta { font-size: 11.5px; opacity: .85; }
+#room-menu.server-menu .rm-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; padding: 10px 10px 6px; }
+#room-menu.server-menu .rm-quick-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px 8px; border-radius: var(--r-tile, 12px); border: 1px solid var(--g-edge, var(--line));
+  background: var(--g-fill-2, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .12s ease-out, scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+#room-menu.server-menu .rm-quick-btn:hover { background: var(--g-fill-h, var(--hover)); color: var(--text-hi); }
+#room-menu.server-menu .rm-quick-btn:active { scale: .95; transition-duration: 90ms; }
+#room-menu.server-menu .rm-quick-btn.on { color: var(--link); border-color: color-mix(in srgb, var(--link) 45%, transparent); }
+#room-menu.server-menu .rm-sec { padding: 4px 6px; border-top: 1px solid var(--g-edge, var(--line)); }
+#room-menu.server-menu .rm-quick + .rm-sec { border-top: 0; }
+#room-menu.server-menu .rm-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 6px 10px 2px; }
+#room-menu.server-menu .rm-live { justify-content: flex-start; gap: 8px; }
+#room-menu.server-menu .rm-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; box-shadow: 0 0 0 3px rgba(255,74,74,.2); flex: none; }
+#room-menu.server-menu .rm-go { margin-left: auto; font-size: 12px; color: var(--link); }
+.members-list { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow: auto; }
+.members-list .mb-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-tile, 10px); }
+.members-list .mb-row:hover { background: var(--g-fill, var(--hover)); }
+.members-list .mb-row .avatar { width: 36px; height: 36px; flex: none; }
+.members-list .mb-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.members-list .mb-info b { font-size: 14px; color: var(--text-hi); }
+.members-list .mb-info span { font-size: 12px; color: var(--muted); }
+.members-list .mb-live { color: #ff6b6b !important; font-weight: 700; }
+.members-list .small-btn { min-height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; }
+
+/* ---------- 2.1.5: sem cursor de lupa na live, nas imagens do chat e na imagem ampliada ---------- */
+#pips .tile, .focus-main .tile.is-screen, .att-img { cursor: pointer; }
+.lightbox { cursor: default; }
+
+/* ---------- 2.1.5: nome com cor e efeito do perfil ---------- */
+.uname { color: var(--nc, inherit); }
+.uname[class*="fx-"] { display: inline-block; font-weight: 700; background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; background-repeat: repeat; } /* sem filtros nem sombras largas: o efeito fica só na letra */
+.uname.fx-holo { color: transparent; background-image: linear-gradient(100deg, #9be7ff, #c4b5fd, #ff9be4, #fff3a6, #9be7ff, #c4b5fd); animation: nfx-slide 4s linear infinite; }
+.uname.fx-rainbow { color: transparent; background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #f9f871, #5ef38c, #4fc3ff, #a78bfa, #ff5f6d); animation: nfx-slide 3s linear infinite; }
+.uname.fx-neon { color: color-mix(in srgb, var(--nc, #7df9ff) 55%, #fff); text-shadow: 0 0 1px var(--nc, #7df9ff), 0 0 3px color-mix(in srgb, var(--nc, #7df9ff) 75%, transparent); animation: nfx-flicker 5s infinite; }
+.uname.fx-ouro { color: transparent; background-image: linear-gradient(100deg, #8a6420 0%, #f6d77a 25%, #fff6d5 35%, #d4a43a 50%, #8a6420 70%, #f6d77a 90%); animation: nfx-slide 3.2s linear infinite; }
+.uname.fx-fogo { color: transparent; background-image: linear-gradient(0deg, #ff3d00, #ff9100, #ffd54f, #ff9100, #ff3d00); background-size: 100% 260%; animation: nfx-rise 1.6s ease-in-out infinite alternate; }
+.uname.fx-gelo { color: transparent; background-image: linear-gradient(100deg, #e0f7ff, #7dd3fc, #ffffff, #93c5fd, #e0f7ff); animation: nfx-slide 4.5s linear infinite; }
+.uname.fx-glitch { position: relative; color: var(--nc, var(--text-hi)); }
+.uname.fx-glitch::before, .uname.fx-glitch::after { content: attr(data-text); position: absolute; inset: 0; pointer-events: none; }
+.uname.fx-glitch::before { color: #ff2bd6; animation: nfx-glitch 2.4s steps(1) infinite; mix-blend-mode: screen; }
+.uname.fx-glitch::after { color: #22e4ff; animation: nfx-glitch 2.4s steps(1) infinite reverse; mix-blend-mode: screen; }
+@keyframes nfx-slide { to { background-position: -220% 0; } }
+@keyframes nfx-rise { to { background-position: 0 100%; } }
+@keyframes nfx-flicker { 0%, 92%, 100% { opacity: 1; } 93% { opacity: .55; } 95% { opacity: 1; } 96% { opacity: .7; } }
+@keyframes nfx-glitch { 0%, 86%, 100% { translate: 0 0; opacity: 0; } 87% { translate: -2px 0; opacity: .9; clip-path: inset(10% 0 55% 0); } 90% { translate: 2px 0; opacity: .9; clip-path: inset(55% 0 10% 0); } 93% { translate: -1px 0; opacity: .8; clip-path: inset(30% 0 35% 0); } }
+html.glass.light .uname.fx-neon { color: var(--nc, #0369a1); text-shadow: 0 0 2px color-mix(in srgb, var(--nc, #0ea5e9) 50%, transparent); }
+/* Escolha no perfil */
+.nfx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+.nfx-grid .nfx { white-space: nowrap; }
+.nfx-grid .nfx { min-height: 38px; padding: 6px 4px; border-radius: 12px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer;
+  transition: background-color .12s, border-color .12s, scale .2s; overflow: hidden; }
+.nfx-grid .nfx:hover { background: var(--g-fill-h, var(--hover)); }
+.nfx-grid .nfx:active { scale: .96; }
+.nfx-grid .nfx.sel { border-color: var(--link); box-shadow: 0 0 0 1px var(--link) inset; }
+.nfx-grid .nfx .uname:not([class*="fx-"]) { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .uname[class*="fx-"], .uname.fx-glitch::before, .uname.fx-glitch::after { animation: none !important; } }
+html.reduce-motion .uname[class*="fx-"], html.reduce-motion .uname.fx-glitch::before, html.reduce-motion .uname.fx-glitch::after { animation: none !important; }
+
+/* ---------- 2.1.5: painel de chats novo (bolhas, pílulas, quem está na sala, envio com brilho) ---------- */
+html.glass #chat .pane-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 8px; }
+html.glass #chat #chat-title { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13.5px;
+  background: var(--g-fill-2, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+#chat-online { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#chat-online .co-stack { display: flex; }
+#chat-online .co-stack .avatar, #chat-online .co-more { width: 26px !important; height: 26px !important; font-size: 10px !important; border-radius: 50%; margin-left: -8px; box-shadow: 0 0 0 2px var(--bg-side); flex: none; }
+#chat-online .co-stack > :first-child { margin-left: 0; }
+#chat-online .co-more { display: grid; place-items: center; font-style: normal; font-weight: 700; color: var(--text-hi); background: var(--blurple); }
+#chat-online .co-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+/* Bolhas */
+html.glass #chat .msg { padding: 2px 14px 2px 56px; background: transparent !important; }
+html.glass #chat .msg.head { margin-top: 12px; }
+html.glass #chat .msg .avatar { left: 14px; top: 2px; width: 32px; height: 32px; }
+html.glass #chat .msg .meta { padding: 0 4px 3px; }
+html.glass #chat .msg .text { display: inline-block; max-width: 100%; margin: 0; padding: 8px 12px; font-size: 13.5px; line-height: 1.45; border: 0;
+  background: var(--g-fill-2, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--g-edge, transparent); border-radius: 6px 18px 18px 18px; }
+html.glass #chat .msg:not(.head) .text { border-radius: 18px; margin-top: 3px; }
+html.glass #chat .msg .atts { margin-top: 4px; }
+/* Suas mensagens: à direita, na cor de destaque, sem avatar */
+html.glass #chat .msg.mine { padding: 2px 14px 2px 48px; display: flex; flex-direction: column; align-items: flex-end; }
+html.glass #chat .msg.mine .avatar, html.glass #chat .msg.mine .author { display: none; }
+html.glass #chat .msg.mine .meta { justify-content: flex-end; padding: 0 4px 3px; }
+html.glass #chat .msg.mine .text { color: #fff; background: linear-gradient(135deg, color-mix(in srgb, var(--blurple) 88%, #fff 12%), var(--blurple)); box-shadow: 0 6px 18px color-mix(in srgb, var(--blurple) 30%, transparent);
+  border-radius: 18px 6px 18px 18px; }
+html.glass #chat .msg.mine:not(.head) .text { border-radius: 18px; }
+html.glass #chat .msg.mine .text a { color: #fff; text-decoration: underline; }
+html.glass #chat .msg.mine .hover-time { left: auto; right: 100%; display: none !important; }
+html.glass #chat .msg.mentioned:not(.mine) .text { box-shadow: inset 0 0 0 1.5px var(--yellow); }
+html.glass #chat .msg .msg-tools { top: -10px; border-radius: 999px; background: var(--bg-float); border: 1px solid var(--g-edge, var(--line)); }
+html.glass #chat .msg.mine .msg-tools { right: auto; left: 14px; }
+html.glass #chat .msg .text { animation: msg-in .32s cubic-bezier(.2,.9,.3,1.15) both; }
+@keyframes msg-in { from { opacity: 0; translate: 0 6px; scale: .97; } }
+html.reduce-motion #chat .msg .text { animation: none; }
+/* Campo em cápsula com botão de enviar brilhando */
+html.glass #composer .composer-row { border-radius: 999px !important; padding: 4px 4px 4px 6px; background: var(--g-fill-2, var(--bg-input)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); align-items: center; }
+html.glass #composer .composer-row:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--link) 60%, transparent), 0 0 0 3px color-mix(in srgb, var(--link) 14%, transparent); }
+html.glass #composer #input { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+html.glass #composer #btn-attach { border-radius: 50%; }
+html.glass #composer .send-btn { width: 36px; height: 36px; border-radius: 50% !important; color: #fff !important; background: var(--blurple) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) inset, 0 4px 16px color-mix(in srgb, var(--blurple) 55%, transparent); transition: scale .2s cubic-bezier(.2,1.5,.4,1), box-shadow .2s; }
+html.glass #composer .send-btn:hover { scale: 1.07; box-shadow: 0 0 0 1px color-mix(in srgb, #fff 26%, transparent) inset, 0 6px 22px color-mix(in srgb, var(--blurple) 75%, transparent); }
+html.glass #composer .send-btn:active { scale: .92; }
+/* Pílulas Chat / DMs */
+html.glass .right-nav { background: var(--g-fill, transparent); border-radius: 999px; padding: 4px; box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+html.glass .right-nav button { border-radius: 999px !important; }
+html.glass .right-nav button[aria-pressed="true"] { background: var(--g-fill-h, var(--hover)) !important; color: var(--text-hi); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+
+/* ---------- 2.1.5: janela translúcida (acrílico do Windows 11) ---------- */
+/* O fundo do tema fica levemente transparente; o vidro do sistema (papel de parede desfocado) aparece por trás. */
+html.acrylic, html.acrylic body { background: transparent !important; }
+html.acrylic body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--wall, var(--bg-rail)); opacity: .8; }
+html.acrylic :is(#main, #home, #boot) { background: transparent !important; }
+html.acrylic.light body::before { opacity: .72; }
+
+/* ---------- 2.1.5: "O que há de novo" ---------- */
+.whats-new-modal .wn-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--link); margin-bottom: 6px; }
+.whats-new .wn-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.whats-new .wn-list li { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-tile, 16px); background: var(--g-fill, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line));
+  animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
+.whats-new .wn-list li:nth-child(2) { animation-delay: .05s; } .whats-new .wn-list li:nth-child(3) { animation-delay: .1s; } .whats-new .wn-list li:nth-child(4) { animation-delay: .15s; } .whats-new .wn-list li:nth-child(5) { animation-delay: .2s; } .whats-new .wn-list li:nth-child(6) { animation-delay: .25s; }
+.whats-new .wn-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--link); background: color-mix(in srgb, var(--link) 14%, transparent); }
+.whats-new .wn-list b { display: block; font-size: 13.5px; color: var(--text-hi); margin-bottom: 2px; }
+.whats-new .wn-list span { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.whats-new .wn-themes { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+@keyframes wn-in { from { opacity: 0; translate: 0 8px; } }
+html.reduce-motion .whats-new .wn-list li { animation: none; }
+
+/* ---------- Refinamento pós-2.1.5 (R1–R9) ---------- */
+/* R1: só o indicador deslizante marca a seleção de Chat/DMs, no mesmo formato de pílula do trilho */
+html.glass #chat .right-nav.has-slider button[aria-pressed="true"] { background: transparent !important; box-shadow: none; }
+#chat .right-nav .m-slider-tabs { border-radius: 999px; }
+html.glass #chat .right-nav .m-slider-tabs { background: var(--g-fill-h, rgba(255,255,255,.1)); box-shadow: 0 2px 10px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08); }
+html.glass.light #chat .right-nav .m-slider-tabs { background: #fff; }
+/* R2: campo de mensagem com um único contorno; o brilho do foco acompanha a pílula */
+html.glass #chat #composer, html.glass #chat #composer:focus-within { background: transparent; border: 0; box-shadow: none; border-radius: 26px; }
+html.glass #composer #input:focus, html.glass #composer #input:focus-visible { outline: none !important; } /* o foco fica no brilho da pílula (.composer-row:focus-within) */
+html.glass #composer #reply-bar:not(.hidden), html.glass #composer #pending-files:not(:empty) { border-radius: 16px; margin-bottom: 6px; }
+html.glass #composer #reply-bar:not(.hidden) ~ .composer-row, html.glass #composer #pending-files:not(:empty) + .composer-row { border-radius: 999px !important; }
+/* R3: cards de arquivo cabem no chat estreito */
+.att-file { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.att-file .fi { min-width: 0; }
+.att-file.unavailable .fn { color: var(--text-hi); }
+.att-file.unavailable p { overflow-wrap: anywhere; margin: 2px 0 0; }
+.att-file audio { max-width: 100%; min-width: 0; }
+.atts { min-width: 0; max-width: 100%; }
+/* R7: rodapé como um bloco só, com curvas concêntricas à lateral */
+html.glass #sidebar #voice-panel, html.glass #sidebar #user-panel { border-top: 0 !important; margin: 0 8px; background: var(--g-fill, rgba(255,255,255,.04)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+html.glass #sidebar #voice-panel:not(.hidden) { border-radius: 14px 14px 5px 5px; margin-top: 6px; }
+html.glass #sidebar #user-panel { border-radius: 14px; margin-bottom: 8px; }
+html.glass #sidebar #voice-panel:not(.hidden) + #user-panel { border-radius: 5px 5px 14px 14px; margin-top: 2px; }
+html.glass #sidebar #up-user { border-radius: 10px; }
+/* R9: o ícone da sala identifica a sala aberta, ao lado do nome */
+#sidebar .side-brand > img { display: none !important; }
+#room-icon { flex: none; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; overflow: hidden; font-weight: 800; font-size: 17px; color: #fff;
+  background: var(--ri-color, var(--blurple)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-side) 70%, transparent), 0 6px 16px rgba(0,0,0,.28); }
+#room-icon img { width: 100%; height: 100%; object-fit: cover; }
+#main[data-sidebar-compact=true] #room-icon { width: 36px; height: 36px; border-radius: 11px; font-size: 14px; }
+#sidebar.has-cover::before { height: 188px; }
+/* R8: o menu do servidor acompanha a largura da lateral (não passa da borda na lateral estreita) */
+html.glass #sidebar #room-menu.server-menu { left: 10px; right: 10px; width: auto; min-width: 0; max-width: none; }
+/* R8 (causa): com capa na sala, "#sidebar.has-cover > *" deixava o menu em position: relative, no fluxo da lateral,
+   então ele empurrava/sobrepunha os canais e passava da borda. O menu volta a flutuar sobre a lateral. */
+#sidebar.has-cover > #room-menu { position: absolute; z-index: 80; }
+
+/* R6: janela com cantos arredondados no Windows (main.js: ROUNDED_WIN). O raio externo é o dos painéis (22px) + o respiro (6px).
+   O fundo vira uma sombra interna do body para não "vazar" para a tela inteira; maximizada, a janela volta a ser reta. */
+html.win-round, html.win-round body { background: transparent !important; }
+html.win-round body { box-shadow: inset 0 0 0 200vmax var(--bg-rail); }
+html.win-round:not(.win-max) body { clip-path: inset(0 round 28px); }
+html.win-round:not(.win-max) body::after { content: ''; position: fixed; inset: 0; border-radius: 28px; pointer-events: none; z-index: 2147483647;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09); }
+html.win-round.light:not(.win-max) body::after { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+/* Item 8 (rodada 2): volumes da live, do card de cada pessoa e do DJ na linguagem do player (pílula estilo iOS/macOS).
+   Cápsula grossa preenchida, sem bolinha; cresce com mola no hover/arraste; rodinha do mouse ajusta (resenha-pill.js no client). */
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range] {
+  -webkit-appearance: none; appearance: none; height: 18px; min-height: 0; border-radius: 999px; cursor: default; outline: none;
+  background: linear-gradient(90deg, rgba(255,255,255,.92) var(--p, 50%), rgba(255,255,255,.16) var(--p, 50%));
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.10); transition: height .22s cubic-bezier(.2,.8,.2,1), transform .3s cubic-bezier(.22,1.3,.36,1); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:hover { height: 22px; }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:active { transform: scaleY(1.06); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl, #ff8a3d) 55%, transparent); }
+html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; opacity: 0; }
+html.glass.light :is(#ctx-menu .ctx-row, .dj-vol) input[type=range] { background: linear-gradient(90deg, rgba(20,20,22,.82) var(--p, 50%), rgba(0,0,0,.10) var(--p, 50%)); }
+html.glass #ctx-menu .ctx-row input[type=range], html.glass .dj-vol input[type=range] { width: 100%; }
+html.reduce-motion :is(#call .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range] { transition: none !important; }
+/* Item 9 (rodada 2): cantos concêntricos. Peça interna = raio da borda (28 px) − distância até ela, para as curvas ficarem paralelas. */
+html.glass #sidebar .server-dot { border-radius: 14px !important; }                 /* 12 px da borda: 28 − 12 ≈ 16 → 14 (mantém o formato de "quadrado suave") */
+html.glass #sidebar .server-dot.active::after, html.glass #sidebar .server-dot:focus-visible { border-radius: 17px; }
+html.glass #win-controls button { border-radius: 999px !important; }               /* dentro do trilho em pílula: círculo acompanha a pílula */
+/* "O que há de novo" 2.2: destaque Resenha + Spotify (sem clarões: superfície uniforme, só o anel verde no ícone) */
+.whats-new .wn-hero { position: relative; text-align: center; padding: 26px 18px 18px; margin-bottom: 18px; border-radius: var(--r-panel, 22px); overflow: hidden;
+  background: var(--g-fill, var(--bg-panel)); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px var(--g-edge, var(--line)); }
+.whats-new .wn-duo { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 16px; }
+.whats-new .wn-logo { width: 78px; height: 78px; display: grid; place-items: center; flex: none; box-shadow: 0 14px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2); }
+.whats-new .wn-resenha { border-radius: 24px; background: var(--bg-float, #1c1c1f); overflow: hidden; animation: wn-from-left .8s cubic-bezier(.3,1.45,.4,1) both; }
+.whats-new .wn-resenha img { width: 100%; height: 100%; object-fit: cover; }
+.whats-new .wn-spotify { border-radius: 50%; background: #000; box-shadow: 0 14px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(30,215,96,.55); animation: wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both; }
+.whats-new .wn-plus { font-size: 28px; font-weight: 300; color: var(--muted); animation: wn-pop .6s cubic-bezier(.3,1.6,.4,1) .45s both; }
+.whats-new .wn-hero h3 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; color: var(--text-hi); animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .35s both; }
+.whats-new .wn-hero p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .42s both; }
+.whats-new .wn-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 12px; }
+.whats-new .wn-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-hi);
+  background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
+.whats-new .wn-chips span:nth-child(1) { animation-delay: .5s; } .whats-new .wn-chips span:nth-child(2) { animation-delay: .56s; } .whats-new .wn-chips span:nth-child(3) { animation-delay: .62s; }
+.whats-new .wn-chips svg { color: #1ed760; }
+.whats-new-modal .wn-legal { margin: 0; padding: 0 22px 12px; text-align: center; font-size: 10px; line-height: 1.3; color: var(--muted2, var(--muted)); opacity: .7; }
+html.light .whats-new .wn-chips span { background: rgba(0,0,0,.05); }
+.whats-new-modal .wn-spotify-btn { background: #1ed760 !important; color: #04140a !important; border-color: transparent !important; font-weight: 700; }
+@keyframes wn-from-left { from { opacity: 0; transform: translateX(-46px) rotate(-8deg) scale(.8); } }
+@keyframes wn-from-right { from { opacity: 0; transform: translateX(46px) rotate(8deg) scale(.8); } }
+@keyframes wn-pop { from { opacity: 0; transform: scale(.3); } }
+html.reduce-motion .whats-new :is(.wn-resenha, .wn-spotify, .wn-plus, .wn-hero h3, .wn-hero p, .wn-chips span) { animation: none !important; }
+
+/* 2.2: destaque Resenha × Spotify no estilo Y2K. O estilo vai na moldura, no ×, no título e nos brilhos;
+   o ícone do Spotify fica como é (verde sobre preto), como pedem as regras de marca deles. */
+.wn-y2k .wn-hero { background: #050507; color-scheme: dark; isolation: isolate; }
+.wn-y2k .wn-hero :is(h3, p) { color: #f4f6f8; } .wn-y2k .wn-hero p { color: #b9c0c8; }
+.wn-y2k .wn-hero .wn-chips span { color: #eef1f4; background: rgba(255,255,255,.06); }
+.wn-y2k .wn-kicker { display: inline-block; margin-bottom: 14px; font: 700 11px/1 'Space Grotesk', Figtree, sans-serif; letter-spacing: .32em; text-transform: uppercase; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .1s both; }
+.wn-y2k .wn-sparks { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+.wn-y2k .wn-sparks i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); animation: wn-twinkle 2.6s ease-in-out infinite; }
+.wn-y2k .wn-sparks i:nth-child(1) { left: 14%; top: 22%; } .wn-y2k .wn-sparks i:nth-child(2) { right: 16%; top: 16%; width: 10px; height: 10px; animation-delay: -.8s; }
+.wn-y2k .wn-sparks i:nth-child(3) { left: 24%; bottom: 26%; width: 8px; height: 8px; animation-delay: -1.5s; } .wn-y2k .wn-sparks i:nth-child(4) { right: 22%; bottom: 34%; width: 12px; height: 12px; animation-delay: -2s; }
+.wn-y2k .wn-sparks i:nth-child(5) { left: 50%; top: 8%; width: 7px; height: 7px; animation-delay: -1.1s; }
+@keyframes wn-twinkle { 0%, 100% { opacity: .2; transform: scale(.6) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+.wn-y2k .wn-spotify { background: #000 !important; }
+
+/* 1 · Cromado: metal prateado com faixa branca dura, grade sutil ao fundo */
+.wn-y2k[data-wn="1"] { --chrome: linear-gradient(180deg, #ffffff 0%, #dfe3e8 20%, #8a929c 44%, #ffffff 50%, #39404a 55%, #a3acb6 76%, #f1f3f6 100%); }
+.wn-y2k[data-wn="1"] .wn-hero { background: radial-gradient(90% 70% at 50% 0%, #1a1d24, #050507 70%), #050507;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.10), inset 0 1px 0 rgba(255,255,255,.18); }
+.wn-y2k[data-wn="1"] .wn-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 24px), repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 24px);
+  -webkit-mask: radial-gradient(70% 80% at 50% 40%, #000, transparent 75%); mask: radial-gradient(70% 80% at 50% 40%, #000, transparent 75%); }
+.wn-y2k[data-wn="1"] :is(.wn-kicker, .wn-hero h3, .wn-plus) { background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 1px 0 rgba(0,0,0,.8)) drop-shadow(0 0 10px rgba(180,210,255,.25)); }
+.wn-y2k[data-wn="1"] .wn-hero h3 { font: 800 26px/1.15 'Space Grotesk', Figtree, sans-serif; letter-spacing: -.01em; }
+.wn-y2k[data-wn="1"] .wn-plus { font-size: 34px; font-weight: 700; }
+.wn-y2k[data-wn="1"] .wn-logo { padding: 4px; background: var(--chrome) !important; box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 14px 30px rgba(0,0,0,.6), 0 0 26px rgba(170,200,255,.22); }
+.wn-y2k[data-wn="1"] .wn-resenha img { border-radius: 20px; }
+.wn-y2k[data-wn="1"] .wn-spotify { background: radial-gradient(circle, #000 0 62%, transparent 63%), var(--chrome) !important; }
+.wn-y2k[data-wn="1"] .wn-chips span { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 1px 0 rgba(255,255,255,.35); background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.02)); }
+
+/* 2 · Bolha Aqua: vidro brilhante ciano e lima, bolhas com reflexo no topo */
+.wn-y2k[data-wn="2"] .wn-hero { background: linear-gradient(180deg, #04131c, #031016 60%, #061a14); box-shadow: inset 0 0 0 1px rgba(120,230,255,.18), inset 0 1px 0 rgba(200,250,255,.25); }
+.wn-y2k[data-wn="2"] .wn-sparks i { background: #bff6ff; filter: drop-shadow(0 0 6px rgba(90,220,255,.9)); }
+.wn-y2k[data-wn="2"] .wn-kicker { color: #8ff0ff; text-shadow: 0 0 12px rgba(80,220,255,.6); }
+.wn-y2k[data-wn="2"] .wn-hero h3 { font: 700 26px/1.15 Fredoka, Figtree, sans-serif; background: linear-gradient(180deg, #ffffff 0%, #aef3ff 45%, #3fd0ff 52%, #b8ff6a 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 2px 0 rgba(0,40,60,.9)); }
+.wn-y2k[data-wn="2"] .wn-logo { position: relative; padding: 5px; border-radius: 26px; background: linear-gradient(180deg, rgba(160,240,255,.55), rgba(40,170,220,.35)) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(200,250,255,.7), inset 0 -8px 16px rgba(0,120,170,.45), 0 12px 30px rgba(0,140,200,.35), 0 0 30px rgba(80,220,255,.25); }
+.wn-y2k[data-wn="2"] .wn-spotify { border-radius: 50%; background: radial-gradient(circle, #000 0 60%, transparent 61%), linear-gradient(180deg, rgba(160,240,255,.55), rgba(40,170,220,.35)) !important; }
+.wn-y2k[data-wn="2"] .wn-logo::after { content: ''; position: absolute; left: 14%; right: 14%; top: 6%; height: 34%; border-radius: 50% / 60% 60% 40% 40%; background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,0)); pointer-events: none; }
+.wn-y2k[data-wn="2"] .wn-resenha img { border-radius: 21px; }
+.wn-y2k[data-wn="2"] .wn-plus { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-size: 20px; font-weight: 700; color: #04222e; background: radial-gradient(circle at 35% 30%, #fff, #8ff0ff 45%, #29b6e6); box-shadow: 0 0 16px rgba(80,220,255,.6); }
+.wn-y2k[data-wn="2"] .wn-chips span { color: #dffbff; background: rgba(90,220,255,.10); box-shadow: inset 0 0 0 1px rgba(140,235,255,.4), inset 0 1px 0 rgba(255,255,255,.4); }
+.wn-y2k[data-wn="2"] .wn-chips svg { color: #b8ff6a; }
+
+/* 3 · Adesivo holográfico: moldura de foil iridescente que gira, título furta-cor */
+@property --wn-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes wn-foil { to { --wn-a: 360deg; } }
+.wn-y2k[data-wn="3"] { --foil: conic-gradient(from var(--wn-a), #ff9de6, #9ad8ff, #b8ffd9, #fff4a8, #ffb3c7, #c6a8ff, #ff9de6); }
+.wn-y2k[data-wn="3"] .wn-hero { background: radial-gradient(80% 60% at 50% 0%, #15121c, #050507 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.wn-y2k[data-wn="3"] .wn-sparks i { background: linear-gradient(135deg, #ffd6f5, #c9f0ff); }
+.wn-y2k[data-wn="3"] :is(.wn-kicker, .wn-hero h3, .wn-plus) { background: linear-gradient(90deg, #ffb3e6, #a8dcff, #c4ffe0, #fff0a8, #ffb3e6); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: wn-irid 6s linear infinite; }
+@keyframes wn-irid { to { background-position: 200% 0; } }
+.wn-y2k[data-wn="3"] .wn-hero h3 { font: 700 26px/1.15 'Space Grotesk', Figtree, sans-serif; }
+.wn-y2k[data-wn="3"] .wn-plus { font-size: 32px; font-weight: 700; }
+.wn-y2k[data-wn="3"] .wn-logo { padding: 3px; background: var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-left .8s cubic-bezier(.3,1.45,.4,1) both; box-shadow: 0 0 0 1px rgba(255,255,255,.25), 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(200,170,255,.25); }
+.wn-y2k[data-wn="3"] .wn-spotify { background: radial-gradient(circle, #000 0 63%, transparent 64%), var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both; }
+.wn-y2k[data-wn="3"] .wn-resenha img { border-radius: 21px; }
+.wn-y2k[data-wn="3"] .wn-chips span { box-shadow: inset 0 0 0 1px rgba(255,200,240,.3); }
+html.reduce-motion .wn-y2k :is(.wn-sparks i, .wn-logo, .wn-kicker, .wn-hero h3, .wn-plus) { animation: none !important; }
+.wn-y2k[data-wn="2"] .wn-spotify::after { content: none; } /* nada por cima do ícone do Spotify */
+
+/* 2.2: ícone do Spotify como adesivo holográfico (arte própria em CSS, inspirada na referência do Felipe):
+   disco verde furta-cor, faixas escuras translúcidas, borda de foil e a ponta descolando no canto. */
+@keyframes wn-holo-shift { to { background-position: 0 0, 200% 50%, 0 0; } }
+.wn-y2k[data-wn="3"] .wn-spotify { position: relative; overflow: visible; padding: 3px; animation: wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both !important;
+  background: var(--foil) !important; box-shadow: 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(120,255,190,.18) !important; }
+.wn-y2k[data-wn="3"] .wn-spotify::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; z-index: 0;
+  background: radial-gradient(60% 45% at 68% 22%, rgba(255,255,255,.38), transparent 70%),
+    linear-gradient(115deg, #17a34a 0%, #39e08a 14%, #2fc6d8 28%, #6f6cf0 38%, #2fd49a 50%, #b4f25e 62%, #22c35e 74%, #4fd8d0 86%, #17a34a 100%),
+    radial-gradient(120% 90% at 20% 90%, rgba(10,60,30,.45), transparent 60%);
+  background-size: 100% 100%, 200% 100%, 100% 100%; animation: wn-holo-shift 7s linear infinite; }
+.wn-y2k[data-wn="3"] .wn-spotify svg { position: relative; z-index: 1; width: 64px; height: 64px; }
+.wn-y2k[data-wn="3"] .wn-spotify svg circle { fill: transparent; }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: rgba(28,14,46,.78); stroke-width: 2.1; mix-blend-mode: multiply; }
+/* a ponta descolando: corta o canto (cor do fundo) e mostra o verso prateado dobrado */
+.wn-y2k[data-wn="3"] .wn-spotify::after { content: ''; position: absolute; z-index: 2; top: -2px; right: -2px; width: 30px; height: 30px; border-radius: 0 0 0 60%;
+  background: linear-gradient(225deg, #050507 0 49%, transparent 50%), linear-gradient(45deg, #f2f6ff, #c7d3ff 30%, #ffe1f4 55%, #d2ffec 80%, #ffffff);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); filter: drop-shadow(-3px 4px 4px rgba(0,0,0,.55)); }
+html.reduce-motion .wn-y2k[data-wn="3"] .wn-spotify::before { animation: none !important; }
+
+/* 2.2: adesivo holográfico (v2): o disco é recortado na diagonal e a aba dobrada é o pedaço cortado espelhado
+   (círculo de mesmo raio com centro refletido na linha do corte), então o canto descola de verdade. Ícone 78×78. */
+.wn-y2k[data-wn="3"] .wn-spotify { padding: 0; background: none !important; box-shadow: none !important; filter: drop-shadow(0 14px 16px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(110,255,170,.16)); }
+.wn-y2k[data-wn="3"] .wn-spotify::before { inset: 0; box-sizing: border-box; border: 3px solid transparent;
+  background: radial-gradient(55% 40% at 62% 24%, rgba(255,255,255,.34), transparent 70%) padding-box,
+    linear-gradient(118deg, #169a47 0%, #34d97f 15%, #8bef78 27%, #2fc8b4 39%, #5fd2f0 46%, #2fd49a 55%, #c6f468 66%, #22bf5c 78%, #47d6c4 90%, #169a47 100%) padding-box,
+    var(--foil) border-box;
+  background-size: 100% 100%, 200% 100%, 100% 100%;
+  clip-path: polygon(0 0, 38px 0, 100% 40px, 100% 100%, 0 100%); }
+@keyframes wn-holo-shift { to { background-position: 0 0, 200% 50%, 0 0; } }
+.wn-y2k[data-wn="3"] .wn-spotify::after { inset: 0; top: 0; right: 0; width: auto; height: auto; border-radius: 0; filter: none;
+  background: linear-gradient(135deg, #ffffff 0%, #dfe7ff 25%, #ffe0f3 45%, #d6ffef 65%, #b9c6ff 85%, #f4f6ff 100%);
+  clip-path: path('M 38 0 A 39 39 0 0 0 78 40 Z'); }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: rgba(22,12,40,.72); }
+
+/* 2.2: ícone do Spotify (v3, referência do Felipe): quadrado arredondado verde estilo macOS, disco branco-menta
+   em relevo e faixas verdes afundadas. Contorno holográfico (--foil) mantido. Arte própria em CSS. */
+.wn-y2k[data-wn="3"] .wn-spotify { border-radius: 24px !important; padding: 3px; background: var(--foil) !important;
+  animation: wn-foil 5s linear infinite, wn-from-right .8s cubic-bezier(.3,1.45,.4,1) both !important;
+  filter: drop-shadow(0 14px 16px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(110,255,170,.14)); }
+.wn-y2k[data-wn="3"] .wn-spotify::before { inset: 3px; border: 0; border-radius: 21px; clip-path: none; animation: none;
+  background: radial-gradient(90% 70% at 30% 10%, rgba(255,255,255,.18), transparent 60%), linear-gradient(165deg, #1ff28d 0%, #00dd74 45%, #00be60 100%); }
+.wn-y2k[data-wn="3"] .wn-spotify::after { inset: auto; left: 12%; top: 12%; width: 76%; height: 76%; border-radius: 50%; clip-path: none; z-index: 1;
+  background: radial-gradient(80% 80% at 32% 26%, #ffffff 0%, #f6fffb 38%, #dafdf0 62%, #7ff2c8 86%, #2ee3a6 100%);
+  box-shadow: 0 7px 12px -2px rgba(0,90,45,.55), 0 2px 3px rgba(0,90,45,.35), inset 0 -5px 9px rgba(0,190,125,.38), inset 0 2px 2px rgba(255,255,255,.9); }
+.wn-y2k[data-wn="3"] .wn-spotify svg { z-index: 2; width: 68px; height: 68px; margin-top: 2px; }
+.wn-y2k[data-wn="3"] .wn-spotify svg g { stroke: #10c066; stroke-width: 1.55; mix-blend-mode: normal;
+  filter: drop-shadow(0 .5px 0 rgba(255,255,255,.9)); }

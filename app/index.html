@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; connect-src 'self' ws: wss: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' https://sdk.scdn.co; frame-src https://sdk.scdn.co; worker-src 'self' blob:">
+<title>Resenha</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles-v11.css">
+<link rel="stylesheet" href="styles-v12.css">
+<link rel="stylesheet" href="styles-stitch.css">
+<link rel="stylesheet" href="mobile.css">
+<link rel="stylesheet" href="room-ui.css">
+<link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="room.css">
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="glass.css">
+<link rel="stylesheet" href="themes-pro.css">
+<link rel="stylesheet" href="music.css">
+<script src="boot.js"></script>
+</head>
+<body>
+<div id="titlebar"><div id="tb-title">Resenha</div><div id="win-controls"><button data-win="minimize" title="Minimizar" aria-label="Minimizar"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button><button data-win="maximize" title="Maximizar" aria-label="Maximizar"><svg class="wc-max" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="2"/></svg><svg class="wc-restore" viewBox="0 0 12 12"><rect x="2" y="4" width="6" height="6" rx="1.6"/><path d="M4.5 2.2h3.8a1.6 1.6 0 0 1 1.6 1.6v3.8"/></svg></button><button data-win="close" title="Fechar" aria-label="Fechar"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg></button></div></div>
+<div id="update-bar" class="hidden"></div>
+<div id="boot" role="status" aria-live="polite"><img src="icon.png" alt=""><h2 id="boot-name">Entrando no seu servidor…</h2><p id="boot-status"></p><span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
+<script src="boot-card.js"></script>
+
+<!-- Tela inicial -->
+<div id="home" class="screen">
+  <div class="home-wrap">
+    <section class="home-main" aria-label="Entrar ou criar uma sala">
+      <div class="home-brand">
+        <div class="home-logo"><img src="icon.png" alt=""><span>Resenha</span></div>
+        <h1 id="home-greeting">Boa noite</h1>
+        <p>Entre com o código que a galera mandou ou abra uma das suas salas.</p>
+      </div>
+
+      <div class="card home-join">
+        <p class="muted small" id="join-hint">Não precisa de IP nem abrir porta.</p>
+        <div class="home-row">
+          <div class="field grow"><label for="join-addr">Código da sala</label><input id="join-addr" placeholder="K7P4-QX9M" autocomplete="off" spellcheck="false"></div>
+          <button class="btn primary big" id="btn-join">Entrar na sala</button>
+        </div>
+        <div class="field home-pass"><label for="join-pass">Senha <span class="muted">(só se a sala tiver)</span></label><input id="join-pass" type="password" placeholder="sem senha"></div>
+        <div id="recent"></div>
+      </div>
+      <div id="home-error" class="error" role="status" aria-live="polite"></div>
+
+      <div class="card home-create">
+        <div class="home-row">
+          <div class="field grow"><label for="host-name">Criar uma sala nova</label><input id="host-name" maxlength="40" placeholder="Nome da sala, ex.: Resenha da firma"></div>
+          <button class="btn big" id="btn-host">Abrir sala</button>
+        </div>
+        <details class="home-more">
+          <summary>Opções avançadas</summary>
+          <div class="row">
+            <div class="field"><label for="host-port">Porta</label><input id="host-port" type="number" min="1024" max="65000" value="7777"></div>
+            <div class="field grow"><label for="host-pass">Senha (opcional)</label><input id="host-pass" type="password" placeholder="sem senha"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="host-background"> Manter a sala online em segundo plano ao fechar a janela</label>
+        </details>
+      </div>
+
+      <section id="my-rooms" class="home-rooms" aria-label="Minhas salas"></section>
+    </section>
+
+    <aside class="home-side" aria-label="Seu perfil">
+      <div class="card home-profile">
+        <div class="avatar-edit" id="home-avatar" title="Trocar foto" role="button" tabindex="0" aria-label="Trocar foto"></div>
+        <div class="field grow"><label for="home-name">Seu nome</label><input id="home-name" maxlength="32" placeholder="Como te chamam"></div>
+        <div class="field home-color"><label for="home-color">Cor</label><input id="home-color" type="color"></div>
+      </div>
+      <div class="card home-tip">
+        <img src="icon.png" alt="">
+        <p>O código de cada sala nunca muda. Se o anfitrião sair, outro amigo assume sozinho.</p>
+      </div>
+      <div id="home-version" class="muted small"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- App principal -->
+<div id="main" class="screen hidden">
+  <nav id="rail">
+    <div class="rail-item home" title="Início" id="rail-home"><img src="icon.png" alt=""></div>
+    <div class="rail-sep"></div>
+    <div class="rail-item active" id="rail-room" title=""></div>
+  </nav>
+
+  <aside id="sidebar">
+    <nav id="server-row" class="server-row hidden" aria-label="Seus servidores"></nav>
+    <div class="side-brand"><img src="icon.png" alt=""><div class="side-room"><header id="room-header" title="Opções da sala" role="button" tabindex="0" aria-haspopup="menu"><span id="room-name">Sala</span><span class="chev" aria-hidden="true">▾</span></header><small id="room-sub"></small></div></div>
+    <div class="side-actions">
+      <button class="code-chip hidden" id="btn-code" title="Copiar código da sala"></button>
+      <button class="btn primary" id="btn-invite" title="Convidar amigos"></button>
+    </div>
+    <div id="room-menu" class="dropdown hidden"></div>
+    <div id="channels">
+      <div class="cat"><span>Voz</span><button class="cat-add" data-add="voice" title="Criar canal de voz" aria-label="Criar canal de voz"></button></div>
+      <div id="voice-channels"></div>
+      <div class="cat"><span>Texto</span><button class="cat-add" data-add="text" title="Criar canal de texto" aria-label="Criar canal de texto"></button></div>
+      <div id="text-channels"></div>
+      <div class="cat" id="online-cat">Na sala</div>
+      <div id="online-users"></div>
+      <div class="cat">Amigos e conversas</div><div id="friends-list" class="friends-list"></div>
+    </div>
+
+    <div id="voice-panel" class="hidden">
+      <div class="vp-top">
+        <div class="vp-status"><span id="vp-signal"></span><div><div id="vp-title" class="good">Voz conectada</div><div id="vp-sub">Lobby</div></div></div>
+        <button class="icon-btn" id="vp-leave" title="Desconectar"></button>
+      </div>
+      <div class="vp-buttons">
+        <button class="vp-btn" id="vp-share" title="Compartilhar tela"></button>
+        <button class="vp-btn" id="vp-dj" title="DJ Resenha"></button>
+        <button class="vp-btn" id="vp-invite" title="Convidar"></button>
+      </div>
+    </div>
+
+    <div id="user-panel">
+      <div class="up-user" id="up-user"><div class="avatar" id="up-avatar"></div><div class="up-names"><div id="up-name"></div><div id="up-sub">Online</div></div></div>
+      <button class="icon-btn" id="btn-mute" title="Mutar microfone (clique direito: escolher microfone)"></button>
+      <button class="icon-btn" id="btn-deafen" title="Mutar som e microfone (clique direito: escolher saída)"></button>
+      <button class="icon-btn" id="btn-settings" title="Configurações"></button>
+    </div>
+  </aside>
+
+  <section id="call">
+    <header class="pane-header"><div class="pane-heading"><span id="call-title">Lobby</span><span id="call-count" class="muted small"></span></div>
+      <button class="chat-toggle" id="btn-chat-toggle" title="Mostrar ou esconder a conversa" aria-label="Mostrar ou esconder a conversa"></button>
+    </header>
+    <div id="call-stage"></div>
+    <div id="pips"></div>
+    <div id="call-controls" role="toolbar" aria-label="Controles da call">
+      <button class="cc-btn" id="cc-mute" title="Mutar microfone (clique direito: escolher microfone)" aria-label="Mutar microfone"></button>
+      <button class="cc-btn" id="cc-deafen" title="Mutar som e microfone (clique direito: escolher saída)" aria-label="Desativar áudio"></button>
+      <button class="cc-btn" id="cc-share" title="Compartilhar tela" aria-label="Compartilhar tela"></button>
+      <button class="cc-btn dj-btn" id="btn-dj" title="Chamar o DJ Resenha" aria-label="DJ Resenha"></button>
+      <span class="cc-sep" aria-hidden="true"></span>
+      <button class="cc-btn danger" id="cc-leave" title="Sair da call"></button>
+    </div>
+  </section>
+
+
+  <section id="chat">
+    <header class="pane-header"><div class="pane-heading"><span id="chat-title">geral</span></div><div id="chat-online" aria-label="Quem está na sala"></div></header>
+    <div id="messages"><div id="msg-list"></div></div>
+    <div id="typing"></div>
+    <div id="composer">
+      <div id="mention-pop" class="hidden"></div>
+      <div id="reply-bar" class="hidden"></div>
+      <div id="pending-files"></div>
+      <div class="composer-row">
+        <button class="icon-btn" id="btn-attach" title="Enviar arquivo"></button>
+        <textarea id="input" rows="1" placeholder="Conversar em #geral" aria-label="Mensagem"></textarea>
+        <button class="icon-btn send-btn" id="btn-send" title="Enviar" aria-label="Enviar"></button>
+      </div>
+    </div>
+    <input type="file" id="file-input" multiple hidden>
+    <div id="drop-overlay" class="hidden"><div>Solte para enviar em <b id="drop-ch">#geral</b></div></div>
+  </section>
+</div>
+
+<nav class="web-nav hidden" id="web-nav" aria-label="Navegação">
+  <button data-mobile-pane="sidebar">Sala</button><button data-mobile-pane="call" class="active">Ao vivo</button><button data-mobile-pane="chat">Chat</button>
+</nav>
+<div id="modal-root"></div>
+<div id="ctx-menu" class="hidden"></div>
+<div id="toasts"></div>
+<input type="file" id="avatar-input" accept="image/*" hidden>
+
+<script src="themes.js"></script>
+<script src="motion.js"></script>
+<script src="pipoca.js"></script>
+<script src="performance.js"></script>
+<script src="icons.js"></script>
+<script src="tunnel.js"></script>
+<script type="module" src="client.js"></script>
+</body>
+</html>

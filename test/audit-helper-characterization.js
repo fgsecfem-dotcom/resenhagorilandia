@@ -1,0 +1,15 @@
+const fs=require('fs'),path=require('path'),crypto=require('crypto'),assert=require('node:assert/strict');
+const {runPS,runHelper}=require('./helpers/ps');
+if(process.platform!=='win32'){console.log('SKIP: helper characterization needs Windows');process.exit(0);}
+const base=fs.mkdtempSync(path.join(path.resolve(__dirname,'../../../work'),'audit-helper-'));
+const zipScript=path.join(base,'zip-fixture.ps1');fs.writeFileSync(zipScript,"\uFEFFparam([string]$Manifest,[string]$Output)\n$ErrorActionPreference='Stop'\nAdd-Type -AssemblyName System.IO.Compression.FileSystem\nAdd-Type -AssemblyName System.IO.Compression\n$entries=Get-Content -LiteralPath $Manifest -Raw -Encoding UTF8|ConvertFrom-Json\n$z=[IO.Compression.ZipFile]::Open($Output,[IO.Compression.ZipArchiveMode]::Create)\ntry{foreach($e in $entries){$entry=$z.CreateEntry($e.name);$s=$entry.Open();try{$b=[Convert]::FromBase64String($e.data);$s.Write($b,0,$b.Length)}finally{$s.Dispose()}}}finally{$z.Dispose()}\n");
+const entry=(name,data)=>({name,data:Buffer.from(data).toString('base64')});
+const entries=[entry('Resenha/Resenha.exe','fixture not executed'),entry('Resenha/resources/app/package.json',JSON.stringify({name:'resenha',version:'1.4.0-preview.16'})),entry('Resenha/resources/default_app.asar','asar do Electron')];
+(async()=>{let n=0;for(const scenario of ['valid','hash','traversal','wrong-version']){
+ const id=crypto.randomUUID(),root=path.join(base,'.resenha-update-'+id);fs.mkdirSync(root);const zip=path.join(root,'download.zip'),manifest=path.join(root,'entries.json');fs.writeFileSync(manifest,JSON.stringify(scenario==='traversal'?[...entries,entry('Resenha/../../escaped-sentinel.txt','MUST NOT EXIST')]:entries));await runPS(zipScript,['-Manifest',manifest,'-Output',zip]);
+ const plan={id,root,target:path.join(base,'app'),staging:path.join(root,'staging'),backup:path.join(base,'.resenha-backup-'+id),zip,version:scenario==='wrong-version'?'1.4.0-preview.99':'1.4.0-preview.16',hash:scenario==='hash'?'0'.repeat(64):crypto.createHash('sha256').update(fs.readFileSync(zip)).digest('hex'),ready:path.join(root,'ready.json'),result:path.join(root,'result.json'),log:path.join(root,'diagnostic.jsonl'),parentPid:process.pid,args:[]};
+ const planFile=path.join(root,'plan.json');fs.writeFileSync(planFile,JSON.stringify(plan));
+ if(scenario==='valid'){await runHelper(planFile,['--extract']);assert.equal(JSON.parse(fs.readFileSync(path.join(plan.staging,'resources/app/package.json'))).version,plan.version);assert(!fs.existsSync(path.join(root,'applying.json')));}
+ else{await assert.rejects(runHelper(planFile,['--extract']));const result=JSON.parse(fs.readFileSync(plan.result,'utf8').replace(/^\uFEFF/,''));assert.equal(result.state,'error');if(scenario==='hash')assert.match(result.detail,/SHA-256/);if(scenario==='traversal')assert(!fs.existsSync(path.join(base,'escaped-sentinel.txt')));}
+ console.log('ok '+(++n)+' - helper extraction '+scenario);
+ }console.log('1..'+n);})().catch(e=>{console.error(e);process.exitCode=1});

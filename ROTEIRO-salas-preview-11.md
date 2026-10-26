@@ -1,0 +1,20 @@
+# Roteiro — três PCs A, B e C
+
+Todos com preview.11 e perfis próprios. Anotar Windows, rede, horários, código original e revisões mostradas. Estes testes precisam ser reais; a suíte simulada não os substitui.
+
+1. A instala, abre a sala antiga com nome/código original. Confira a pasta de backup mostrada em Minhas salas e que histórico/canais antigos continuam. Se a sala usava senha, informe a original. B e C entram pelo código. Espere 3 segundos após cada lote de alterações para a cópia ser transmitida/persistida.
+2. Envie mensagens públicas identificáveis A1, B1, C1. Crie/renomeie um canal e altere a ordem. Envie uma DM B→C com texto diferente. Confira que A não recebe DM. A DM e favoritos não devem aparecer nos arquivos minhas-salas do outro membro.
+3. Envie um arquivo de teste. Confira acesso enquanto A hospeda. Depois compare disponibilidade em B/C: o arquivo não deve ser replicado por padrão.
+4. Com manter sala em segundo plano desligado, A fecha no X. Confira troca automática para B ou C e que o código continua igual. Não presumir que mídia/call reconectou só porque chat voltou: teste falar e assistir como regressão. O arquivo pode aparecer indisponível no novo anfitrião; isso é esperado sem cópia local.
+5. Saia de verdade do Resenha nos três PCs, pelo menu Sair. O X de um convidado pode apenas esconder na bandeja. Verifique que não há anfitrião escondido ativo.
+6. B abre o app e Minhas salas. Conferir nome, código e revisão. C, com o app fechado, não está hospedando. B clica Abrir sala; após descoberta/reivindicação deve hospedar a cópia com o MESMO código. C abre e entra pelo código, confere A1/B1/C1 e canais preservados dentro dos limites do snapshot.
+7. A volta com dados antigos. Com B online, A clica Abrir sala em Minhas salas: deve encontrar B e oferecer Entrar, sem segundo anfitrião. Conferir que A recebe revisão atual e o código não muda. A cópia de revisão mais baixa não deve substituir a de B.
+8. Feche todos. Abra B e C ao mesmo tempo e clique Abrir sala com diferença de até 1 segundo. Deve haver um vencedor; o outro tenta entrar nele. Compare código, histórico e número de anfitriões. Anote se aparecerem dois temporariamente. Durante a janela não há chat na sala nova; se ocorrer ramo temporário, mensagens dele não são mescladas e devem estar preservadas em cópia/backup.
+9. Teste cópia antiga: mantenha A offline enquanto B/C criam mensagens novas. Feche todos e reabra somente A. O aviso de histórico possivelmente incompleto deve aparecer; mensagens que A não recebeu podem faltar. Se B entrar depois com revisão local maior, sua cópia deve ser preservada e o aviso de divergência aparecer. Não esperar mesclagem automática; para recuperar a cópia mais nova, pare a sala antiga e reabra por B. Guarde backups para comparar.
+10. Teste descoberta indisponível: bloqueie/desconecte a rede apenas como teste controlado. O app deve mostrar desconhecido/erro e não iniciar automaticamente um segundo anfitrião. Volte à rede e repita. Não confundir descoberta indisponível com prova de sala offline.
+11. Em A, habilite manter sala online em segundo plano. Feche no X: B/C devem continuar conectados. Abra pela bandeja. Depois Sair pela bandeja: verificar sucessão. Desligue a opção e repita X. Com o PC suspenso/desligado não há garantia de sala online.
+12. Reinicie B e C e confirme que Minhas salas persiste e usa o mesmo código. Teste Windows 10 e 11; testar também mesma LAN e PCs em redes diferentes. Registrar erros/tentativas e quais revisões cada PC tinha.
+
+Não apagar backups nem editar arquivos manualmente durante o teste. Se houver divergência, preserve pastas de dados, minhas-salas e conflitos para analisar. Backups de mudança de anfitrião podem crescer; não há limpeza automática.
+
+Meta de aceitação: código estável, apenas um anfitrião após convergência em rede saudável, retomada com histórico público recente, nenhuma DM no snapshot, ausência de perda dos dados originais/backup e sucessão original funcionando. Falhas de MQTT/NAT/partições permanecem a validar.

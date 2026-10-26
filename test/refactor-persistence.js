@@ -1,0 +1,10 @@
+const fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),reference=process.env.RESENHA_REFERENCE_ROOT;assert(reference);
+const copy=x=>JSON.parse(JSON.stringify(x));
+function run(tree,failAt,roomCode){const events=[],history={geral:Array.from({length:2005},(_,i)=>({id:String(i),text:'public '+i}))},channels=[{id:'geral',type:'text',name:'geral'}],files={file:{id:'file',name:'name.txt'}};
+ const deps={history,files,channels,roomCode,roomState:{atomic:(f,value)=>{events.push(['atomic',f,copy(value)]);if(events.filter(e=>e[0]==='atomic').length===failAt)throw Error('fixture-write-failure')}},historyFile:'same/history.json',filesIndex:'same/files.json',channelsFile:'same/channels.json',identityFile:'same/room.json',roomId:'same-room-id',roomName:'Café',revision:7,snapshotLineage:'same-lineage',snapshotNow:()=>({configuration:{needsPassword:false,passwordVerifier:''}}),log:(...a)=>events.push(['log',...a]),DISK_HISTORY_LIMIT:2000};
+ const file=path.join(tree,'server/room-persistence.js');let persist;if(fs.existsSync(file))persist=require(file).persistRoomFiles;else{const source=fs.readFileSync(path.join(tree,'server/index.js'),'utf8'),start=source.indexOf('    try {',source.indexOf('  const saveNow = () => {')),end=source.indexOf('    if(roomCode){const snap=snapshotNow();try{opts.onSnapshot',start);const body=source.slice(start,end).replace(/\bDISK_HISTORY_LIMIT\b/g,'2000');persist=new Function('{'+Object.keys(deps).join(',')+'}',body);}
+ assert.equal(persist(deps),undefined);assert.equal(history.geral.length,2000);assert.equal(history.geral[0].id,'5');if(failAt)assert.deepEqual(events.at(-1),['log','erro salvando','fixture-write-failure']);else assert.equal(events.length,roomCode?4:3);return events;
+}
+for(const code of [null,'TEST1234'])for(const failure of [0,1,2,3])assert.deepEqual(run(root,failure,code),run(reference,failure,code));
+console.log('PASS: persistence write order, exact paths/schema, 2000-message trimming, and partial-I/O error/log behavior equal frozen preview16');

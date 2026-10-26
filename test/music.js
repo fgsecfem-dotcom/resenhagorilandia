@@ -1,0 +1,30 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { DJTools } = require('../server/dj');
+(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'resenha-music-'));
+  const tools = new DJTools({ binDir: path.join(root,'bin'), cacheDir: path.join(root,'cache') });
+  tools.ensure = async () => {};
+  const attempts = [], file = path.join(root,'cache','test.m4a');
+  tools.run = async (args) => {
+    if (args.includes('--dump-single-json')) return JSON.stringify({entries:[{id:'far',duration:600},{id:'closest',duration:181},{id:'fallback',duration:185}]});
+    attempts.push(args);
+    if (attempts.length === 1) throw new Error('vídeo indisponível');
+    fs.writeFileSync(file,'audio fixture');return `${file}\t185\tFaixa encontrada`;
+  };
+  const item = { id:'test',title:'Artista - Faixa',source:'spotify',query:'ytsearch1:Artista - Faixa audio',duration:180 };
+  assert.equal(await tools.fetchAudio(item),file);
+  assert.match(attempts[0].at(-1),/closest$/); assert.match(attempts[1].at(-1),/fallback$/);
+  assert.equal(item.duration,185,'use actual audio duration');
+  assert.equal(item.title,'Artista - Faixa');
+  assert.ok(attempts[0].includes('--concurrent-fragments'));
+  const count = attempts.length; await tools.fetchAudio(item); assert.equal(attempts.length,count,'reuse cached file');
+  const serial = new DJTools({ binDir: path.join(root,'bin'), cacheDir: path.join(root,'queue') });
+  let running=0,max=0;
+  serial._run = async () => { running++;max=Math.max(max,running);await new Promise(r=>setTimeout(r,15));running--;return 'ok'; };
+  await Promise.all([serial.run([]),serial.run([]),serial.run([])]);
+  assert.equal(max,1,'only one yt-dlp process at a time');
+  console.log('PASS: music candidate fallback, duration, cache, serialized downloads');
+})().catch(e=>{console.error(e);process.exitCode=1;});

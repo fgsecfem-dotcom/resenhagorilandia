@@ -1,0 +1,76 @@
+name: Testar e gerar artefatos
+
+# Apenas manual. Este workflow NÃO gera o pacote usado pelo atualizador
+# (Resenha-<versão>-Windows-x64.zip + SHA256SUMS.txt) e não deve criar releases:
+# uma release com Resenha.exe portátil quebraria a atualização automática.
+# O processo de publicação está no README, em "Publicar versão nova".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Testar funcionalidades antes de empacotar
+        run: npm test
+      - name: Gerar Resenha.exe
+        run: npx electron-builder --win portable --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win
+          path: dist/Resenha.exe
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Testar funcionalidades antes de empacotar
+        run: npm test
+      - name: Gerar Resenha.app (Apple Silicon e Intel), assinatura ad-hoc (sem conta paga da Apple)
+        run: npx electron-builder --mac dir --arm64 --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Compactar
+        run: |
+          ls dist
+          ditto -c -k --keepParent dist/mac-arm64/Resenha.app dist/Resenha-mac-apple.zip
+          ditto -c -k --keepParent dist/mac/Resenha.app dist/Resenha-mac-intel.zip
+          codesign -dv dist/mac-arm64/Resenha.app || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/Resenha-mac-*.zip
+
+  release:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Criar release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/Resenha.exe
+            out/Resenha-mac-apple.zip
+            out/Resenha-mac-intel.zip
+          generate_release_notes: true

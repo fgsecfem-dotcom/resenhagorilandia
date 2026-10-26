@@ -1,0 +1,79 @@
+{
+  "name": "resenha",
+  "productName": "Resenha",
+  "version": "2.2.2",
+  "description": "Call de voz, compartilhamento de tela e chat entre amigos, sem servidor central.",
+  "main": "main.js",
+  "author": "Lucas",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/index.js --port 7777",
+    "dist": "electron-builder --win portable",
+    "dist:mac": "electron-builder --mac dir --arm64 --x64",
+    "test": "node test/features.js && node test/media.js && node test/themes.js && node test/music.js && node test/capture.js && node test/capture-fallback.js && node test/audio-controls.js && node test/performance.js && node test/music-cancel.js && node test/updates.js && node test/live-controls.js && node test/mobile-client.js && node test/mobile-server.js && node test/rooms.js && node test/room-window.js && node test/room-client.js && node test/update-install.js && node test/update-ui.js && node test/update-cloud.js && node test/regression-1.5.3.js && node test/regression-live-audio.js && node test/regression-2.0.js && node test/regression-relay.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.16.0",
+    "node-forge": "^1.4.0",
+    "node-turn": "^0.0.6",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@sapphi-red/web-noise-suppressor": "^0.4.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "asarUnpack": [
+      "app/icon.ico",
+      "app/icon.png"
+    ],
+    "appId": "com.lucas.resenha",
+    "productName": "Resenha",
+    "files": [
+      "main.js",
+      "preload.js",
+      "spotify.js",
+      "net-tools.js",
+      "tunnel-main.js",
+      "updater.js",
+      "server/**",
+      "app/**",
+      "package.json",
+      "capture-policy.js",
+      "mobile-tls.js",
+      "room-state.js",
+      "update-source.json",
+      "update-manager.js",
+      "update-helper.js",
+      "update-mac.js"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "portable",
+      "icon": "app/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Resenha.exe"
+    },
+    "mac": {
+      "target": "dir",
+      "icon": "app/icon.icns",
+      "category": "public.app-category.social-networking",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "O Resenha usa o microfone para a call de voz.",
+        "NSCameraUsageDescription": "O Resenha usa a câmera se você ligar o vídeo.",
+        "NSAudioCaptureUsageDescription": "O Resenha captura o som do Mac quando você compartilha a tela com áudio.",
+        "NSScreenCaptureUsageDescription": "O Resenha precisa gravar a tela para compartilhar com os amigos."
+      },
+      "minimumSystemVersion": "13.0"
+    },
+    "asar": false
+  }
+}

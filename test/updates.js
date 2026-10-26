@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');const {newer,selectRelease}=require('../updater');
+assert(newer('1.4.0-preview.10','1.4.0-preview.9'));assert(newer('1.4.0','1.4.0-preview.99'));assert(!newer('invalid','1.3.0'));
+const release=(tag,prerelease=false)=>({tag_name:tag,prerelease,assets:['Windows-x64','Windows-arm64','mac-apple','mac-intel'].map(p=>({name:'Resenha-'+tag+'-'+p+'.zip',browser_download_url:'https://example.test/'+p})).concat([{name:'SHA256SUMS.txt',browser_download_url:'https://example.test/sums'}]),html_url:'https://example.test/release'});
+const rs=[release('1.4.0-preview.13',true),release('1.4.1')];
+let r=selectRelease(rs,'1.4.0-preview.12',{platform:'win32',arch:'x64'});assert.equal(r.version,'1.4.1');assert(!r.manual);assert(r.name.endsWith('Windows-x64.zip'));
+assert(!selectRelease([rs[0]],'1.3.0',{channel:'stable'}).update);
+assert(selectRelease([rs[0]],'1.3.0',{platform:'win32',channel:'preview'}).update);
+assert(selectRelease(rs,'1.3.0',{platform:'darwin',arch:'arm64'}).name.endsWith('mac-apple.zip'));
+assert(selectRelease(rs,'1.3.0',{platform:'darwin',arch:'x64'}).name.endsWith('mac-intel.zip'));
+assert(selectRelease(rs,'1.3.0',{platform:'win32',arch:'arm64'}).name.endsWith('Windows-arm64.zip'));
+assert(!selectRelease(rs,'1.3.0',{platform:'linux'}).update);
+assert(!selectRelease([{...rs[1],draft:true}],'1.3.0').update);
+assert(selectRelease([{...rs[1],assets:rs[1].assets.filter(a=>a.name!=='SHA256SUMS.txt')}],'1.3.0',{platform:'win32'}).manual);
+console.log('PASS: semantic versions, channel selection, architecture and checksum-required manual fallback');

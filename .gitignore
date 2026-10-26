@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test/shots/
+test/rs-data*/
+test/probe/
+resenha-data/
+*.log
+signal-worker/node_modules/
+.wrangler/
+signal-worker/.wrangler/
