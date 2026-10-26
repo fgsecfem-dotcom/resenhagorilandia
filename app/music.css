@@ -238,7 +238,7 @@ html.reduce-motion #music-mini, html.reduce-motion #music-mini * { transition: n
 html[data-tk] #music-mini.mm-away.mm-away { border-width: 0 !important; box-shadow: none !important; }
 
 /* Minha chave do Spotify: passo a passo por cima do painel de música, uma etapa por tela. */
-.mu-connect { flex-wrap: wrap; }
+.mu-connect { flex-wrap: wrap; } .mu-connect > div { flex-basis: 100%; } .mu-connect .btn.mu-login { flex: 1; }
 .right-music > .mu-guide { position: absolute; inset: 0; z-index: 6; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 18px;
   background: var(--bg-panel); color: var(--text); }
 .mu-guide.hidden { display: none; }

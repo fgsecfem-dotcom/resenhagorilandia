@@ -236,7 +236,10 @@ export function createMusic({ settings, saveSettings, icon, toast, roomUI, nativ
     if (s.act === 'open') $('.mu-g-open', g).onclick = () => native?.openExternal?.(DASHBOARD);
     if (s.act === 'copy') $('.mu-g-copy', g).onclick = (e) => {
       const b = e.currentTarget;
-      navigator.clipboard.writeText(REDIRECT_URI).then(() => { b.textContent = 'Copiado!'; }, () => { getSelection().selectAllChildren($('.mu-g-code code', g)); b.textContent = 'Use Ctrl+C'; });
+      navigator.clipboard.writeText(REDIRECT_URI).then(() => { b.textContent = 'Copiado!'; }, () => {
+        getSelection().selectAllChildren($('.mu-g-code code', g)); // plano B: seleciona e copia do jeito antigo
+        b.textContent = document.execCommand('copy') ? 'Copiado!' : 'Use Ctrl+C';
+      });
     };
     if (s.act === 'key') {
       const input = $('.mu-g-input', g), msg = $('.mu-g-msg', g);
