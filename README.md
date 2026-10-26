@@ -1,6 +1,6 @@
 # Resenha
 
-Versão **2.1.2**. Veja [o que mudou](CHANGES-2.1.2.md). Execute `npm test` antes de empacotar.
+Versão **2.2.2**. Veja [o que mudou](CHANGES-2.2.2.md). Execute `npm test` antes de empacotar.
 
 Um app estilo Discord pra você e seus amigos: call de voz, compartilhamento de tela e chat com anexos. Não tem servidor central: quem abre a sala vira o servidor, igual no Radmin, só que sem o Radmin.
 
