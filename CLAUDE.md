@@ -2,6 +2,8 @@
 
 App de call, tela e chat estilo Discord, sem servidor central: quem abre a sala vira o servidor. Feito em Electron, com cliente web e PWA. Escreva em pt-BR simples, nos textos e nos commits.
 
+**Antes de mexer em qualquer coisa visual, leia [docs/DESIGN.md](docs/DESIGN.md)**: como o app é e o que o Felipe aprova ou rejeita.
+
 ## Como trabalhamos (roadmap + milestones)
 - O plano fica no [ROADMAP.md](ROADMAP.md). As tarefas são issues no GitHub, agrupadas por milestone e marcadas com o módulo.
 - **Uma issue = uma sessão = uma branch = um PR.** Branch `tipo/assunto` (ex.: `fix/credencial-por-sala`). O PR cita a issue (`Closes #N`).

@@ -4,7 +4,7 @@ Cada milestone é uma versão (ou etapa) com objetivo e critério de pronto. As 
 
 **Versão publicada:** 2.2.2
 
-## M0 · Organização (em andamento)
+## M0 · Organização (concluído)
 Objetivo: deixar o projeto pronto para trabalhar por milestones, a dois.
 - [x] Código e releases num único repositório público
 - [x] `CLAUDE.md` com mapa de módulos e regras
@@ -12,7 +12,7 @@ Objetivo: deixar o projeto pronto para trabalhar por milestones, a dois.
 - [x] Documentos antigos em `docs/`
 - [x] Labels, milestones e issues criados no GitHub (#5)
 
-Pronto quando: o PR de organização entrar no `main`.
+Concluído em 26/10/2026 (PR #6).
 
 ## 2.3 · Segurança e Mac
 Objetivo: fechar a brecha de identidade entre salas e confirmar o Mac de verdade.
