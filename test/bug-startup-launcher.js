@@ -62,13 +62,50 @@ function fixture(options = {}) {
   handlers.get('launcher:action')({ sender: {} }, 'open'); assert.equal(f.counts.open, 0); await boot.controller.start(); let prevented = false; boot.window.emit('close', { preventDefault: () => prevented = true }); assert(prevented); assert.equal(quitCalls, 0);
   quitting = true; prevented = false; boot.window.emit('close', { preventDefault: () => prevented = true }); assert.equal(prevented, false); boot.window.emit('closed'); assert.equal(handlers.size, 0);
 
-  const elements = new Map(); const element = id => elements.get(id) || elements.set(id, { textContent: '', hidden: false, style: {}, attrs: {}, classList: { toggle() {} }, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } }).get(id);
-  let render; const context = { document: { getElementById: element, documentElement: { dataset: {} }, body: { dataset: {} } }, window: { addEventListener() {}, launcherNative: { onState: fn => { render = fn; return () => {}; }, ready: async () => ({ phase: 'checking' }), action() {} } }, localStorage: { getItem: () => '{"theme":"arcLight"}' } };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/launcher.js'), 'utf8'), context); await new Promise(r => setImmediate(r));
+  // Carrega o launcher.js num DOM falso; `store` simula o localStorage e `rooms` a lista que vem do main.
+  const load = async (store = {}, rooms = []) => {
+    const elements = new Map(), actions = [];
+    const element = id => elements.get(id) || elements.set(id, { textContent: '', value: '', hidden: false, style: {}, attrs: {}, handlers: {}, classList: { toggle() {} }, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; },
+      addEventListener(type, fn) { this.handlers[type] = fn; }, append() {}, replaceChildren(...nodes) { this.children = nodes; } }).get(id);
+    let render; const context = { document: { getElementById: element, createElement: () => ({ style: { setProperty() {} }, append() {} }), documentElement: { dataset: {} }, body: { dataset: {} } },
+      window: { addEventListener() {}, launcherNative: { onState: fn => { render = fn; return () => {}; }, ready: async () => ({ phase: 'checking' }), action: (action, payload) => actions.push([action, payload]), rooms: async () => rooms } },
+      localStorage: { getItem: key => key === 'resenha.settings' ? '{"theme":"arcLight"}' : (store[key] ?? null), setItem: (key, value) => { store[key] = value; } } };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/launcher.js'), 'utf8'), context); await new Promise(r => setImmediate(r));
+    return { element, context, actions, render };
+  };
+  const base = await load(), { element, context } = base, render = base.render;
   render({ phase: 'downloading', percent: 11, downloadedBytes: 18 * 1048576, totalBytes: 160 * 1048576, info: { version: '<test>' } }); assert.equal(element('percent').textContent, '11%'); assert.equal(element('bytes').textContent, '18 MB de 160 MB'); assert.equal(element('description').textContent, 'Transferindo o pacote <test>'); assert.equal(context.document.documentElement.dataset.theme, 'light');
   render({ phase: 'downloading', percent: 25, downloadedBytes: 10, totalBytes: null }); assert.equal(element('percent').textContent, ''); assert.equal(element('progress').attrs['aria-valuenow'], undefined);
   render({ phase: 'applying' }); assert(element('close').disabled && element('open').hidden); render({ phase: 'error', required: true, canOpen: false, error: 'hash incorreto' }); assert(element('open').hidden && !element('retry').hidden && !element('download').hidden); assert.equal(element('error').textContent, 'hash incorreto');
   render({ phase: 'checking' }); assert(element('open').hidden); render({ phase: 'unavailable', canOpen: true }); assert(!element('open').hidden && element('download').hidden);
   render({ phase: 'unavailable', canOpen: true, skipped: true, offerDownload: true }); assert(!element('open').hidden && !element('download').hidden); assert.equal(element('launcher-status').textContent, 'Não foi possível atualizar agora');
-  console.log('PASS: startup no-update, outage/rate-limit, preparation/hash failure, manual fallback, pending update, renderer-only ACK, recovery/retry, timeout/late replies, explicit open without restart, critical close guard, IPC isolation, real-byte rendering and unknown total');
+  // Hub: sem atualização, a fase "hub" mostra as salas (favorita primeiro, antigas fora) e passa a escolha ao main.
+  const same = (a, b) => assert.equal(JSON.stringify(a), JSON.stringify(b));
+  const day = 864e5, nowMs = Date.now(), hubRooms = [{ code: 'AAAA1111', name: 'Velha', updatedAt: nowMs - 30 * day }, { code: 'BBBB2222', name: 'Favorita antiga', updatedAt: nowMs - 20 * day }, { code: 'CCCC3333', name: 'Nova', updatedAt: nowMs - 3600e3 }];
+  let hub = await load({ 'resenha.favoriteRoom': '"BBBB2222"', 'resenha.whatsNewSeen': '"1.0.0"', 'resenha.profile': '{"name":"Felipe"}' }, hubRooms);
+  hub.render({ phase: 'hub', version: '1.5.1', channel: 'stable', canOpen: true }); await new Promise(r => setImmediate(r));
+  assert(!hub.element('hub').hidden && hub.element('status').hidden && hub.actions.length === 0);
+  assert(/^(Bom dia|Boa tarde|Boa noite), Felipe$/.test(hub.element('hello').textContent));
+  assert(!hub.element('notice').hidden && hub.element('notice-text').textContent === 'Novidades da versão 1.5.1');
+  assert.equal(hub.element('rooms').children.length, 2); // a parada há 30 dias sai; a favorita fica mesmo antiga
+  hub.element('rooms').children[0].onclick(); same(hub.actions.pop(), ['open', { type: 'room', code: 'BBBB2222' }]);
+  hub.element('code').value = 'k7p4qx9m'; hub.element('code').handlers.input(); assert.equal(hub.element('code').value, 'K7P4-QX9M');
+  hub.element('join-form').handlers.submit({ preventDefault() {} }); same(hub.actions.pop(), ['open', { type: 'join', code: 'K7P4QX9M' }]);
+  hub.element('code').value = 'abc'; hub.element('join-form').handlers.submit({ preventDefault() {} }); assert.equal(hub.actions.length, 0); assert(hub.element('hub-error').textContent.includes('8 letras'));
+  hub.element('host-go').onclick(); same(hub.actions.pop(), ['open', { type: 'host' }]);
+  // "Abrir direto": entra sem mostrar o Hub; sem novidades pendentes não há aviso
+  hub = await load({ 'resenha.skipHub': 'true', 'resenha.whatsNewSeen': '"1.5.1"' }); hub.render({ phase: 'hub', version: '1.5.1', channel: 'stable', canOpen: true });
+  same(hub.actions, [['open', null]]);
+  hub = await load({ 'resenha.whatsNewSeen': '"1.5.1"', 'resenha.hiddenRooms': 'lixo' }); hub.render({ phase: 'hub', version: '1.5.1', channel: 'stable', canOpen: true }); await new Promise(r => setImmediate(r)); assert(hub.element('notice').hidden); // valores salvos inválidos não quebram
+  // Controlador: com hub ligado, "sem atualização" para no Hub e só abre quando a pessoa escolhe; a intenção chega ao open()
+  const intents = []; let hubEvents = []; const hubManager = { info: {}, channel: () => 'stable', status: () => ({ phase: 'idle' }), pending: () => null, acknowledge() {}, check: async () => ({ update: false }) };
+  const hubController = createStartupController({ manager: hubManager, version: '1.5.1', hub: true, emit: s => hubEvents.push(s), open: intent => intents.push(intent), apply: async () => {} });
+  await hubController.start(); assert.equal(hubController.current().phase, 'hub'); assert.equal(hubController.current().canOpen, true); assert.equal(intents.length, 0);
+  assert.equal(hubController.openCurrent({ type: 'join', code: 'K7P4QX9M' }), true); assert.deepEqual(intents, [{ type: 'join', code: 'K7P4QX9M' }]);
+  const { sanitizeIntent, publicRooms } = require('../server/startup-launcher');
+  assert.deepEqual(sanitizeIntent({ type: 'join', code: ' k7p4-qx9m ' }), { type: 'join', code: 'K7P4QX9M' }); assert.deepEqual(sanitizeIntent({ type: 'host', extra: 1 }), { type: 'host' });
+  for (const bad of [null, 'x', { type: 'join' }, { type: 'join', code: 'curto' }, { type: 'join', code: '../../etc' }, { type: 'run', code: 'K7P4QX9M' }]) assert.equal(sanitizeIntent(bad), null);
+  const listed = publicRooms([{ code: 'AAAA1111', name: 'X', updatedAt: 1, look: { color: '#abc' }, icon: 'data:image/png;base64,AA==', identitySecret: 'segredo', password: 'senha' }, { code: 'BBBB2222', name: 'Y', updatedAt: 2, look: { cover: 'https://exemplo.com/a.png', color: 'red;x' }, icon: 'http://x/y.png' }]);
+  assert.deepEqual(listed.map(r => r.code), ['BBBB2222', 'AAAA1111']); assert.equal(listed[1].color, '#abc'); assert.equal(listed[0].color, ''); assert.equal(listed[0].cover, ''); assert.equal(listed[0].icon, ''); assert(!JSON.stringify(listed).includes('segredo') && !JSON.stringify(listed).includes('senha'));
+  console.log('PASS: hub phase and intents, startup no-update, outage/rate-limit, preparation/hash failure, manual fallback, pending update, renderer-only ACK, recovery/retry, timeout/late replies, explicit open without restart, critical close guard, IPC isolation, real-byte rendering and unknown total');
 })().catch(error => { console.error(error); process.exitCode = 1; });

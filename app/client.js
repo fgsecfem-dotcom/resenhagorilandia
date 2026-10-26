@@ -300,7 +300,11 @@ async function openStartServer(){
   if(startTried)return;startTried=true;
   const booting=document.documentElement.classList.contains('booting');
   if(!native?.rooms||WEB_VIEWER||!me.name.trim())return endBoot();
-  const code=favoriteCode()||LS.get('lastRoom',null)?.code;
+  // Escolha feita no Hub do launcher (entrar por código, abrir uma sala, criar). Sem escolha, vale o comportamento de sempre.
+  const intent=await native.launchIntent?.().catch(()=>null);
+  if(intent?.type==='join'&&intent.code){endBoot();return joinRoom(intent.code,$('#join-pass').value);}
+  if(intent?.type==='host'){endBoot();$('#host-name')?.focus();return;}
+  const code=intent?.type==='room'&&intent.code?normCode(intent.code):favoriteCode()||LS.get('lastRoom',null)?.code;
   const room=code&&(storedRooms.length?storedRooms:await native.rooms.list()).find(r=>normCode(r.code)===code);
   if(!room||$('#home').classList.contains('hidden'))return endBoot();
   if(booting){

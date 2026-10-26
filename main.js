@@ -95,7 +95,9 @@ app.setAppUserModelId(APP_ID);
 
 let win = null;
 let tray = null;
-let startupLauncher = null, startupOpenedCurrent = false;
+let startupLauncher = null, startupOpenedCurrent = false, launchIntent = null;
+// O Hub do launcher guarda o que a pessoa escolheu; o app pega uma vez ao iniciar.
+ipcMain.handle('launch:intent', () => { const intent = launchIntent; launchIntent = null; return intent; });
 let quitting = false;
 let updateVoice={}, updateQuitSafe=true;
 const updateManager=new UpdateManager({userData:DATA_DIR,appDir:path.dirname(process.execPath),version:app.getVersion(),log:recordCapture,progress:status=>{win?.webContents.send('update:progress',status);startupLauncher?.progress(status);}});
@@ -266,12 +268,12 @@ app.whenReady().then(async () => {
     log: (...a) => console.log('[dj]', ...a),
   });
 
-  if (app.isPackaged && process.platform === 'win32') {
-    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager,
+  if ((app.isPackaged || process.env.RESENHA_LAUNCHER) && process.platform === 'win32') {
+    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager, hub:true, rooms:()=>roomHandlers.list(),
       version:app.getVersion(), icon:ICON, log:recordCapture, isQuitting:()=>quitting,
       download:page=>shell.openExternal(page),
       check:force=>TEST_MODE&&!process.env.RESENHA_TEST_UPDATE?Promise.resolve({update:false}):updateManager.check(force===true),
-      open:()=>{startupOpenedCurrent=true;if(!win)createWindow();},
+      open:intent=>{launchIntent=intent||null;startupOpenedCurrent=true;if(!win)createWindow();},
       apply:async()=>{if(updateBusy(activeForUpdate()))throw new Error('O Resenha está em atividade. Abra a versão atual para continuar.');if(!await updateManager.launch())throw new Error('A atualização ainda não está preparada.');quitting=true;app.quit();},
       quit:()=>{updateQuitSafe=false;quitting=true;app.quit();}
     });
