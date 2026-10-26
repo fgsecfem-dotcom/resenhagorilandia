@@ -75,12 +75,12 @@ function stage({ name, version = '1.5.3', applying = false, attempted = null, he
   assert(!leaked.body.includes('NÃO PODE SAIR'), 'restored attachment must not serve files outside the room');
 
   // S1: the same cid without the private resume key gets its own id and does not kick the owner.
-  const intruder = await join('aaaaaaaaaaaa');
-  assert.notEqual(intruder.welcome.id, 'aaaaaaaaaaaa'); assert.equal(a.readyState, WebSocket.OPEN);
+  const intruder = await join(a.welcome.id);
+  assert.notEqual(intruder.welcome.id, a.welcome.id); assert.equal(a.readyState, WebSocket.OPEN);
   assert(typeof a.welcome.resume === 'string' && !JSON.stringify(intruder.welcome.users).includes(a.welcome.resume), 'resume key is never broadcast');
   // The owner reconnecting with its key replaces the lingering session and keeps its id.
   const closed = new Promise(r => a.once('close', r)); const again = await join('aaaaaaaaaaaa', a.welcome.resume);
-  assert.equal(again.welcome.id, 'aaaaaaaaaaaa'); await closed;
+  assert.equal(again.welcome.id, a.welcome.id); await closed;
 
   // Deleting a text channel keeps a local copy of its messages on the host.
   again.send(JSON.stringify({ t: 'ch-create', type: 'text', name: 'outro' })); await sleep(150);

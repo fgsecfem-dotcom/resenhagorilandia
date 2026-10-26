@@ -34,7 +34,7 @@ const chanName = (s, type) => {
 };
 const DJ_ID = 'dj-resenha';
 const SERVER_VERSION = require('../package.json').version;
-const FEATURES = ['room-snapshot', 'chat-ack', 'dm-ack', 'dj-ack', 'watch'];
+const FEATURES = ['room-snapshot', 'chat-ack', 'dm-ack', 'dj-ack', 'watch', 'client-identity'];
 const DISK_HISTORY_LIMIT = 2000, WELCOME_HISTORY_LIMIT = 500, CHANNEL_CREATION_LIMIT = 60;
 
 function createServer(opts = {}) {
@@ -378,16 +378,24 @@ function createServer(opts = {}) {
 
     ws.on('message', (raw) => {
       let m; try { m = JSON.parse(raw); } catch { return; }
+      if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.t !== 'string') return;
       if (!id) {
         if (m.t !== 'hello') return;
         if (password && m.password !== password) { send(ws, { t: 'error', code: 'password', msg: 'Senha incorreta' }); return ws.close(4001, 'senha'); }
         clearTimeout(helloTimer);
-        // id fixo do cliente (mantém as ligações de voz vivas quando a sala troca de anfitrião)
-        id = typeof m.cid === 'string' && /^[a-f0-9]{12}$/.test(m.cid) ? m.cid : rid(6);
-        let old = clients.get(id);
-        // Only the owner of a live session may replace it (reconnect before the old socket times out).
-        // Anyone else using the same id, such as a second browser tab, gets a fresh id instead.
-        if (old && !(typeof m.resume === 'string' && m.resume === old.resume)) { id = rid(6); old = null; }
+        // The public id is derived from a private 256-bit bearer credential, never from
+        // a caller-supplied cid. It remains verifiable after restart/host transfer without
+        // placing a secret in the public room snapshot. 40 hex chars fit snapshot userId.
+        let old = null;
+        if (typeof m.identitySecret === 'string' && /^[a-f0-9]{64}$/.test(m.identitySecret)) {
+          id = crypto.createHash('sha256').update('resenha-client-v1:' + m.identitySecret).digest('hex').slice(0, 40);
+          old = clients.get(id);
+        } else {
+          // Legacy clients can resume a live connection with its private key, but may
+          // never claim an offline/historical identity by supplying its public id.
+          if (typeof m.resume === 'string') old = [...clients.values()].find(c => c.resume === m.resume);
+          id = old ? old.user.id : rid(6);
+        }
         if (old) { clients.delete(id); try { old.ws.terminate(); } catch {} }
         const user = {
           id, name: clean(m.name, 32) || 'Anônimo', color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : '#5865f2',
@@ -407,7 +415,7 @@ function createServer(opts = {}) {
         log(`${user.name} entrou (${clients.size} na sala)`);
         return;
       }
-      const c = clients.get(id); if (!c) return;
+      const c = clients.get(id); if (!c || c.ws !== ws) return;
       const u = c.user;
       if (typeof m.t === 'string' && m.t.startsWith('dj-')) {
         Promise.resolve(handleDJ(u, m)).then(() => {

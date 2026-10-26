@@ -4,6 +4,7 @@ import { esc, clamp, fmtCode } from './format-utils.js';
 import { setScreenRemoteDescription } from './screen-startup.js';
 import { createRoomUI } from './room-ui.js';
 import { createMusic } from './music.js';
+import { clientIdentitySecret } from './client-identity.js';
 // Resenha: cliente (UI + voz WebRTC + chat + DJ). Módulo ES.
 let RnnoiseWorkletNode;
 let roomUI = null;
@@ -40,10 +41,12 @@ if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppressi
 const saveSettings = () => LS.set('settings', settings);
 // 1.6 layout: move untouched old default widths (440/240) to the new ones once; custom widths stay.
 if (!LS.get('layout16', false)) { if (settings.chatWidth === 440) settings.chatWidth = 360; if (settings.sidebarWidth === 240) settings.sidebarWidth = 264; saveSettings(); LS.set('layout16', true); }
-// id fixo deste app: mantém as ligações de voz vivas quando a sala troca de anfitrião
+// Legacy id for older hosts and election tie-breaking. Updated hosts derive the
+// public participant id from IDENTITY_SECRET, preserving it across host transfer.
 const CID = LS.get('cid') || (() => { const c = [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join(''); LS.set('cid', c); return c; })();
-// Private key from the room's welcome: lets this tab replace its own lingering connection,
-// and keeps other tabs or people from taking over this id. Per tab, survives reloads.
+const IDENTITY_SECRET = clientIdentitySecret(LS, crypto);
+// Per-connection key for banner uploads and reconnecting to legacy hosts.
+// Per tab, survives reloads; never shared in public room data.
 const sessionResume = () => { if (S.resume) return S.resume; try { return sessionStorage.getItem('resenha.resume') || undefined; } catch { return undefined; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -588,7 +591,7 @@ function connect(addr, password, first) {
   S.base = viaPWA ? viaPWA.base : WEB_VIEWER ? location.origin : `http://${addr.text}`;
   const ws = viaPWA ? viaPWA.socket() : new WebSocket(WEB_VIEWER ? location.origin.replace(/^http/, 'ws') : `ws://${addr.text}`);
   S.ws = ws;
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', cid: CID, resume: sessionResume(), joinedAt: S.joinedAt, name: me.name.trim(), color: me.color, avatar: me.avatar, ...profileExtras(), password, hostKey: S.hostKey, canHost: !!native && !WEB_VIEWER }));
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', cid: CID, identitySecret: IDENTITY_SECRET, resume: sessionResume(), joinedAt: S.joinedAt, name: me.name.trim(), color: me.color, avatar: me.avatar, ...profileExtras(), password, hostKey: S.hostKey, canHost: !!native && !WEB_VIEWER }));
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handle(m); };
   ws.onclose = (ev) => {
     if (S.ws !== ws || S.closing) return;

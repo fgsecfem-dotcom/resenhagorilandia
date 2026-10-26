@@ -6,7 +6,8 @@ function createFileHTTP({ token, maxUpload, filesDir, files, saveSoon, json, saf
     if (url.searchParams.get('t') !== token) return json(res, 403, { error: 'Sem permissão' });
     const len = Number(req.headers['content-length'] || 0);
     if (len > maxUpload) return json(res, 413, { error: 'Arquivo grande demais' });
-    const name = safeFileName(decodeURIComponent(url.searchParams.get('name') || 'arquivo'));
+    // URLSearchParams already decodes once; a literal '%' is a valid filename.
+    const name = safeFileName(url.searchParams.get('name') || 'arquivo');
     const id = rid(8);
     const dir = path.join(filesDir, id);
     fs.mkdirSync(dir, { recursive: true });
