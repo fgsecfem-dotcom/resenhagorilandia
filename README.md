@@ -1,6 +1,6 @@
 # Resenha
 
-Versão **2.2.2**. Veja [o que mudou](CHANGES-2.2.2.md). Execute `npm test` antes de empacotar.
+Versão **2.2.2**. Veja [o que mudou](docs/changes/CHANGES-2.2.2.md) e o [roadmap](ROADMAP.md).
 
 Um app estilo Discord pra você e seus amigos: call de voz, compartilhamento de tela e chat com anexos. Não tem servidor central: quem abre a sala vira o servidor, igual no Radmin, só que sem o Radmin.
 
@@ -73,23 +73,19 @@ A voz e a tela tentam ir direto entre os amigos. Quando não dá, passam pelo PC
 - Spotify não deixa tocar a música direto: o DJ lê o nome da faixa e toca a mesma música do YouTube.
 - Todo mundo na call ouve sincronizado. Sai sozinho se a call ficar vazia por 2 minutos.
 
-## Publicar versão nova (atualização automática)
+## Publicar versão nova
 
-As releases ficam em `fgsecfem-dotcom/resenhagorilandia` (definido em `update-source.json`). O atualizador exige exatamente dois arquivos por release:
-
-- `Resenha-<versão>-Windows-x64.zip` com a pasta `Resenha/` (gerada com `electron-builder --win dir`, `asar: false`);
-- `SHA256SUMS.txt` com o hash desse ZIP.
-
-Crie a release como **rascunho**, envie os dois arquivos e só então publique; assim ninguém vê uma versão sem hash. Tags com sufixo (`-preview.N`) e releases marcadas como pre-release só chegam a quem escolheu o canal de previews. O workflow do GitHub Actions não gera esse pacote e não publica releases.
+As releases ficam em `fgsecfem-dotcom/resenhagorilandia` (definido em `update-source.json`). O passo a passo completo, com os scripts de `tools/release/`, está em [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Para desenvolver
+
+O trabalho é organizado por [milestones e issues](ROADMAP.md): cada issue vira uma branch e um PR. As regras para quem programa (inclusive o Claude) estão em [CLAUDE.md](CLAUDE.md).
 
 ```
 npm install
 npm start                 # abre o app
 npx electron-builder --win dir   # gera dist/win-unpacked (base do ZIP distribuído)
-node test/smoke.js        # testa o servidor
-node test/server2.js      # canais, mensagens e DJ (baixa música de verdade)
+npm test                  # todos os testes (ou: sh tools/test.sh)
 node test/e2e2.js         # abre 2 instâncias e testa tudo (voz, chat, tela, DJ)
 ```
 

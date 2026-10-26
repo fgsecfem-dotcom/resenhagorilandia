@@ -1,0 +1,34 @@
+# Resenha: guia para quem programa (inclusive o Claude)
+
+App de call, tela e chat estilo Discord, sem servidor central: quem abre a sala vira o servidor. Feito em Electron, com cliente web e PWA. Escreva em pt-BR simples, nos textos e nos commits.
+
+## Como trabalhamos (roadmap + milestones)
+- O plano fica no [ROADMAP.md](ROADMAP.md). As tarefas são issues no GitHub, agrupadas por milestone e marcadas com o módulo.
+- **Uma issue = uma sessão = uma branch = um PR.** Branch `tipo/assunto` (ex.: `fix/credencial-por-sala`). O PR cita a issue (`Closes #N`).
+- Comece lendo a issue e só os arquivos do módulo dela, pelo mapa abaixo. O `app/client.js` tem mais de 3 mil linhas: procure a função com grep em vez de ler o arquivo inteiro.
+- Mude só o que a issue pede. Ideias novas viram issues novas, sem milestone.
+- Antes do PR: `npm test` (ou `sh tools/test.sh`) com tudo passando, e um teste novo quando corrigir um bug.
+- Ao fechar o PR, use `/clear` e comece a próxima issue numa sessão limpa.
+
+## Mapa de módulos (label da issue → arquivos)
+| Label | Arquivos | O que faz |
+|---|---|---|
+| `cliente` | `app/client.js`, `app/room-ui.js`, `app/command-controller.js`, `app/client-identity.js`, `app/dm-storage.js` | interface, voz/tela WebRTC, chat, conexão com a sala |
+| `visual` | `app/themes.js`, `app/*.css`, `app/motion.js`, `app/icons.js`, `app/pipoca.js` | temas, animações e ícones |
+| `musica` | `app/music.js`, `spotify.js`, `server/dj.js` | player do Spotify (só Windows) e DJ |
+| `servidor` | `server/index.js`, `server/text-commands.js`, `server/file-http.js`, `room-state.js`, `server/profile-extras.js` | servidor da sala: WebSocket, canais, anexos, snapshot |
+| `descoberta` | `tunnel-main.js`, `app/tunnel.js`, `signal-worker/` | achar a sala pelo código (Worker Cloudflare e MQTT) e túnel P2P |
+| `desktop` | `main.js`, `preload.js`, `net-tools.js`, `capture-policy.js`, `app/launcher.js` | janela, bandeja, UPnP/CGNAT, captura de tela |
+| `atualizador` | `updater.js`, `update-manager.js`, `update-helper.js`, `update-mac.js`, `server/startup-launcher.js` | atualização automática no Windows e no Mac |
+| `pwa` | `pwa/`, `app/mobile.js` | versão para navegador e celular |
+| `release` | `tools/release/`, [docs/RELEASE.md](docs/RELEASE.md), `docs/changes/` | build, assinatura e publicação |
+
+Os testes ficam em `test/`. A lista oficial é a do script `test` do `package.json`.
+
+## Regras fixas
+- Para testar o app, use um perfil separado (`Resenha.exe --profile=teste`) e apague o perfil no final. Nunca use o `%APPDATA%\Resenha` real.
+- Nunca imprima nem salve tokens do Spotify, a `identitySecret` ou senhas de sala em logs e mensagens.
+- O build do Windows usa o Electron castLabs ECS e a assinatura EVS, sem os quais o Spotify não toca. Os detalhes estão em `docs/RELEASE.md`.
+- Publicar release, PWA ou Worker só com o ok do Felipe.
+- O repositório é público: nada de dados pessoais, caminhos da máquina ou segredos nos commits.
+- Os nomes `resenha.exe.sig` e os outros da lista `roots` em `update-manager.js` precisam bater com o pacote. Se mudar o pacote, atualize essa lista.
