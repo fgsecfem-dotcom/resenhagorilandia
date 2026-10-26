@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('resenhaNative', {
   savePerformance: (report) => ipcRenderer.invoke('performance:save',report),
   setWindowColors: (background, foreground) => ipcRenderer.send('window:colors', background, foreground),
   setWindowMaterial: (on) => ipcRenderer.invoke('window:material', !!on),
-  spotify: { status: () => ipcRenderer.invoke('spotify:status'), login: () => ipcRenderer.invoke('spotify:login'), token: () => ipcRenderer.invoke('spotify:token'), logout: () => ipcRenderer.invoke('spotify:logout') },
+  spotify: { status: () => ipcRenderer.invoke('spotify:status'), login: () => ipcRenderer.invoke('spotify:login'), token: () => ipcRenderer.invoke('spotify:token'), logout: () => ipcRenderer.invoke('spotify:logout'), setClientId: (id) => ipcRenderer.invoke('spotify:set-client-id', id) },
   onWindowVisible: (fn) => ipcRenderer.on('window:visible', (e, visible) => fn(visible)),
   windowControl: (action) => ipcRenderer.send('window:control', action),
   setAppIcon: (key, pngs) => ipcRenderer.invoke('app:icon', { key, pngs }),
