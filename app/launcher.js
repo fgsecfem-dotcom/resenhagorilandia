@@ -8,6 +8,18 @@
     const map = { 'bg-rail': '--bg', 'text-hi': '--fg', muted: '--muted', link: '--accent', 'g-edge': '--edge', 'g-fill': '--fill', 'g-fill-2': '--fill-2', blurple: '--blurple' };
     for (const [k, css] of Object.entries(map)) if (v[k]) root.setProperty(css, v[k]);
     if (v.wall) root.setProperty('--wall', v.wall);
+    // Textos secundários e destaque precisam de contraste mínimo 4,5 contra o fundo: se o tema fica abaixo, aproxima da cor principal.
+    const rgb = c => { const e = document.createElement('i'); e.style.color = c; document.body.append(e); const m = getComputedStyle(e).color.match(/[\d.]+/g).slice(0, 3).map(Number); e.remove(); return m; };
+    const lum = m => { const f = x => (x /= 255) <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); return .2126 * f(m[0]) + .7152 * f(m[1]) + .0722 * f(m[2]); };
+    const ratio = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
+    if (v['bg-rail'] && v['text-hi']) {
+      const bg = rgb(v['bg-rail']), fg = rgb(v['text-hi']);
+      for (const [k, css] of [['muted', '--muted'], ['link', '--accent']]) {
+        if (!v[k]) continue; let c = rgb(v[k]);
+        for (let t = 0; ratio(c, bg) < 4.5 && t <= 1; t += .05) c = rgb(v[k]).map((x, i) => Math.round(x + (fg[i] - x) * t));
+        root.setProperty(css, 'rgb(' + c.join(',') + ')');
+      }
+    }
     const light = window.THEMES?.[settings.theme]?.light || (settings.theme === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches) || settings.theme === 'arcLight';
     document.documentElement.dataset.theme = light ? 'light' : 'dark';
   } catch {}
