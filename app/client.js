@@ -3385,8 +3385,12 @@ async function maybeWhatsNew() {
 }
 maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
-native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; renderCall(); });
-document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } });
+// Janela escondida ou minimizada: pausa as animações decorativas (o renderer não desacelera sozinho por causa da voz).
+const syncBgPaused = () => document.documentElement.classList.toggle('bg-paused', !V.windowVisible || document.hidden);
+native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); renderCall(); });
+document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); });
+// Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
+native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
 roomUI = createRoomUI({icon,openDM,contacts:()=>[...new Map([...Object.values(LS.get(dmStorageKey()+'.contacts',{})),...Object.values(friends),...[...S.users.values()].filter(u=>u.id!==S.myId&&u.id!==DJ_ID)].map(u=>[u.id,u])).values()],onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
 // Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
