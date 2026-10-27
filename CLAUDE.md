@@ -34,3 +34,18 @@ Os testes ficam em `test/`. A lista oficial é a do script `test` do `package.js
 - Publicar release, PWA ou Worker só com o ok do Felipe.
 - O repositório é público: nada de dados pessoais, caminhos da máquina ou segredos nos commits.
 - Os nomes `resenha.exe.sig` e os outros da lista `roots` em `update-manager.js` precisam bater com o pacote. Se mudar o pacote, atualize essa lista.
+
+## Armadilhas (o código não deixa óbvio)
+- Temas: a escolha usa `VISIBLE_THEMES` (12). `THEMES` inclui os antigos e `RETIRED_THEMES` converte nome antigo em novo. Nunca conte nem teste temas por `THEMES`.
+- Testes: só os do script `test` do `package.json` são oficiais. Há dezenas de outros arquivos em `test/` fora da lista (antigos ou manuais): não rode todos e não trate falha neles como regressão.
+- Sem Node na máquina: rode `sh tools/test.sh`. Ele usa o Electron como Node (`ELECTRON_RUN_AS_NODE`; escolha qual com `RESENHA_NODE`). Apague essa variável antes de abrir o app.
+- O Electron do npm não tem Widevine: sem o runtime ECS (ver `docs/RELEASE.md`), o Spotify aparece como indisponível. Isso não é bug.
+- `--profile=X` liga o `TEST_MODE`: várias instâncias, sem bandeja, fechar sai de verdade, atualização desligada (religue com `RESENHA_TEST_UPDATE=1`).
+- O perfil de teste cria duas pastas: `Resenha-X` no AppData e `.resenha-X` na pasta do usuário. Apague as duas no fim.
+- `RESENHA_LAUNCHER=1` mostra o launcher sem empacotar (só Windows). `RESENHA_UPDATE_COPY` é só para testes do atualizador.
+- `RESENHA_PWA` é um objeto global do navegador, não variável de ambiente.
+- `localStorage` usa o prefixo `resenha.`. A `identitySecret` fica ali: nunca imprima.
+- No `userData`, `spotify.json` (login criptografado) e `minhas-salas/` (com verificador de senha) têm dados sensíveis. Não leia nem copie do perfil real.
+- `dist/` tem uma cópia antiga do código: exclua `dist/` e `node_modules/` das buscas.
+- Arquivo novo na pasta do app precisa entrar na lista `roots` do `update-manager.js` (também aceita `RELATORIO-*.md` e `ROTEIRO-*.md`); qualquer outro bloqueia a atualização automática.
+- `mobile-setup.css` é servido pelo servidor (rota `/mobile-setup`): não é código morto.
