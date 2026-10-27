@@ -118,3 +118,10 @@ body[data-phase=hub] #hub-open{display:inline-flex;align-items:center;min-height
 .hub>*{animation:rise .5s cubic-bezier(.2,.9,.3,1) both}
 .hub>:nth-child(2){animation-delay:.05s}.hub>:nth-child(3){animation-delay:.1s}.hub>:nth-child(6){animation-delay:.18s}.hub>:nth-child(7){animation-delay:.24s}
 @media(prefers-reduced-motion:reduce){.hub>*{animation:none!important}}
+/* Holofoil: o mesmo gradiente holográfico do app, só nas peças-chave do Hub (botão principal, sala em destaque, campo em foco). */
+html[data-tk="holofoil"]{--holo:linear-gradient(115deg,#1f7a85 0%,#2fa3a8 20%,#5a8fd8 40%,#8a7be0 50%,#3fbfae 70%,#1f7a85 100%)}
+html[data-tk="holofoil"] .text-button.primary{background:var(--holo);background-size:200% 100%;animation:holo-flow 10s linear infinite}
+html[data-tk="holofoil"] .room.featured{box-shadow:inset 0 0 0 1px rgba(160,200,235,.35),0 0 0 1px rgba(90,143,216,.25)}
+html[data-tk="holofoil"] .join input:focus{box-shadow:inset 0 0 0 1px #5a8fd8}
+@keyframes holo-flow{from{background-position:0% 50%}to{background-position:200% 50%}}
+@media (prefers-reduced-motion:reduce){html[data-tk="holofoil"] .text-button.primary{animation:none}}

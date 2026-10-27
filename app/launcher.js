@@ -21,7 +21,7 @@
       }
     }
     const light = window.THEMES?.[settings.theme]?.light || (settings.theme === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches) || settings.theme === 'arcLight';
-    document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    document.documentElement.dataset.theme = light ? 'light' : 'dark'; document.documentElement.dataset.tk = settings.theme || 'system';
   } catch {}
   try { $('mascot').innerHTML = window.PIPOCA.pipocaSVG(settings.appIcon || 'quentinha', 76); } catch {}
   const descriptions = {
