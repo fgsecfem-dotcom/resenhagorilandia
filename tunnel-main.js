@@ -112,12 +112,15 @@ class Tunnel {
     this.role = null; this.signal = null; this.sockets = new Map(); this.server = null;
     this.localPort = null; this.ready = false; this.seq = 0; this.pendingAnswer = null;
   }
+  // Abre a conexão com a descoberta própria ao iniciar, para a primeira sala não pagar a conexão fria.
+  warm() { try { brokerConn(SIGNAL_URL, this.log); } catch {} }
   emit(ev) { if (this.win && !this.win.isDestroyed()) this.win.webContents.send('tun:event', ev); }
 
-  async inspect(code, {claim=null, timeoutMs=6000, claimMs=5000, connectMs=20000} = {}) {
+  async inspect(code, {claim=null, timeoutMs=2500, claimMs=1500, connectMs=20000} = {}) {
     const hosts=new Map(),claims=new Map();if(claim)claims.set(claim.id,claim);
     let signal=this.makeSignal(code,m=>{if(m.t==='host'&&m.hostId)hosts.set(m.hostId,m.rank||{});if(m.t==='claim'&&m.claim?.id)claims.set(m.claim.id,m.claim);},this.log);
-    const until=async(ms,claiming)=>{const end=Date.now()+ms;while(Date.now()<end){signal.send({t:claiming?'claim':'probe',...(claiming?{claim}:{})});await new Promise(r=>setTimeout(r,250));}};
+    // Pedidos repetidos a cada 250 ms. Na sondagem, sai assim que um anfitrião responde (não precisa esperar a janela toda).
+    const until=async(ms,claiming)=>{const end=Date.now()+ms;while(Date.now()<end){if(!claiming&&hosts.size)return;signal.send({t:claiming?'claim':'probe',...(claiming?{claim}:{})});await new Promise(r=>setTimeout(r,250));}};
     try {
       // Os brokers públicos podem demorar a aceitar a conexão: espera até 20 s por pelo menos um antes de consultar,
       // e a janela de consulta conta a partir daí (antes, conectar aos 6,1 s já dava "não consegui consultar").
@@ -164,7 +167,7 @@ class Tunnel {
   hostAnswer(peerId, nonce, sdp) {
     if (!this.signal) return;
     // repete algumas vezes: o broker é "melhor esforço"
-    let n = 0; const tick = () => { if (!this.signal || n++ > 4) return; this.signal.send({ t: 'answer', to: peerId, nonce, sdp }); setTimeout(tick, 1500); };
+    let n = 0; const tick = () => { if (!this.signal || n++ > 4) return; this.signal.send({ t: 'answer', to: peerId, nonce, sdp }); setTimeout(tick, n === 1 ? 400 : 1500); };
     tick();
   }
   hostOpen(key) {
@@ -204,7 +207,7 @@ class Tunnel {
         if (!this.pendingAnswer || this.pendingAnswer.nonce !== nonce) return;
         if (Date.now() - t0 > timeoutMs) { this.pendingAnswer = null; return resolve({ ok: false, error: this.signal && this.signal.connected() ? 'notfound' : 'nobroker' }); }
         if (this.signal) this.signal.send({ t: 'join', from: this.peerId, nonce, sdp });
-        timer = setTimeout(tick, 1200);
+        timer = setTimeout(tick, 500);
       };
       // espera algum broker conectar antes de publicar
       const wait = () => { if (this.signal && this.signal.connected()) tick(); else if (Date.now() - t0 > timeoutMs) resolve({ ok: false, error: 'nobroker' }); else setTimeout(wait, 200); };
