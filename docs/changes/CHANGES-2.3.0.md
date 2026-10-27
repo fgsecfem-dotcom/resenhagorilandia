@@ -13,4 +13,5 @@
 - Esses números são de testes em um computador; na sua rede pode variar.
 
 ## Música
+- Spotify: cada pessoa pode criar e usar a própria chave. Em Música, toque em "Minha chave" e siga o passo a passo de 6 telas. Isso evita o limite de contas liberadas por chave; sem chave própria, continua valendo a padrão.
 - Os avisos de música voltaram a mostrar o texto.
