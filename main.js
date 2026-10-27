@@ -184,6 +184,7 @@ function createWindow() {
     }
   });
   tunnel = new Tunnel(win);
+  tunnel.warm();
 }
 
 function createTray() {

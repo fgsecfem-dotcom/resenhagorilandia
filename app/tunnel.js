@@ -15,11 +15,21 @@ const Tun = (() => {
   let guest = null; // { pc, chans, ctl }
   const log = (...a) => console.log('[tunel]', ...a);
 
-  function gatherDone(pc, ms = 4000) {
+  // Não espera a coleta inteira: segue quando chega o primeiro endereço público (srflx), com 150 ms de folga
+  // para os outros candidatos, ou quando completa, ou no limite. Antes esperava até 4 s por STUN lento.
+  function gatherDone(pc, ms = 1500) {
     return new Promise((r) => {
       if (pc.iceGatheringState === 'complete') return r();
-      const t = setTimeout(r, ms);
-      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); r(); } });
+      const t0 = performance.now(); let done = false, grace = 0;
+      const fin = (why) => {
+        if (done) return; done = true; clearTimeout(t); clearTimeout(grace);
+        pc.removeEventListener('icecandidate', onCand); pc.removeEventListener('icegatheringstatechange', onState);
+        log('ice', why, Math.round(performance.now() - t0) + 'ms'); r();
+      };
+      const t = setTimeout(() => fin('limite'), ms);
+      const onCand = (e) => { if (!e.candidate) fin('completo'); else if (!grace && / typ srflx /.test(e.candidate.candidate)) grace = setTimeout(() => fin('srflx'), 150); };
+      const onState = () => { if (pc.iceGatheringState === 'complete') fin('completo'); };
+      pc.addEventListener('icecandidate', onCand); pc.addEventListener('icegatheringstatechange', onState);
     });
   }
   function sendChunked(dc, key, buf) {
