@@ -5,8 +5,10 @@
 // (playlist ou álbum), então o Spotify segue sozinho quando ela acaba. Se houver fila, o Resenha entra com a
 // próxima dela e, quando a fila acaba, volta para onde a origem parou (como a fila do app do Spotify).
 // O "autoplay" de recomendações do Spotify não existe na API para apps novos, por isso a origem é o que continua.
-export function createMusic({ settings, saveSettings, icon, toast, roomUI, native, esc, room }) {
+export function createMusic({ settings, saveSettings, icon, toast: showToast, roomUI, native, esc, room }) {
   const $ = (s, r = document) => r.querySelector(s);
+  // O toast do app é (mensagem, tipo, tempo): aqui juntamos título e texto para a mensagem não sumir.
+  const toast = (title, msg, ms, type = '') => showToast(msg ? `${title}: ${msg}` : title, type, ms);
   let sp = native?.spotify;
   const st = { els: null, status: null, player: null, device: null, state: null, prev: null, at: 0, raf: 0, vol: settings.musicVolume ?? 60, sdk: null, busy: false,
     queue: [], history: [], results: [], current: null, advancing: false, resume: null, manual: false, lists: null, view: 'now',
@@ -63,7 +65,7 @@ export function createMusic({ settings, saveSettings, icon, toast, roomUI, nativ
     if (st.jam.role === 'guest' && st.jam.last) jamFollow(st.jam.last);
   }
   function stopPlayer() { cancelAnimationFrame(st.raf); st.raf = 0; st.player?.disconnect(); st.player = null; st.device = null; st.state = null; }
-  function problem(msg) { if (st.els) $('.mu-note', st.els.panel).textContent = msg || ''; if (msg) toast('Música', msg, 5000); }
+  function problem(msg) { if (st.els) $('.mu-note', st.els.panel).textContent = msg || ''; if (msg) toast('Música', msg, 5000, 'err'); }
   async function refreshStatus() {
     st.status = sp ? await sp.status().catch(() => null) : null;
     if (!st.status?.connected) stopPlayer();
