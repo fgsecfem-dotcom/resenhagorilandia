@@ -1,7 +1,7 @@
 {
   "name": "resenha",
   "productName": "Resenha",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "Call de voz, compartilhamento de tela e chat entre amigos, sem servidor central.",
   "main": "main.js",
   "author": "Lucas",
@@ -11,7 +11,7 @@
     "server": "node server/index.js --port 7777",
     "dist": "electron-builder --win portable",
     "dist:mac": "electron-builder --mac dir --arm64 --x64",
-    "test": "node test/security-boundaries.js && node test/features.js && node test/media.js && node test/themes.js && node test/music.js && node test/capture.js && node test/capture-fallback.js && node test/audio-controls.js && node test/performance.js && node test/music-cancel.js && node test/spotify-key.js &&node test/updates.js && node test/live-controls.js && node test/mobile-client.js && node test/mobile-server.js && node test/rooms.js && node test/room-window.js && node test/room-client.js && node test/update-install.js && node test/update-ui.js && node test/update-cloud.js && node test/regression-1.5.3.js && node test/regression-live-audio.js && node test/regression-2.0.js && node test/regression-relay.js"
+    "test": "node test/security-boundaries.js && node test/features.js && node test/media.js && node test/themes.js && node test/music.js && node test/capture.js && node test/capture-fallback.js && node test/audio-controls.js && node test/performance.js && node test/music-cancel.js && node test/music-toast.js &&node test/updates.js && node test/live-controls.js && node test/mobile-client.js && node test/mobile-server.js && node test/rooms.js && node test/room-window.js && node test/room-client.js && node test/update-install.js && node test/update-ui.js && node test/update-cloud.js && node test/regression-1.5.3.js && node test/regression-live-audio.js && node test/regression-2.0.js && node test/regression-relay.js && node test/bug-startup-launcher.js && node test/spotify-key.js"
   },
   "dependencies": {
     "mqtt": "^5.16.0",

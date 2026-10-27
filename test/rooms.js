@@ -34,7 +34,8 @@ const input={code:'TEST-1234',name:'Same room',revision:3,channels,history:{gera
  assert(compareClaims({id:'A',revision:5},{id:'B',revision:5})>0);
  const unknown=new Tunnel(null,()=>{},{signalFactory:()=>({connected:()=>false,send(){},close(){}})});assert.equal((await unknown.inspect('TEST1234',{timeoutMs:1,connectMs:1})).state,'unknown');
  const host=new Tunnel(null,()=>{},{signalFactory:factory});host.hostStart('TEST1234',17962,[0,0,'host'],()=>1,()=>4);
- assert.equal((await a.inspect('TEST1234',{timeoutMs:30})).state,'online');host.stop();
+ assert.equal((await a.inspect('TEST1234',{timeoutMs:30})).state,'online');
+ const t0=Date.now();assert.equal((await a.inspect('TEST1234')).state,'online');assert(Date.now()-t0<1000,'com anfitrião ativo, a sondagem sai na primeira resposta (padrão antigo: 6 s)');host.stop();
  console.log('PASS: bounded public-only snapshot, revision selection, member B restores same identity/code, legacy backup, stale restore protection, deterministic concurrent claims, active host and unknown discovery');
  console.log('LIMIT: MQTT bus and clients simulated; no cross-PC/NAT proof.');
 })().catch(e=>{console.error(e);process.exitCode=1});

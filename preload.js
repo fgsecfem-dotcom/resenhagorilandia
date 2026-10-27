@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('resenhaNative', {
   onUpdateProgress: (fn) => ipcRenderer.on('update:progress', (e, p) => fn(p)),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   version: () => ipcRenderer.invoke('app:version'),
+  launchIntent: () => ipcRenderer.invoke('launch:intent'),
   tun: {
     guestStart: (code) => ipcRenderer.invoke('tun:guest-start', code),
     guestOffer: (sdp, ms) => ipcRenderer.invoke('tun:guest-offer', sdp, ms),

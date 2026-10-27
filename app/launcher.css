@@ -80,3 +80,48 @@ body[data-error=true] .mascot-wrap{width:64px;height:64px;margin-bottom:12px;ani
 body[data-error=true] .ring{inset:-7px;border-radius:23px}
 @keyframes shake{20%,60%{translate:-6px 0}40%,80%{translate:6px 0}}
 @media(prefers-reduced-motion:reduce){.orb,.ring,.mascot::after,#fill::after,header,.mascot-wrap,.status-copy,.progress-region,.actions,footer{animation:none!important}}
+
+/* ---------- Hub (tela inicial do launcher) ---------- */
+/* Mesmas variáveis do tema: o Hub muda com o tema e o ícone escolhidos, sem paleta própria. */
+.hub{align-items:stretch;justify-content:flex-start;text-align:left;padding:4px 36px 12px;min-width:0}
+.notice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 6px 16px;margin-bottom:12px;border-radius:14px;background:var(--fill);box-shadow:inset 0 0 0 1px var(--edge);font-size:12.5px;color:var(--muted)}
+.notice .text-button{min-height:30px;padding:0 14px}
+.greet{display:flex;align-items:center;gap:14px;margin:2px 0 16px}
+.hub-mascot{width:52px;height:52px;flex:none;border-radius:14px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 10px 24px rgba(0,0,0,.3)}
+.hub-mascot svg{width:52px;height:52px;display:block}
+#hello{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
+.join{display:flex;gap:10px}
+.join input{flex:1;min-width:0;height:40px;padding:0 14px;border:0;border-radius:12px;background:var(--fill);color:var(--fg);font:inherit;font-size:14px;letter-spacing:.02em;box-shadow:inset 0 0 0 1px var(--edge);user-select:text;transition:box-shadow .2s}
+.join input::placeholder{color:var(--muted);letter-spacing:0}.join input:focus{outline:0;box-shadow:inset 0 0 0 1px var(--accent)}
+.join .text-button{height:40px}
+.text-button.primary{background:var(--blurple);color:#fff;box-shadow:none}
+.hub-error{min-height:18px;margin:6px 4px 6px;font-size:12px;color:#f08a8a}
+.rooms-title{font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--muted);margin:2px 2px 10px}
+.rooms{display:flex;align-items:flex-start;gap:12px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.rooms::-webkit-scrollbar{display:none}
+.room{flex:none;display:flex;flex-direction:column;width:150px;padding:0;border:0;border-radius:16px;overflow:hidden;background:var(--fill);color:var(--fg);text-align:left;box-shadow:inset 0 0 0 1px var(--edge);transition:background-color .2s}
+.room:hover{background:var(--fill-2)}
+.room.featured{width:250px}
+.room-art{position:relative;display:grid;place-items:center;height:84px;background:var(--room) center/cover no-repeat}
+.featured .room-art{height:108px}
+.room-art i{font-style:normal;font-size:22px;font-weight:700;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.35)}
+.room-art img{width:44px;height:44px;border-radius:12px;object-fit:cover}
+.room-art em{position:absolute;left:8px;bottom:8px;font-style:normal;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.45);color:#fff}
+.room b{display:block;padding:10px 12px 0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room small{display:block;padding:2px 12px 11px;font-size:11px;color:var(--muted)}
+.empty{margin:12px 2px;font-size:13px;color:var(--muted)}
+.skip,#hub-open{display:none}
+body[data-phase=hub] footer{height:54px}
+body[data-phase=hub] .skip{display:flex;align-items:center;gap:7px;margin-left:auto;font-size:11.5px}
+body[data-phase=hub] #hub-open{display:inline-flex;align-items:center;min-height:34px}
+.skip input{accent-color:var(--blurple)}
+.hub>*{animation:rise .5s cubic-bezier(.2,.9,.3,1) both}
+.hub>:nth-child(2){animation-delay:.05s}.hub>:nth-child(3){animation-delay:.1s}.hub>:nth-child(6){animation-delay:.18s}.hub>:nth-child(7){animation-delay:.24s}
+@media(prefers-reduced-motion:reduce){.hub>*{animation:none!important}}
+/* Holofoil: o mesmo gradiente holográfico do app, só nas peças-chave do Hub (botão principal, sala em destaque, campo em foco). */
+html[data-tk="holofoil"]{--holo:linear-gradient(115deg,#1f7a85 0%,#2fa3a8 20%,#5a8fd8 40%,#8a7be0 50%,#3fbfae 70%,#1f7a85 100%)}
+html[data-tk="holofoil"] .text-button.primary{background:var(--holo);background-size:200% 100%;animation:holo-flow 10s linear infinite}
+html[data-tk="holofoil"] .room.featured{box-shadow:inset 0 0 0 1px rgba(160,200,235,.35),0 0 0 1px rgba(90,143,216,.25)}
+html[data-tk="holofoil"] .join input:focus{box-shadow:inset 0 0 0 1px #5a8fd8}
+@keyframes holo-flow{from{background-position:0% 50%}to{background-position:200% 50%}}
+@media (prefers-reduced-motion:reduce){html[data-tk="holofoil"] .text-button.primary{animation:none}}
