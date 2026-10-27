@@ -160,8 +160,9 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
         <div class="mu-jam-pick hidden" role="listbox" aria-label="Convidar para ouvir junto"></div>
         <div class="mu-queue"><div class="mu-label">A seguir <span class="mu-count"></span></div><div class="mu-list" aria-label="Fila: arraste para reordenar, deslize para remover"></div><p class="mu-after"></p></div>
         <p class="mu-note muted small"></p>
-        <div class="mu-connect"><div><b>Spotify</b><span class="mu-connect-text"></span></div><button class="btn mu-login"></button></div>
-      </div>`;
+        <div class="mu-connect"><div><b>Spotify</b><span class="mu-connect-text"></span></div><button class="btn mu-key" title="Usar a sua própria chave do Spotify">Minha chave</button><button class="btn mu-login"></button></div>
+      </div>
+      <div class="mu-guide hidden" role="dialog" aria-label="Criar minha chave do Spotify"></div>`;
     chat.append(panel);
     const mini = document.createElement('div'); mini.id = 'music-mini';
     mini.innerHTML = `<div class="mu-ambient" aria-hidden="true"></div><button class="mm-open" title="Abrir o player"><img class="mu-cover" alt=""><span class="mm-text"><b class="mu-title"></b><span class="mu-artist"></span></span><i class="mm-eq" aria-hidden="true"><b></b><b></b><b></b></i></button>
@@ -188,12 +189,73 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     $('.mu-login', panel).onclick = async () => {
       if (st.busy) return;
       if (st.status?.connected) { await sp.logout(); stopPlayer(); return refreshStatus(); }
-      st.busy = true; render();
-      const r = await sp.login(); st.busy = false;
-      if (!r.ok && r.error !== 'Login fechado.') problem(r.error);
-      refreshStatus();
+      connect();
     };
+    $('.mu-key', panel).onclick = () => openKeyGuide(0);
     refreshStatus();
+  }
+  async function connect() {
+    st.busy = true; render();
+    const r = await sp.login(); st.busy = false;
+    if (!r.ok && r.error !== 'Login fechado.') problem(r.error);
+    await refreshStatus();
+    // Conta fora da chave padrão: já abre o passo a passo para a pessoa criar a dela.
+    if (!r.ok && !st.status?.ownKey && /não está liberada/.test(r.error || '')) openKeyGuide(0);
+  }
+
+  // ---------- Minha chave do Spotify ----------
+  // No modo de desenvolvimento, cada chave (Client ID) do Spotify aceita poucas contas. Este passo a passo ensina a
+  // pessoa a criar o próprio app no painel do Spotify e colar o Client ID aqui. Uma tela por etapa, frases curtas.
+  const DASHBOARD = 'https://developer.spotify.com/dashboard', REDIRECT_URI = 'http://127.0.0.1:8888/callback';
+  const KEY_STEPS = [
+    { t: 'Por que criar uma chave?', p: ['O Spotify só deixa cada chave ser usada por poucas pessoas. Com a sua própria chave, você toca música no Resenha sem depender de ninguém.', 'É grátis e leva uns 5 minutos. Você só precisa da sua conta Spotify Premium.'] },
+    { t: 'Abra o painel do Spotify', p: ['Toque no botão abaixo. O site abre no seu navegador.', 'Entre com a <b>mesma conta</b> que você usa para ouvir música. Se o Spotify pedir, aceite os termos de desenvolvedor.'], act: 'open' },
+    { t: 'Crie um app', p: ['No painel, clique em <b>Create app</b>.', 'Em <b>App name</b> e <b>App description</b>, escreva qualquer coisa, por exemplo <i>Meu Resenha</i>. O campo <b>Website</b> pode ficar vazio.'] },
+    { t: 'Cole o endereço de retorno', p: ['No campo <b>Redirect URIs</b>, cole o endereço abaixo e clique em <b>Add</b>.', 'Ele precisa ficar igualzinho, sem espaço no fim.'], act: 'copy' },
+    { t: 'Marque as opções e salve', p: ['Na pergunta <b>Which API/SDKs are you planning to use?</b>, marque <b>Web API</b> e <b>Web Playback SDK</b>.', 'Marque a caixa que aceita os termos e clique em <b>Save</b>.'] },
+    { t: 'Copie o Client ID', p: ['Abra o app que você criou e clique em <b>Settings</b>. Copie o <b>Client ID</b> (32 letras e números) e cole aqui.', 'Não use o <b>Client secret</b>: é outro código e deve ficar só com você.'], act: 'key' },
+  ];
+  const isClientId = (s) => /^[0-9a-f]{32}$/i.test(s);
+  function openKeyGuide(step = 0) { if (!st.els) return; st.keyStep = step; $('.mu-guide', st.els.panel).classList.remove('hidden'); renderKeyGuide(); }
+  function closeKeyGuide() { if (st.els) $('.mu-guide', st.els.panel).classList.add('hidden'); }
+  function renderKeyGuide() {
+    const g = $('.mu-guide', st.els.panel), i = st.keyStep, s = KEY_STEPS[i], last = i === KEY_STEPS.length - 1;
+    let extra = '';
+    if (s.act === 'open') extra = '<button class="btn primary mu-g-open">Abrir o painel do Spotify</button>';
+    if (s.act === 'copy') extra = `<div class="mu-g-code"><code>${REDIRECT_URI}</code><button class="btn mu-g-copy">Copiar</button></div>`;
+    if (s.act === 'key') extra = `<form class="mu-g-form"><input class="mu-g-input" placeholder="Cole o Client ID aqui" spellcheck="false" autocomplete="off" aria-label="Client ID">
+        <p class="mu-g-msg" role="alert"></p><button class="btn primary">Salvar e conectar</button></form>
+      <p class="mu-empty">Se o Spotify mostrar <b>Invalid redirect URI</b>, volte ao passo 4 e confira o endereço.</p>
+      ${st.status?.ownKey ? '<button class="btn mu-g-reset">Voltar para a chave padrão</button>' : ''}`;
+    g.innerHTML = `<div class="mu-g-head"><span>Passo ${i + 1} de ${KEY_STEPS.length}</span><button class="icon-btn mu-g-x" aria-label="Fechar">${icon('x', 16)}</button></div>
+      <div class="mu-g-dots" aria-hidden="true">${KEY_STEPS.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</div>
+      <h3>${s.t}</h3>${s.p.map((x) => `<p>${x}</p>`).join('')}${extra}
+      <div class="mu-g-nav">${i ? '<button class="btn mu-g-back">Voltar</button>' : '<span></span>'}${last ? '' : '<button class="btn primary mu-g-next">Próximo</button>'}</div>`;
+    $('.mu-g-x', g).onclick = closeKeyGuide;
+    const go = (d) => { st.keyStep = i + d; renderKeyGuide(); };
+    if (i) $('.mu-g-back', g).onclick = () => go(-1);
+    if (!last) $('.mu-g-next', g).onclick = () => go(1);
+    if (s.act === 'open') $('.mu-g-open', g).onclick = () => native?.openExternal?.(DASHBOARD);
+    if (s.act === 'copy') $('.mu-g-copy', g).onclick = (e) => {
+      const b = e.currentTarget;
+      navigator.clipboard.writeText(REDIRECT_URI).then(() => { b.textContent = 'Copiado!'; }, () => {
+        getSelection().selectAllChildren($('.mu-g-code code', g)); // plano B: seleciona e copia do jeito antigo
+        b.textContent = document.execCommand('copy') ? 'Copiado!' : 'Use Ctrl+C';
+      });
+    };
+    if (s.act === 'key') {
+      const input = $('.mu-g-input', g), msg = $('.mu-g-msg', g);
+      $('.mu-g-form', g).onsubmit = async (e) => {
+        e.preventDefault();
+        const v = input.value.replace(/\s+/g, '');
+        if (!isClientId(v)) { msg.textContent = 'Isso não parece um Client ID. Ele tem 32 letras e números, sem espaços.'; return input.focus(); }
+        const r = await sp.setClientId(v);
+        if (!r?.ok) { msg.textContent = r?.error || 'Não consegui salvar a chave.'; return; }
+        stopPlayer(); closeKeyGuide(); await refreshStatus(); connect();
+      };
+      input.focus();
+      if (st.status?.ownKey) $('.mu-g-reset', g).onclick = async () => { await sp.setClientId(''); stopPlayer(); closeKeyGuide(); refreshStatus(); };
+    }
   }
   // Barra de progresso no estilo do macOS: fina, engrossa ao passar o mouse e mostra a bolinha; arrastar muda a posição.
   function bindBar(bar) {
@@ -381,8 +443,9 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     $('.mu-searchbox', panel).classList.toggle('hidden', !ok);
     $('.mu-views', panel).classList.toggle('hidden', !ok); if (!ok && st.view !== 'now') setView('now');
     const text = $('.mu-connect-text', panel), btn = $('.mu-login', panel);
+    $('.mu-key', panel).classList.toggle('hidden', !st.status?.available);
     if (!st.status?.available) { text.textContent = 'Nesta versão, a música do Spotify funciona só no Resenha para Windows.'; btn.classList.add('hidden'); }
-    else if (ok) { text.textContent = 'Conectado como ' + (st.status.user?.name || 'você') + (st.device ? '' : ' · iniciando o player…'); btn.textContent = 'Desconectar'; btn.classList.remove('hidden', 'primary'); }
+    else if (ok) { text.textContent = 'Conectado como ' + (st.status.user?.name || 'você') + (st.status.ownKey ? ' · chave própria' : '') + (st.device ? '' : ' · iniciando o player…'); btn.textContent = 'Desconectar'; btn.classList.remove('hidden', 'primary'); }
     else { text.textContent = 'Entre uma vez com a sua conta (Premium). O Resenha lembra de você.'; btn.textContent = st.busy ? 'Abrindo…' : 'Conectar Spotify'; btn.classList.remove('hidden'); btn.classList.add('primary'); }
     renderQueue(); renderJam(); progress();
   }
