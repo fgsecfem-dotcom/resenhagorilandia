@@ -24,8 +24,9 @@ $('grip').innerHTML = ICON.grip;
 for (const [id, k] of [['prev', 'prev'], ['next', 'next']]) $(id).innerHTML = ICON[k];
 
 function avatar(u, extra = '') {
-  const bg = u.avatar ? `background-image:url(${esc(u.avatar)})` : `background-color:${esc(u.color || '#5865f2')}`;
-  return `<span class="av ${extra}" style="${bg}">${u.avatar ? '' : esc(u.initials || '?')}</span>`;
+  const img = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(u.avatar || ''), col = /^#[0-9a-f]{3,8}$/i.test(u.color || '') ? u.color : '#5865f2';
+  const bg = img ? `background-image:url('${u.avatar}')` : `background-color:${col}`; // só imagem embutida: nada de buscar URL de fora
+  return `<span class="av ${extra}" style="${bg}">${img ? '' : esc(u.initials || '?')}</span>`;
 }
 function musicVisible() {
   if (!S.music) return false;

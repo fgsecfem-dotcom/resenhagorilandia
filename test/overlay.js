@@ -53,4 +53,12 @@ for (const f of ['overlay/island.js', 'overlay/main.js', 'overlay/preload.js']) 
 new vm.Script(fs.readFileSync(require.resolve('../app/overlay-client.js'), 'utf8').replace('export function', 'function'), { filename: 'overlay-client.js' });
 const ps = fs.readFileSync(require.resolve('../overlay/helper.ps1'), 'utf8');
 assert.ok(!/SetWindowsHookEx|SendInput|keybd_event|WriteProcessMemory|CreateRemoteThread/.test(ps), 'o ajudante só lê: sem gancho, sem injeção');
+assert.ok(/GetWindowLong/.test(ps) && /0x00C00000/.test(ps), 'tela cheia exige janela sem barra de título (maximizada comum não conta)');
+assert.ok(/\\p\{C\}/.test(ps), 'título da janela sem caracteres de controle (não quebra o protocolo)');
+assert.ok(/-lt 1500/.test(ps), 'esperar o soltar tem limite de tempo');
+const island = fs.readFileSync(require.resolve('../overlay/island.js'), 'utf8');
+assert.ok(/data:image\\\/\(png\|jpeg\|webp\|gif\);base64/.test(island), 'avatar só aceita imagem embutida (não busca URL de fora)');
+const ovm = fs.readFileSync(require.resolve('../overlay/main.js'), 'utf8');
+assert.ok(/helper !== p/.test(ovm) && /fromIsland/.test(ovm) && /fromMain/.test(ovm), 'ajudante por processo e IPC conferindo o remetente');
+assert.equal(vkFor('`'), 0xC0, 'tecla abaixo do Esc (posição física) é a VK_OEM_3');
 console.log('PASS: ilha (detecção de jogo, tecla, posição, segurar e soltar)');

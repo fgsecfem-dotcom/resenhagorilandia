@@ -18,6 +18,7 @@ public static class RW {
   [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
   [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr m, ref MINFO i);
   [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc p, IntPtr l);
@@ -28,12 +29,12 @@ public static class RW {
     IntPtr p = OpenProcess(0x1000, false, pid); if (p == IntPtr.Zero) return "";
     var sb = new StringBuilder(1024); uint n = 1024; string r = QueryFullProcessImageName(p, 0, sb, ref n) ? sb.ToString() : ""; CloseHandle(p); return r;
   }
-  static string Title(IntPtr h) { var sb = new StringBuilder(256); GetWindowText(h, sb, 256); return sb.ToString().Replace("|", " "); }
+  static string Title(IntPtr h) { var sb = new StringBuilder(256); GetWindowText(h, sb, 256); return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"[\p{C}|]", " "); }
   public static string Fg() {
     IntPtr h = GetForegroundWindow(); if (h == IntPtr.Zero) return "";
     uint pid; GetWindowThreadProcessId(h, out pid); RECT r; GetWindowRect(h, out r);
     var mi = new MINFO(); mi.cb = Marshal.SizeOf(typeof(MINFO)); int fs = 0;
-    if (GetMonitorInfo(MonitorFromWindow(h, 2), ref mi) && r.L <= mi.m.L && r.T <= mi.m.T && r.R >= mi.m.R && r.B >= mi.m.B) fs = 1;
+    if (GetMonitorInfo(MonitorFromWindow(h, 2), ref mi) && r.L <= mi.m.L && r.T <= mi.m.T && r.R >= mi.m.R && r.B >= mi.m.B && (GetWindowLong(h, -16) & 0x00C00000) == 0) fs = 1; // sem barra de título: janela maximizada comum não conta
     return pid + "|" + fs + "|" + r.L + "|" + r.T + "|" + r.R + "|" + r.B + "|" + Exe(pid) + "|" + Title(h);
   }
   public static string Procs() {
@@ -55,7 +56,8 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
     'procs' { [Console]::Out.WriteLine('procs|' + [RW]::Procs()) }
     'w' {
       $vk = [int]$p[1]
-      while (([RW]::GetAsyncKeyState($vk) -band 0x8000) -ne 0) { Start-Sleep -Milliseconds 20 }
+      $n = 0
+      while (([RW]::GetAsyncKeyState($vk) -band 0x8000) -ne 0 -and $n -lt 1500) { Start-Sleep -Milliseconds 20; $n++ } # no máximo 30 s
       [Console]::Out.WriteLine('up')
     }
   }

@@ -8,24 +8,26 @@ const POLL_MS = 1500, SHRINK_DELAY = 360, IDLE_DESTROY_MS = 20000;
 
 function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, getMain, isTest }) {
   const enabledPlatform = process.platform === 'win32';
-  let cfg = { enabled: false, key: "'", mode: 'jogos', fullscreen: false, games: [], corner: 'tc', perGame: {}, opacity: 85, musicRest: 'sempre', reduceMotion: false, hintsLeft: 3 };
-  let helper = null, helperReady = false, buf = '', waiters = [];
+  let cfg = { enabled: false, key: '`', mode: 'jogos', fullscreen: false, games: [], corner: 'tc', perGame: {}, opacity: 85, musicRest: 'sempre', reduceMotion: false, hintsLeft: 3 };
+  let helper = null, helperReady = false, waiters = [], holdTimer = null, lastToggle = 0, ctlDuck = null;
   let win = null, fg = null, active = false, demo = false, demoTimer = null, registered = '', idleTimer = null, pollTimer = null, shrinkTimer = null;
   let size = { w: 0, h: 0 }, cache = {}, dragBase = null;
 
   // ---- ajudante do Windows ----
   function startHelper() {
     if (helper || !enabledPlatform) return;
+    let p;
     try {
-      helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'helper.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+      p = helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'helper.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
     } catch { helper = null; return; }
-    helper.stdout.setEncoding('utf8');
-    helper.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); onLine(line); } });
-    helper.on('exit', () => { helper = null; helperReady = false; buf = ''; waiters.splice(0).forEach((w) => w.fn(null)); hold.cancel(); });
-    helper.on('error', () => { helper = null; helperReady = false; });
-    ask('ping', (l) => { helperReady = l === 'pong'; });
+    let buf = ''; // cada processo tem o seu: o "exit" de um ajudante antigo não pode mexer no novo
+    p.stdout.setEncoding('utf8');
+    p.stdout.on('data', (d) => { if (helper !== p) return; buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); onLine(line); } });
+    const gone = () => { if (helper !== p) return; helper = null; helperReady = false; waiters.splice(0).forEach((w) => w.fn(null)); hold.cancel(); };
+    p.on('exit', gone); p.on('error', gone);
+    ask('ping', (l) => { if (helper === p) helperReady = l === 'pong'; });
   }
-  function stopHelper() { try { helper?.stdin.end(); helper?.kill(); } catch {} helper = null; helperReady = false; }
+  function stopHelper() { const p = helper; helper = null; helperReady = false; waiters.splice(0).forEach((w) => w.fn(null)); try { p?.stdin.end(); p?.kill(); } catch {} }
   function onLine(line) {
     const i = waiters.findIndex((w) => w.test(line));
     if (i >= 0) waiters.splice(i, 1)[0].fn(line);
@@ -46,13 +48,14 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
       if (!helperReady || vk == null) return; // sem o ajudante: alternar (ver press)
       ask('w ' + vk, () => hold.released());
     },
-    onHold: () => { setInteractive(true); toWin({ k: 'hold' }); emit({ type: 'hold' }); },
-    onRelease: () => { setInteractive(false); toWin({ k: 'release' }); emit({ type: 'release' }); },
+    onHold: () => { setInteractive(true); clearTimeout(holdTimer); holdTimer = setTimeout(() => hold.cancel(), 35000); toWin({ k: 'hold' }); emit({ type: 'hold' }); }, // 35 s: rede de segurança contra tecla presa
+    onRelease: () => { clearTimeout(holdTimer); setInteractive(false); toWin({ k: 'release' }); emit({ type: 'release' }); },
   });
   let toggleTimer = null;
   function onKey() {
     if (!win) return;
-    if (!helperReady) { // plano B: aperta uma vez abre, aperta de novo fecha (e fecha sozinho depois de 8 s sem mexer)
+    if (!helperReady) { // plano B (demo sem ajudante): aperta uma vez abre, aperta de novo fecha; ignora a repetição da tecla segurada
+      const now = Date.now(); if (now - lastToggle < 250) { lastToggle = now; return; } lastToggle = now;
       clearTimeout(toggleTimer);
       if (hold.holding) return hold.cancel();
       hold.press(); toggleTimer = setTimeout(() => hold.cancel(), 8000); return;
@@ -126,8 +129,10 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
   }
   function poll() {
     if (!cfg.enabled && !demo) return;
+    if (!helper) startHelper(); // se o ajudante morreu, sobe de novo; enquanto isso a ilha fica inativa (e a tecla livre)
     ask('fg', (l) => {
-      if (l) {
+      if (!l) fg = null;
+      else {
         const p = l.slice(3).split('|'); // pid|fs|l|t|r|b|exe|title
         const exe = p[6] || '';
         fg = { pid: +p[0], fs: p[1] === '1', rect: { l: +p[2], t: +p[3], r: +p[4], b: +p[5] }, exe, name: exe.split('\\').pop().toLowerCase(), title: p.slice(7).join('|'), self: +p[0] === process.pid };
@@ -142,24 +147,29 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
     else if (!demo) { stopPolling(); register(false); active = false; destroyWindow(); stopHelper(); }
   }
 
-  // ---- IPC ----
+  // ---- IPC ---- (cada canal só aceita quem deve: a janela do app ou a própria ilha)
+  const fromMain = (e) => { const m = getMain(); return !!m && !m.isDestroyed() && e.sender === m.webContents; };
+  const fromIsland = (e) => !!win && !win.isDestroyed() && e.sender === win.webContents;
   ipcMain.handle('overlay:config', (e, next) => {
     const wasKey = cfg.key;
+    if (!fromMain(e)) return { supported: false };
     cfg = { ...cfg, ...(next || {}) };
-    cfg.games = (cfg.games || []).map((g) => String(g).toLowerCase()).slice(0, 200);
+    cfg.games = (Array.isArray(cfg.games) ? cfg.games : []).map((g) => String(g).toLowerCase()).slice(0, 200);
     if (!validKey(cfg.key)) cfg.key = wasKey;
     if (!enabledPlatform) return { supported: false };
     toWin({ k: 'cfg', cfg: publicCfg() });
     applyEnabled(); register(active); if (active) reposition(true);
     return { supported: true, helper: helperReady };
   });
-  ipcMain.handle('overlay:state', () => ({ supported: enabledPlatform, helper: helperReady, active, game: gameKey(), registered: !!registered }));
-  ipcMain.handle('overlay:procs', () => new Promise((res) => {
+  ipcMain.handle('overlay:state', (e) => !fromMain(e) ? {} : ({ supported: enabledPlatform, helper: helperReady, active, game: gameKey(), registered: !!registered }));
+  ipcMain.handle('overlay:procs', (e) => new Promise((res) => {
+    if (!fromMain(e)) return res([]);
     const was = !!helper; if (!was) startHelper();
     ask('procs', (l) => { if (!was && !cfg.enabled) stopHelper(); res(l ? l.slice(6).split('\u0002').filter(Boolean).map((r) => { const [name, exe, title] = r.split('\u0001'); return { name, exe, title }; })
       .filter((r) => !/^(resenha|electron)\.exe$/i.test(r.name)) : []); });
   }));
   ipcMain.handle('overlay:demo', (e, on) => {
+    if (!fromMain(e)) return false;
     clearTimeout(demoTimer);
     demo = !!on;
     if (demo) { startHelper(); demoTimer = setTimeout(() => { demo = false; applyEnabled(); decide(); emit({ type: 'demo-end' }); }, 5 * 60 * 1000); ensureWindow(); decide(); }
@@ -167,14 +177,14 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
     toWin({ k: 'cfg', cfg: publicCfg() });
     return true;
   });
-  ipcMain.on('overlay:push', (e, msg) => { if (msg && typeof msg.k === 'string') { toWin(msg); } });
+  ipcMain.on('overlay:push', (e, msg) => { if (fromMain(e) && msg && typeof msg.k === 'string') toWin(msg); });
   ipcMain.on('overlay:size', (e, s) => {
-    if (!s) return; size = { w: Math.ceil(Math.max(0, Math.min(+s.w || 0, 600))), h: Math.ceil(Math.max(0, Math.min(+s.h || 0, 800))) };
-    if (win && !win.isDestroyed() && (active || demo)) reposition();
+    if (!s || !fromIsland(e)) return; size = { w: Math.ceil(Math.max(0, Math.min(+s.w || 0, 600))), h: Math.ceil(Math.max(0, Math.min(+s.h || 0, 800))) };
+    if (win && !win.isDestroyed() && (active || demo) && !dragBase) reposition(); // durante o arrasto quem manda é o mouse
   });
-  ipcMain.on('overlay:action', (e, a) => { if (demo && (!a || a.k !== 'event')) return; const m = getMain(); if (m && !m.isDestroyed()) m.webContents.send('overlay:action', a); });
+  ipcMain.on('overlay:action', (e, a) => { if (!fromIsland(e) || (demo && (!a || a.k !== 'event'))) return; const m = getMain(); if (m && !m.isDestroyed()) m.webContents.send('overlay:action', a); });
   ipcMain.on('overlay:drag', (e, d) => {
-    if (!win || win.isDestroyed() || !d) return;
+    if (!win || win.isDestroyed() || !d || !fromIsland(e)) return;
     const area = displayArea();
     if (d.phase === 'start') { dragBase = win.getBounds(); return; }
     if (!dragBase) return;
@@ -189,7 +199,7 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
     }
   });
 
-  return { syncHotkey: () => { registered = ''; register(active); }, dispose: () => { stopPolling(); register(false); destroyWindow(); stopHelper(); }, isActive: () => active };
+  return { syncHotkey: () => { registered = ''; register(active); }, dispose: () => { stopPolling(); register(false); [demoTimer, toggleTimer, shrinkTimer, holdTimer, idleTimer].forEach(clearTimeout); destroyWindow(); stopHelper(); }, isActive: () => active };
 }
 
 module.exports = { createOverlay };

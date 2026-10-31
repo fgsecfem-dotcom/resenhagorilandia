@@ -4,12 +4,16 @@
 const DEFAULTS = { enabled: false, key: null, mode: 'jogos', fullscreen: false, games: [], corner: 'tc', perGame: {}, opacity: 85, musicRest: 'sempre', reduceMotion: false, duck: false, hintsLeft: 3, seenInvite: false, trained: false };
 const CORNERS = [['tc', 'Topo, no centro'], ['tl', 'Topo, à esquerda'], ['tr', 'Topo, à direita'], ['bl', 'Embaixo, à esquerda'], ['br', 'Embaixo, à direita']];
 const KEY_NAMES = { Insert: 'Insert', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', Pause: 'Pause', ScrollLock: 'ScrollLock' };
+// Teclas de pontuação pela posição física (igual nos teclados ABNT2 e americano): código -> acelerador.
+const PUNCT = { Backquote: '`', Quote: "'", Comma: ',', Period: '.', Minus: '-', Equal: '=', Semicolon: ';', Slash: '/', BracketLeft: '[', BracketRight: ']', Backslash: '\\' };
+const CODE_OF = Object.fromEntries(Object.entries(PUNCT).map(([c, a]) => [a, c]));
 
 export function createOverlayClient(d) {
   const { native, settings, saveSettings, S, V, DJ_ID, isSpeaking, setMuted, setDeafened, applyUserVolume, renderAll, music, initials, openModal, icon, esc, $, $$, toast } = d;
   const supported = !!native?.overlay && native.platform === 'win32';
   const cfg = settings.overlay = Object.assign({}, DEFAULTS, settings.overlay || {});
-  let last = {}, training = null, usedThisHold = false, defaultKey = "'";
+  let last = {}, training = null, usedThisHold = false, layout = null, duckNow = null;
+  const defaultKey = '`'; // a tecla abaixo do Esc em qualquer layout (no ABNT2 ela escreve ')
   const note = (t, body, ms) => toast(t + ': ' + body, '', ms);
   const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
   const send = (msg) => { if (supported) native.overlay.push(msg); };
@@ -17,10 +21,10 @@ export function createOverlayClient(d) {
   function pushConfig() { if (supported) native.overlay.config({ ...cfg, key: cfg.key || defaultKey }).catch?.(() => {}); }
   const live = () => supported && (cfg.enabled || !!training);
 
-  // Tecla padrão: a que fica embaixo do Esc no teclado da pessoa (' no ABNT2, ` no americano).
+  // O atalho vale pela posição da tecla; o que aparece na tela é o caractere que ela escreve no layout da pessoa.
   async function detectKey() {
-    try { const c = (await navigator.keyboard.getLayoutMap()).get('Backquote'); defaultKey = c === '`' || c === "'" ? c : 'F9'; } catch { defaultKey = "'"; }
-    if (!cfg.key) cfg.key = defaultKey;
+    try { layout = await navigator.keyboard.getLayoutMap(); } catch { layout = null; }
+    if (!cfg.key || cfg.key === "'") cfg.key = defaultKey; // "'" era o padrão antigo (tecla errada no ABNT2)
   }
 
   // ---- estado enviado à ilha (só quando muda) ----
@@ -39,7 +43,7 @@ export function createOverlayClient(d) {
     if (!live() || training) return;
     const ids = roster().filter((u) => isSpeaking(u.id)).map((u) => u.id), k = ids.join();
     if (force || k !== last.speaking) { last.speaking = k; send({ k: 'speaking', ids }); }
-    if (cfg.duck) music.control?.('duck', ids.length > 0);
+    if (cfg.duck && duckNow !== ids.length > 0) { duckNow = ids.length > 0; music.control?.('duck', duckNow); }
   }
   music.watch?.((m) => { if (live() && !training) send({ k: 'music', m }); });
 
@@ -76,6 +80,7 @@ export function createOverlayClient(d) {
     send({ k: 'music', m: { title: 'Midnight City', artist: 'M83', cover: demoCover, paused: false, pos: 84000, dur: 243000, vol: 60, at: Date.now() } });
   }
   async function startDemo(onEvent) {
+    clearTimeout(stopDemo.t);
     training = { event: onEvent || (() => {}), end() { stopDemo(); } };
     await native.overlay.demo(true); demoState();
   }
@@ -83,7 +88,7 @@ export function createOverlayClient(d) {
   function testNow() { startDemo().then(() => { stopDemo.t = setTimeout(stopDemo, 10000); }); }
 
   // ---- convite e treino guiado ----
-  const keyLabel = () => cfg.key || defaultKey;
+  const keyLabel = () => { const k = cfg.key || defaultKey, c = CODE_OF[k]; return (c && layout?.get(c)) || k; };
   function trainingModal() {
     const steps = [['hold', `Segure a tecla <kbd>${esc(keyLabel())}</kbd>`], ['music-open', 'Clique na música para abrir os controles'], ['people-open', 'Clique nas pessoas para ver o volume de cada uma'], ['release', 'Solte a tecla: a ilha fecha sozinha']];
     const done = new Set();
@@ -124,7 +129,7 @@ export function createOverlayClient(d) {
         <p class="muted small">Desligada por padrão. Uma cápsula pequena com quem fala e a música. Não mexe no jogo e não usa nada que o anti-cheat costume bloquear.</p></div>
       <div class="field"><label>Tecla da ilha (segure para clicar)</label><div class="kbd" id="ov-key">${esc(keyLabel())}</div>
         <p class="muted small">Padrão: a tecla abaixo do Esc. Ela só vale dentro do jogo; fora dele você digita normalmente. Se o seu jogo usa essa tecla (console, chat), troque aqui.</p><p class="muted small" id="ov-mode"></p></div>
-      <div class="field"><label>Mostrar em</label>${sel('ov-mode-sel', [['jogos', 'Só nos jogos'], ['sempre', 'Sempre, em qualquer programa']], cfg.mode)}</div>
+      <div class="field"><label>Mostrar em</label>${sel('ov-mode-sel', [['jogos', 'Só nos jogos'], ['sempre', 'Sempre, em qualquer programa']], cfg.mode)}<p class="muted small">No modo "Sempre" a tecla fica reservada para a ilha em todos os programas (menos navegadores e similares). Prefira uma tecla F ou Insert.</p></div>
       <div class="field"><label class="check"><input type="checkbox" id="ov-fs" ${cfg.fullscreen ? 'checked' : ''}> Também em qualquer programa em tela cheia</label><p class="muted small">Pode aparecer em filmes e apresentações.</p></div>
       <div class="field"><label>Música quando a ilha está parada</label>${sel('ov-music', [['sempre', 'Sempre (capa e título)'], ['mudar', 'Só quando a música muda'], ['nunca', 'Nunca']], cfg.musicRest)}</div>
       <div class="field"><label>Canto padrão</label>${sel('ov-corner', CORNERS, cfg.corner)}<p class="muted small">Cada jogo lembra o seu canto: segure a tecla e arraste a alça da ilha.</p></div>
@@ -150,7 +155,7 @@ export function createOverlayClient(d) {
   function bindPanel(el) {
     if (!supported) return;
     const p = $('.tp[data-p="ilha"]', el); if (!p) return;
-    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper ? 'Segurar a tecla funciona neste computador.' : 'Neste computador a tecla funciona apertando uma vez para abrir e outra para fechar.'; });
+    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper ? 'Segurar a tecla funciona neste computador.' : 'O ajudante do Windows (PowerShell) não iniciou aqui, então a ilha não vai aparecer nos jogos.'; });
     $('#ov-en', el).onchange = (e) => { cfg.enabled = e.target.checked; save(); if (cfg.enabled && !cfg.trained) note('Dica', 'faça o treino guiado para aprender a usar a ilha.', 5000); sync(true); };
     $('#ov-mode-sel', el).onchange = (e) => { cfg.mode = e.target.value; save(); };
     $('#ov-fs', el).onchange = (e) => { cfg.fullscreen = e.target.checked; save(); };
@@ -158,7 +163,7 @@ export function createOverlayClient(d) {
     $('#ov-corner', el).onchange = (e) => { cfg.corner = e.target.value; save(); };
     $('#ov-op', el).oninput = (e) => { cfg.opacity = +e.target.value; $('#ov-op-v', el).textContent = cfg.opacity + '%'; save(); };
     $('#ov-rm', el).onchange = (e) => { cfg.reduceMotion = e.target.checked; save(); };
-    $('#ov-duck', el).onchange = (e) => { cfg.duck = e.target.checked; if (!cfg.duck) music.control?.('duck', false); save(); };
+    $('#ov-duck', el).onchange = (e) => { cfg.duck = e.target.checked; if (!cfg.duck) duckNow = null; music.control?.('duck', false); save(); };
     $('#ov-add', el).onclick = () => pickProgram(el);
     $('#ov-train', el).onclick = trainingModal; $('#ov-test', el).onclick = testNow;
     $('#ov-fb', el).onclick = () => native.openExternal('https://github.com/fgsecfem-dotcom/resenhagorilandia/issues/new');
@@ -170,7 +175,8 @@ export function createOverlayClient(d) {
         e.preventDefault(); e.stopPropagation();
         if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
         document.removeEventListener('keydown', onKey, true); k.classList.remove('rec');
-        let key = e.key === 'Escape' ? null : /^F\d{1,2}$/.test(e.key) ? e.key : KEY_NAMES[e.code] || (e.key.length === 1 && /[A-Za-z0-9'`,.\-=;/[\]\\]/.test(e.key) ? e.key.toUpperCase() : null);
+        const letter = /^Key([A-Z])$/.exec(e.code), digit = /^Digit(\d)$/.exec(e.code);
+        let key = e.key === 'Escape' ? null : /^F\d{1,2}$/.test(e.key) ? e.key : KEY_NAMES[e.code] || PUNCT[e.code] || (letter && letter[1]) || (digit && digit[1]) || null;
         if (key && /^[A-Z0-9]$/.test(key)) note('Tecla de letra ou número', 'ela deixa de funcionar no jogo enquanto a ilha está ativa. Prefira uma tecla F, Insert ou a abaixo do Esc.', 6000);
         if (key) { cfg.key = key; save(); }
         k.textContent = keyLabel();
