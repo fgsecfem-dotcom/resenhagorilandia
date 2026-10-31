@@ -303,7 +303,7 @@ async function openStartServer(){
   // Escolha feita no Hub do launcher (entrar por código, abrir uma sala, criar). Sem escolha, vale o comportamento de sempre.
   const intent=await native.launchIntent?.().catch(()=>null);
   if(intent?.type==='join'&&intent.code){endBoot();return joinRoom(intent.code,$('#join-pass').value);}
-  if(intent?.type==='host'){endBoot();$('#host-name')?.focus();return;}
+  if(intent?.type==='host'){endBoot();showCreate(true);return;}
   const code=intent?.type==='room'&&intent.code?normCode(intent.code):favoriteCode()||LS.get('lastRoom',null)?.code;
   const room=code&&(storedRooms.length?storedRooms:await native.rooms.list()).find(r=>normCode(r.code)===code);
   if(!room||$('#home').classList.contains('hidden'))return endBoot();
@@ -416,6 +416,9 @@ function newCode() {
 }
 const looksLikeAddr = (s) => /[.:[]/.test(String(s || '').trim());
 
+// Home: "Criar sala" abre o bloco de criar (fechado por padrão, como no Hub); a senha de entrada só aparece se a sala pedir.
+function showCreate(open) { const box = $('#home-create'); if (!box) return; box.hidden = !open; $('#btn-create-toggle')?.setAttribute('aria-expanded', String(open)); if (open) $('#host-name')?.focus(); }
+function showJoinPass() { const d = $('#join-more'); if (d) d.open = true; $('#join-pass').focus(); }
 function initHome() {
   $('#home-name').value = me.name;
   $('#home-color').value = me.color;
@@ -431,6 +434,8 @@ function initHome() {
   $('#host-name').value = last.name || '';
   $('#host-port').value = last.port || 7777;
   $('#btn-host').onclick = hostRoom;
+  $('#btn-create-toggle').onclick = () => showCreate($('#home-create').hidden);
+  if (!me.name.trim()) $('#home-profile-d').open = true; // o nome é obrigatório para entrar
   $('#btn-join').onclick = () => joinRoom($('#join-addr').value, $('#join-pass').value);
   $('#join-addr').onkeydown = $('#join-pass').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-join').click(); };
   if (!native) { $('#btn-host').disabled = true; $('#btn-host').textContent = 'Criar sala só no app'; }
@@ -474,7 +479,7 @@ function pickAvatar(done) {
   inp.click();
 }
 function checkName() {
-  if (!me.name.trim()) { $('#home-error').textContent = 'Coloca seu nome primeiro.'; $('#home-name').focus(); return false; }
+  if (!me.name.trim()) { $('#home-error').textContent = 'Coloca seu nome primeiro.'; const pd = $('#home-profile-d'); if (pd) pd.open = true; $('#home-name').focus(); return false; }
   return true;
 }
 
@@ -509,7 +514,7 @@ async function joinRoom(addrText, password) {
     const info = await fetch(`${WEB_VIEWER ? location.origin : 'http://' + a.text}/api/info`, { signal: ctl.signal }).then((r) => r.json());
     clearTimeout(to);
     if (info.app !== 'resenha') throw new Error('não é sala do Resenha');
-    if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.code = null; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(a.text, info.name);
     connect(a, password, true);
@@ -529,7 +534,7 @@ async function joinByCode(codeText, password) {
     const t = await Tun.guestConnect(code, (s) => ($('#home-error').textContent = s));
     const a = parseAddr(t.addr);
     const info = await fetch(`http://${a.text}/api/info`).then((r) => r.json());
-    if (info.needsPassword && !password) { Tun.guestClose(); $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { Tun.guestClose(); $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.viaCode = code; S.code = code; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(code, info.name);
     connect(a, password, true);
@@ -557,7 +562,7 @@ async function pwaJoin(code, password) {
     await P.connect(code, (s) => ($('#home-error').textContent = s));
     const info = await P.http({ path: '/api/info' }).then((r) => JSON.parse(new TextDecoder().decode(r.body))); // direto pelo túnel: não depende do service worker
     if (info.app !== 'resenha') throw new Error('notfound');
-    if (info.needsPassword && !password) { P.close(); $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { P.close(); $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.viaCode = code; S.code = code; S.joinedAt = Date.now(); S.forceGuest = false;
     LS.set('pwaLastCode', code);
     connect(PWA_ADDR, password, true);
