@@ -20,7 +20,7 @@ App de call, tela e chat estilo Discord, sem servidor central: quem abre a sala 
 | `musica` | `app/music.js`, `spotify.js`, `server/dj.js` | player do Spotify (só Windows) e DJ |
 | `servidor` | `server/index.js`, `server/text-commands.js`, `server/file-http.js`, `room-state.js`, `server/profile-extras.js` | servidor da sala: WebSocket, canais, anexos, snapshot |
 | `descoberta` | `tunnel-main.js`, `app/tunnel.js`, `signal-worker/` | achar a sala pelo código (Worker Cloudflare e MQTT) e túnel P2P |
-| `desktop` | `main.js`, `preload.js`, `net-tools.js`, `capture-policy.js`, `app/launcher.js` | janela, bandeja, UPnP/CGNAT, captura de tela |
+| `desktop` | `main.js`, `preload.js`, `net-tools.js`, `capture-policy.js`, `app/launcher.js`, `overlay/`, `app/overlay-client.js` | janela, bandeja, UPnP/CGNAT, captura de tela |
 | `atualizador` | `updater.js`, `update-manager.js`, `update-helper.js`, `update-mac.js`, `server/startup-launcher.js` | atualização automática no Windows e no Mac |
 | `pwa` | `pwa/`, `app/mobile.js` | versão para navegador e celular |
 | `release` | `tools/release/`, [docs/RELEASE.md](docs/RELEASE.md), `docs/changes/` | build, assinatura e publicação |
