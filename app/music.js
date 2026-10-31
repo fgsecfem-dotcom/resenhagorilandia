@@ -167,7 +167,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
       <button class="icon-btn mm-play" aria-label="Tocar"></button><button class="icon-btn mu-next" title="Próxima" aria-label="Próxima">${icon('skip', 16)}</button><i class="mm-bar" aria-hidden="true"></i>`;
     side.insertBefore(mini, vp || $('#user-panel'));
     st.els = { tab, panel, mini };
-    const toggle = () => { if (jamAsk('toggle')) return; st.player ? st.player.togglePlay() : roomUI?.open('music'); };
+    const toggle = () => { if (jamAsk(st.state?.paused ? 'resume' : 'pause')) return; st.player ? st.player.togglePlay() : roomUI?.open('music'); };
     $('.mu-play', panel).onclick = toggle; $('.mm-play', mini).onclick = toggle;
     [panel, mini].forEach((r) => { $('.mu-next', r).onclick = () => { if (!jamAsk('next')) next(); }; });
     $('.mu-prev', panel).onclick = () => { if (!jamAsk('prev')) previous(); };
@@ -479,6 +479,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
       if (st.jam.switching !== m.uri) { st.jam.switching = m.uri; playNow({ uri: m.uri, name: m.name, artists: m.artists, img: m.img, cover: m.cover, ms: m.ms }, Math.max(0, expected)).then(() => setTimeout(() => { st.jam.switching = null; }, 2500)); }
       return;
     }
+    if (!m.paused && expected >= m.ms - 1000) return; // fim da faixa: espera o estado novo do anfitrião, sem reiniciar a velha
     if (m.paused && !st.state.paused) st.player.pause();
     if (!m.paused && st.state.paused) st.player.resume();
     if (Math.abs(pos() - expected) > 1500) st.player.seek(Math.max(0, Math.round(expected)));
@@ -491,7 +492,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   // Escolher uma faixa/playlist: o convidado pede ao anfitrião; fora da sessão toca direto.
   function pick(t, resetResume) {
-    if (jamAsk('play', { track: { uri: t.uri || null, name: t.name, artists: t.artists, img: t.img, cover: t.cover, ms: t.ms, ctx: t.ctx ? { uri: t.ctx.uri, name: t.ctx.name } : null } })) return;
+    if (jamAsk('play', { track: { uri: t.uri || null, name: t.name, artists: t.artists, img: t.img, cover: t.cover, ms: t.ms, ctx: t.ctx ? { uri: t.ctx.uri, name: t.ctx.name } : null }, reset: !!resetResume })) return;
     if (resetResume) st.resume = null;
     playNow(t);
   }
@@ -502,17 +503,20 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     if (uri !== null && !/^spotify:track:[A-Za-z0-9]+$/.test(uri)) return null;
     if (cu !== null && !/^spotify:(playlist|album):[A-Za-z0-9]+$/.test(cu)) return null;
     if (uri === null && cu === null) return null;
-    return { uri, name: str(x.name, 200), artists: str(x.artists, 200), img: str(x.img, 300), cover: str(x.cover, 300), ms: Number.isFinite(x.ms) ? x.ms : 0, ...(cu ? { ctx: { uri: cu, name: str(x.ctx.name, 200) } } : {}) };
+    const url = (v) => { v = str(v, 300); return /^https:\/\/[A-Za-z0-9.-]+\/[^\s"'()\\]*$/.test(v) ? v : ''; };
+    return { uri, name: str(x.name, 200), artists: str(x.artists, 200), img: url(x.img), cover: url(x.cover), ms: Number.isFinite(x.ms) ? x.ms : 0, ...(cu ? { ctx: { uri: cu, name: str(x.ctx.name, 200), kind: cu.startsWith('spotify:album:') ? 'album' : 'playlist' } } : {}) };
   };
   // Anfitrião recebe o pedido de um convidado.
   function jamControl(from, m) {
     if (st.jam.role !== 'host' || !st.jam.guests.has(from) || !st.player) return;
+    const now = Date.now(); if (now - (st.jam.ctlAt?.[from] || 0) < 300) return; (st.jam.ctlAt ||= {})[from] = now; // sem enxurrada de pedidos
     const who = uname(from);
-    if (m.a === 'toggle') { st.player.togglePlay(); toast('Ouvir junto', who + (st.state?.paused ? ' deu play.' : ' pausou.'), 2000); }
+    if (m.a === 'pause') { if (st.state && !st.state.paused) st.player.pause(); toast('Ouvir junto', who + ' pausou.', 2000); }
+    else if (m.a === 'resume') { if (st.state?.paused) st.player.resume(); toast('Ouvir junto', who + ' deu play.', 2000); }
     else if (m.a === 'next') { next(); toast('Ouvir junto', who + ' pulou a música.', 2000); }
     else if (m.a === 'prev') { previous(); toast('Ouvir junto', who + ' voltou a música.', 2000); }
     else if (m.a === 'seek' && Number.isFinite(m.ms)) st.player.seek(Math.max(0, Math.min(Math.round(m.ms), st.state?.duration || 0)));
-    else if (m.a === 'play') { const t = ctlTrack(m.track); if (!t) return; st.resume = null; playNow(t); toast('Ouvir junto', who + ' escolheu ' + (t.name || 'uma música') + '.', 2500); }
+    else if (m.a === 'play') { const t = ctlTrack(m.track); if (!t) return; if (m.reset) st.resume = null; playNow(t); toast('Ouvir junto', who + ' escolheu ' + (t.name || 'uma música') + '.', 2500); }
     else return;
     setTimeout(() => jamBroadcast(true), 700);
   }
@@ -525,13 +529,13 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function jamButton() {
     if (st.jam.role === 'guest') return jamLeave();
-    const pick = $('.mu-jam-pick', st.els.panel); if (!pick.classList.contains('hidden')) return pick.classList.add('hidden');
+    const box = $('.mu-jam-pick', st.els.panel); if (!box.classList.contains('hidden')) return box.classList.add('hidden');
     const me = room?.me(), people = (room?.users() || []).filter((u) => u.id !== me && !u.bot && u.id !== 'dj');
-    pick.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
+    box.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
       + (st.jam.role === 'host' ? '<button class="btn mu-jam-end">Encerrar sessão</button>' : '') : '<p class="mu-empty">Ninguém mais na sala agora.</p>';
-    pick.querySelectorAll('.mu-jam-person').forEach((b) => b.onclick = () => jamInvite(b.dataset.id, b));
-    pick.querySelector('.mu-jam-end')?.addEventListener('click', () => { jamLeave(); pick.classList.add('hidden'); });
-    pick.classList.remove('hidden');
+    box.querySelectorAll('.mu-jam-person').forEach((b) => b.onclick = () => jamInvite(b.dataset.id, b));
+    box.querySelector('.mu-jam-end')?.addEventListener('click', () => { jamLeave(); box.classList.add('hidden'); });
+    box.classList.remove('hidden');
   }
   function jamInvite(id, btn) {
     const t = st.state?.track_window?.current_track;
