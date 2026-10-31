@@ -536,6 +536,7 @@ html.glass.light .uname.fx-neon { color: var(--nc, #0369a1); text-shadow: 0 0 2p
 .nfx-grid .nfx .uname:not([class*="fx-"]) { color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .uname[class*="fx-"], .uname.fx-glitch::before, .uname.fx-glitch::after { animation: none !important; } }
 html.reduce-motion .uname[class*="fx-"], html.reduce-motion .uname.fx-glitch::before, html.reduce-motion .uname.fx-glitch::after { animation: none !important; }
+html.bg-paused .uname[class*="fx-"], html.bg-paused .uname.fx-glitch::before, html.bg-paused .uname.fx-glitch::after { animation-play-state: paused !important; }
 
 /* ---------- 2.1.5: painel de chats novo (bolhas, pílulas, quem está na sala, envio com brilho) ---------- */
 html.glass #chat .pane-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 8px; }
