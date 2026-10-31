@@ -18,6 +18,7 @@ const {RoomStore,makeSnapshot,roomIdFor,atomic,backup,norm}=require('./room-stat
 const { mobileTLS } = require('./mobile-tls');
 const QRCode = require('qrcode');
 const { capturePolicy } = require('./capture-policy');
+const { createOverlay } = require('./overlay/main');
 const os = require('os');
 let tunnel = null;
 
@@ -25,6 +26,7 @@ let tunnel = null;
 const profileArg = process.argv.find((a) => a.startsWith('--profile='));
 if (profileArg) app.setPath('userData', path.join(app.getPath('appData'), 'Resenha-' + profileArg.split('=')[1]));
 const TEST_MODE = !!profileArg;
+let overlay = null;
 // Pasta de dados do Resenha (salas, configurações, logs): continua no AppData de sempre.
 const DATA_DIR = app.getPath('userData');
 // No Windows, a pasta interna do navegador (onde o Widevine do Spotify é instalado) fica fora do AppData:
@@ -233,6 +235,7 @@ function refreshShortcutIcons() {
 }
 
 app.whenReady().then(async () => {
+  overlay = createOverlay({ app, BrowserWindow, globalShortcut, screen: require('electron').screen, ipcMain, getMain: () => win, isTest: TEST_MODE && !process.env.RESENHA_TEST_OVERLAY }); // ilha por cima do jogo (opcional)
   const spotify = require('./spotify').createSpotify({ getWindow: () => win }); // música (Spotify): só funciona no Electron da Castlabs
   // O Widevine precisa estar pronto ANTES de abrir a janela (com ele preparado depois, o Spotify recusa a licença).
   // Espera no máximo 8 s para não travar a abertura sem internet; nas aberturas seguintes leva poucos milissegundos.
@@ -292,7 +295,7 @@ app.on('before-quit', (e) => {
   if (host && !quitStopped) { updateQuitSafe=updateQuitSafe&&!updateBusy(activeForUpdate()); e.preventDefault(); quitStopped = true; stopHost(4003).finally(() => app.quit()); return; }
   if(!updateExitHandled&&updateQuitSafe&&!updateBusy(activeForUpdate())&&updateManager.pending()){e.preventDefault();updateExitHandled=true;updateManager.launch().catch(err=>recordCapture('update-helper-error',{error:err.message})).finally(()=>app.quit());}
 });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { overlay?.dispose(); globalShortcut.unregisterAll(); });
 
 const RELAY_RANGE = 300; // portas UDP locais dos relays TURN (não precisam abrir no roteador)
 async function stopHost(code = 4002) {
@@ -478,6 +481,7 @@ ipcMain.handle('shortcuts:set', (e, map) => {
     if (!accel) continue;
     try { res[action] = globalShortcut.register(accel, () => win && win.webContents.send('shortcut', action)); } catch { res[action] = false; }
   }
+  overlay?.syncHotkey(); // unregisterAll acima também tirou o atalho da ilha
   return res;
 });
 
