@@ -57,7 +57,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     const prev = st.state; st.state = s; st.at = performance.now();
     // Fim da música: estava tocando perto do fim e voltou parada no começo da mesma faixa → toca a próxima da fila.
     if (s && prev && !prev.paused && s.paused && s.position === 0 && prev.track_window?.current_track?.id === s.track_window?.current_track?.id
-        && prev.duration - pos(prev) < 4000 && !st.advancing) next();
+        && prev.duration - pos(prev) < 4000 && !st.advancing && st.jam.role !== 'guest') next();
     const raw = s?.track_window?.current_track, pu = prev?.track_window?.current_track?.uri;
     if (raw?.uri && pu && raw.uri !== pu) trackChanged(raw);
     else if (raw?.uri && st.current && !st.current.uri) st.current = { ...track(raw), ctx: st.current.ctx }; // tocou a playlist do começo
@@ -105,7 +105,6 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     st.current = now; renderQueue();
   }
   function next() {
-    if (jamGuestAct()) return;
     const t = st.queue.shift();
     if (t) playNow(t);
     else if (st.resume) { const r = st.resume; st.resume = null; playNow(r); }
@@ -114,7 +113,6 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     renderQueue();
   }
   function previous() {
-    if (jamGuestAct()) return;
     if (pos() > 3000) return st.player?.seek(0);
     if (st.history.length) { const t = st.history.pop(); if (st.current?.uri) st.queue.unshift(st.current); st.current = null; return playNow(t); }
     if (st.current?.ctx && st.player) { st.manual = true; st.player.previousTrack(); setTimeout(() => { st.manual = false; }, 2500); return; }
@@ -169,10 +167,10 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
       <button class="icon-btn mm-play" aria-label="Tocar"></button><button class="icon-btn mu-next" title="Próxima" aria-label="Próxima">${icon('skip', 16)}</button><i class="mm-bar" aria-hidden="true"></i>`;
     side.insertBefore(mini, vp || $('#user-panel'));
     st.els = { tab, panel, mini };
-    const toggle = () => { if (jamGuestAct()) return; st.player ? st.player.togglePlay() : roomUI?.open('music'); };
+    const toggle = () => { if (jamAsk(st.state?.paused ? 'resume' : 'pause')) return; st.player ? st.player.togglePlay() : roomUI?.open('music'); };
     $('.mu-play', panel).onclick = toggle; $('.mm-play', mini).onclick = toggle;
-    [panel, mini].forEach((r) => { $('.mu-next', r).onclick = () => next(); });
-    $('.mu-prev', panel).onclick = previous;
+    [panel, mini].forEach((r) => { $('.mu-next', r).onclick = () => { if (!jamAsk('next')) next(); }; });
+    $('.mu-prev', panel).onclick = () => { if (!jamAsk('prev')) previous(); };
     $('.mm-open', mini).onclick = () => openFromMini();
     // O mini player é a aba de música "recolhida": some com a aba aberta e volta (com a capa voando) quando ela fecha.
     st.miniObs = new MutationObserver(syncMini);
@@ -263,8 +261,8 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     const at = (e) => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
     bar.addEventListener('pointerdown', (e) => { if (!st.state) return; bar.setPointerCapture(e.pointerId); dragging = true; bar.classList.add('drag'); preview(at(e)); });
     bar.addEventListener('pointermove', (e) => { if (dragging) preview(at(e)); });
-    bar.addEventListener('pointerup', (e) => { if (!dragging) return; dragging = false; bar.classList.remove('drag'); const p = at(e); st.preview = null; if (st.state) { st.state = { ...st.state, position: p * st.state.duration }; st.at = performance.now(); st.player?.seek(Math.round(p * st.state.duration)); } progress(); });
-    bar.addEventListener('keydown', (e) => { if (!st.state) return; const d = e.key === 'ArrowRight' ? 5000 : e.key === 'ArrowLeft' ? -5000 : 0; if (d) { e.preventDefault(); st.player?.seek(Math.max(0, pos() + d)); } });
+    bar.addEventListener('pointerup', (e) => { if (!dragging) return; dragging = false; bar.classList.remove('drag'); const p = at(e); st.preview = null; if (st.state) { if (jamAsk('seek', { ms: Math.round(p * st.state.duration) })) { progress(); return; } st.state = { ...st.state, position: p * st.state.duration }; st.at = performance.now(); st.player?.seek(Math.round(p * st.state.duration)); } progress(); });
+    bar.addEventListener('keydown', (e) => { if (!st.state) return; const d = e.key === 'ArrowRight' ? 5000 : e.key === 'ArrowLeft' ? -5000 : 0; if (d) { e.preventDefault(); const ms = Math.max(0, Math.round(pos() + d)); if (!jamAsk('seek', { ms })) st.player?.seek(ms); } });
     function preview(p) { st.preview = p; progress(); }
   }
   // Volume em pílula vertical ao lado da capa: arrastar, rodinha do mouse e setas; ícone muda as ondas; efeito elástico nos limites.
@@ -300,7 +298,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
       if (ticket !== st.ticket) return; // chegou depois de uma busca mais nova
       st.results = (r?.tracks?.items || []).map(track);
       box.innerHTML = st.results.length ? st.results.map((t, i) => `<div class="mu-item mu-result" data-i="${i}"><button class="mu-hit" data-i="${i}" title="Tocar agora"><img src="${esc(t.img || blank)}" alt=""><span><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span></button><span class="mu-item-dur">${fmt(t.ms)}</span><button class="icon-btn mu-add" data-i="${i}" title="Adicionar à fila" aria-label="Adicionar ${esc(t.name)} à fila">${icon('plus', 16)}</button></div>`).join('') : '<p class="muted small">Nada encontrado.</p>';
-      box.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { playNow(st.results[+b.dataset.i]); closeSearch(); });
+      box.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { pick(st.results[+b.dataset.i]); closeSearch(); });
       box.querySelectorAll('.mu-add').forEach((b) => b.onclick = () => { enqueue(st.results[+b.dataset.i]); b.classList.add('done'); b.innerHTML = icon('check', 16); });
       openSearch();
     } catch (e) { problem(e.message); }
@@ -316,7 +314,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     $('.mu-after', p).textContent = c ? (st.queue.length ? 'Depois da fila, volta ' : 'Continua ') + (c.kind === 'playlist' ? 'na playlist ' : 'no álbum ') + c.name : '';
     list.innerHTML = st.queue.length ? st.queue.map((t, i) => `<div class="mu-item mu-q" data-i="${i}"><span class="mu-grip" aria-hidden="true">⋮⋮</span><button class="mu-hit" data-i="${i}" title="Tocar agora"><img src="${esc(t.img || blank)}" alt=""><span><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span></button><button class="icon-btn mu-del" data-i="${i}" aria-label="Tirar ${esc(t.name)} da fila">${icon('x', 14)}</button></div>`).join('')
       : `<p class="mu-empty">A fila está vazia. Busque uma música e toque em ${icon('plus', 12)} para adicionar.</p>`;
-    list.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { if (b.closest('.mu-q').dataset.moved) return; const [t] = st.queue.splice(+b.dataset.i, 1); renderQueue(); playNow(t); });
+    list.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { if (b.closest('.mu-q').dataset.moved) return; const [t] = st.queue.splice(+b.dataset.i, 1); renderQueue(); pick(t); });
     list.querySelectorAll('.mu-del').forEach((b) => b.onclick = () => { st.queue.splice(+b.dataset.i, 1); renderQueue(); });
     list.querySelectorAll('.mu-q').forEach(bindRow);
   }
@@ -373,7 +371,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     box.querySelectorAll('.mu-plplay').forEach((b) => b.onclick = () => playList(st.lists[+b.dataset.i]));
   }
   const ctxOf = (pl) => ({ uri: pl.uri, name: pl.name, kind: 'playlist' });
-  function playList(pl) { st.resume = null; playNow({ uri: null, name: pl.name, artists: '', img: pl.img, cover: pl.cover, ms: 0, ctx: ctxOf(pl) }); }
+  function playList(pl) { pick({ uri: null, name: pl.name, artists: '', img: pl.img, cover: pl.cover, ms: 0, ctx: ctxOf(pl) }, true); }
   async function openPlaylist(pl) {
     const box = $('.mu-lists', st.els.panel);
     box.innerHTML = `<button class="mu-back">${BACK}<span>Playlists</span></button>
@@ -388,7 +386,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     if (!items) { list.innerHTML = '<p class="mu-empty">O Spotify só mostra as músicas das playlists que você criou ou em que colabora. Esta dá para tocar inteira no botão acima.</p>'; return; }
     const tracks = items.map((t) => ({ ...track(t), ctx }));
     list.innerHTML = tracks.length ? tracks.map((t, i) => `<div class="mu-item mu-result"><button class="mu-hit" data-i="${i}" title="Tocar agora"><img src="${esc(t.img || blank)}" alt=""><span><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span></button><span class="mu-item-dur">${fmt(t.ms)}</span><button class="icon-btn mu-add" data-i="${i}" title="Adicionar à fila" aria-label="Adicionar ${esc(t.name)} à fila">${icon('plus', 16)}</button></div>`).join('') : '<p class="mu-empty">Playlist vazia.</p>';
-    list.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { st.resume = null; playNow(tracks[+b.dataset.i]); });
+    list.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => pick(tracks[+b.dataset.i], true));
     list.querySelectorAll('.mu-add').forEach((b) => b.onclick = () => { enqueue(tracks[+b.dataset.i]); b.classList.add('done'); b.innerHTML = icon('check', 16); });
   }
   // ---------- Mini player ↔ aba de música ----------
@@ -481,12 +479,47 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
       if (st.jam.switching !== m.uri) { st.jam.switching = m.uri; playNow({ uri: m.uri, name: m.name, artists: m.artists, img: m.img, cover: m.cover, ms: m.ms }, Math.max(0, expected)).then(() => setTimeout(() => { st.jam.switching = null; }, 2500)); }
       return;
     }
+    if (!m.paused && expected >= m.ms - 1000) return; // fim da faixa: espera o estado novo do anfitrião, sem reiniciar a velha
     if (m.paused && !st.state.paused) st.player.pause();
     if (!m.paused && st.state.paused) st.player.resume();
     if (Math.abs(pos() - expected) > 1500) st.player.seek(Math.max(0, Math.round(expected)));
   }
-  // Mexer nos próprios controles tira o convidado da sessão (e a ação acontece normalmente na música dele).
-  function jamGuestAct() { if (st.jam.role !== 'guest') return false; jamLeave(true); toast('Ouvir junto', 'Você saiu da sessão e voltou a controlar a sua música.', 3500); return false; }
+  // Convidado também controla: o pedido vai para quem chamou, que toca na própria conta e manda o novo estado para todos.
+  function jamAsk(a, extra) {
+    if (st.jam.role !== 'guest' || !st.jam.host) return false;
+    jsend(st.jam.host, { k: 'ctl', a, ...extra });
+    return true;
+  }
+  // Escolher uma faixa/playlist: o convidado pede ao anfitrião; fora da sessão toca direto.
+  function pick(t, resetResume) {
+    if (jamAsk('play', { track: { uri: t.uri || null, name: t.name, artists: t.artists, img: t.img, cover: t.cover, ms: t.ms, ctx: t.ctx ? { uri: t.ctx.uri, name: t.ctx.name } : null }, reset: !!resetResume })) return;
+    if (resetResume) st.resume = null;
+    playNow(t);
+  }
+  const ctlTrack = (x) => {
+    if (!x || typeof x !== 'object') return null;
+    const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+    const uri = x.uri == null ? null : str(x.uri, 80), cu = x.ctx && typeof x.ctx.uri === 'string' ? x.ctx.uri.slice(0, 80) : null;
+    if (uri !== null && !/^spotify:track:[A-Za-z0-9]+$/.test(uri)) return null;
+    if (cu !== null && !/^spotify:(playlist|album):[A-Za-z0-9]+$/.test(cu)) return null;
+    if (uri === null && cu === null) return null;
+    const url = (v) => { v = str(v, 300); return /^https:\/\/[A-Za-z0-9.-]+\/[^\s"'()\\]*$/.test(v) ? v : ''; };
+    return { uri, name: str(x.name, 200), artists: str(x.artists, 200), img: url(x.img), cover: url(x.cover), ms: Number.isFinite(x.ms) ? x.ms : 0, ...(cu ? { ctx: { uri: cu, name: str(x.ctx.name, 200), kind: cu.startsWith('spotify:album:') ? 'album' : 'playlist' } } : {}) };
+  };
+  // Anfitrião recebe o pedido de um convidado.
+  function jamControl(from, m) {
+    if (st.jam.role !== 'host' || !st.jam.guests.has(from) || !st.player) return;
+    const now = Date.now(); if (now - (st.jam.ctlAt?.[from] || 0) < 300) return; (st.jam.ctlAt ||= {})[from] = now; // sem enxurrada de pedidos
+    const who = uname(from);
+    if (m.a === 'pause') { if (st.state && !st.state.paused) st.player.pause(); toast('Ouvir junto', who + ' pausou.', 2000); }
+    else if (m.a === 'resume') { if (st.state?.paused) st.player.resume(); toast('Ouvir junto', who + ' deu play.', 2000); }
+    else if (m.a === 'next') { next(); toast('Ouvir junto', who + ' pulou a música.', 2000); }
+    else if (m.a === 'prev') { previous(); toast('Ouvir junto', who + ' voltou a música.', 2000); }
+    else if (m.a === 'seek' && Number.isFinite(m.ms)) st.player.seek(Math.max(0, Math.min(Math.round(m.ms), st.state?.duration || 0)));
+    else if (m.a === 'play') { const t = ctlTrack(m.track); if (!t) return; if (m.reset) st.resume = null; playNow(t); toast('Ouvir junto', who + ' escolheu ' + (t.name || 'uma música') + '.', 2500); }
+    else return;
+    setTimeout(() => jamBroadcast(true), 700);
+  }
   function jamLeave(quiet) {
     if (st.jam.role === 'guest' && st.jam.host) jsend(st.jam.host, { k: 'leave' });
     if (st.jam.role === 'host') st.jam.guests.forEach((g) => jsend(g, { k: 'end' }));
@@ -496,13 +529,13 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function jamButton() {
     if (st.jam.role === 'guest') return jamLeave();
-    const pick = $('.mu-jam-pick', st.els.panel); if (!pick.classList.contains('hidden')) return pick.classList.add('hidden');
+    const box = $('.mu-jam-pick', st.els.panel); if (!box.classList.contains('hidden')) return box.classList.add('hidden');
     const me = room?.me(), people = (room?.users() || []).filter((u) => u.id !== me && !u.bot && u.id !== 'dj');
-    pick.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
+    box.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
       + (st.jam.role === 'host' ? '<button class="btn mu-jam-end">Encerrar sessão</button>' : '') : '<p class="mu-empty">Ninguém mais na sala agora.</p>';
-    pick.querySelectorAll('.mu-jam-person').forEach((b) => b.onclick = () => jamInvite(b.dataset.id, b));
-    pick.querySelector('.mu-jam-end')?.addEventListener('click', () => { jamLeave(); pick.classList.add('hidden'); });
-    pick.classList.remove('hidden');
+    box.querySelectorAll('.mu-jam-person').forEach((b) => b.onclick = () => jamInvite(b.dataset.id, b));
+    box.querySelector('.mu-jam-end')?.addEventListener('click', () => { jamLeave(); box.classList.add('hidden'); });
+    box.classList.remove('hidden');
   }
   function jamInvite(id, btn) {
     const t = st.state?.track_window?.current_track;
@@ -534,6 +567,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function onListen(from, m) {
     if (!m || typeof m.k !== 'string') return;
+    if (m.k === 'ctl') return jamControl(from, m);
     if (m.k === 'invite') return jamCard(from, String(m.track || '').slice(0, 160));
     if (m.k === 'accept' && st.jam.role === 'host' && st.jam.invites.has(from)) { st.jam.invites.delete(from); st.jam.guests.add(from); toast('Ouvir junto', uname(from) + ' entrou.', 2500); jamBroadcast(true); return renderJam(); }
     if (m.k === 'decline') { if (st.jam.invites.delete(from)) toast('Ouvir junto', uname(from) + ' não entrou agora.', 2500); if (st.jam.role === 'host' && !st.jam.guests.size && !st.jam.invites.size) st.jam.role = null; return renderJam(); }
@@ -555,5 +589,5 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function setEnabled(on) { settings.music = !!on; saveSettings(); on ? mount() : unmount(); }
   if (settings.music) mount();
-  return { setEnabled, onListen, userLeft, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
+  return { setEnabled, onListen, userLeft, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, jamAsk, pick, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
 }
