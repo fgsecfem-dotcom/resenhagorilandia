@@ -382,6 +382,10 @@ html[data-tk="holofoil"] {
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 }
 html.reduce-motion #call .tile.speaking::before { animation: none !important; }
+/* Janela escondida (html.bg-paused): fundos, brilhos e feixes param no lugar e voltam iguais ao reabrir */
+html.bg-paused :is(#main, #home)::before, html.bg-paused :is(#main, #call)::after, html.bg-paused #call::before, html.bg-paused #call .tile, html.bg-paused #call .tile::before, html.bg-paused #call #call-controls::after,
+html.bg-paused :is(.mu-play, #sidebar .channel.active > svg, .m-slider-tabs, .mu-bar-fill, .mu-views button, label.check input),
+html.bg-paused :is(#music-mini .mm-bar, .mu-views button, label.check input[type="checkbox"]:checked)::after, html.bg-paused label.check input[type="checkbox"]:checked::before { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) { #call .tile.speaking::before { animation: none !important; } }
 
 /* 2.2: halo ao passar o mouse (capa do álbum em todos os temas; no Holofoil também no tocar e nos botões da call).

@@ -33,31 +33,47 @@
 <div id="boot" role="status" aria-live="polite"><img src="icon.png" alt=""><h2 id="boot-name">Entrando no seu servidor…</h2><p id="boot-status"></p><span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
 <script src="boot-card.js"></script>
 
-<!-- Tela inicial -->
+<!-- Tela inicial (mesmo layout do Hub do launcher: uma coluna) -->
 <div id="home" class="screen">
   <div class="home-wrap">
     <section class="home-main" aria-label="Entrar ou criar uma sala">
-      <div class="home-brand">
-        <div class="home-logo"><img src="icon.png" alt=""><span>Resenha</span></div>
-        <h1 id="home-greeting">Boa noite</h1>
-        <p>Entre com o código que a galera mandou ou abra uma das suas salas.</p>
+      <div class="home-top">
+        <div class="home-brand">
+          <div class="home-logo"><img src="icon.png" alt=""></div>
+          <div class="home-greet">
+            <h1 id="home-greeting">Boa noite</h1>
+            <p>Entre com o código que a galera mandou ou abra uma das suas salas.</p>
+          </div>
+        </div>
+        <details class="home-profile-d" id="home-profile-d">
+          <summary>Seu perfil</summary>
+          <div class="card home-profile" aria-label="Seu perfil">
+            <div class="avatar-edit" id="home-avatar" title="Trocar foto" role="button" tabindex="0" aria-label="Trocar foto"></div>
+            <div class="field grow"><label for="home-name">Seu nome</label><input id="home-name" maxlength="32" placeholder="Como te chamam"></div>
+            <div class="field home-color"><label for="home-color">Cor</label><input id="home-color" type="color"></div>
+          </div>
+        </details>
       </div>
 
-      <div class="card home-join">
-        <p class="muted small" id="join-hint">Não precisa de IP nem abrir porta.</p>
+      <div class="home-join">
         <div class="home-row">
           <div class="field grow"><label for="join-addr">Código da sala</label><input id="join-addr" placeholder="K7P4-QX9M" autocomplete="off" spellcheck="false"></div>
-          <button class="btn primary big" id="btn-join">Entrar na sala</button>
+          <button class="btn primary big" id="btn-join">Entrar</button>
+          <button class="btn big" id="btn-create-toggle" aria-expanded="false" aria-controls="home-create">Criar sala</button>
         </div>
-        <div class="field home-pass"><label for="join-pass">Senha <span class="muted">(só se a sala tiver)</span></label><input id="join-pass" type="password" placeholder="sem senha"></div>
+        <details class="home-more" id="join-more">
+          <summary>Sala com senha</summary>
+          <div class="field home-pass"><label for="join-pass">Senha <span class="muted">(só se a sala tiver)</span></label><input id="join-pass" type="password" placeholder="sem senha"></div>
+        </details>
+        <p class="muted small" id="join-hint">Não precisa de IP nem abrir porta.</p>
         <div id="recent"></div>
       </div>
       <div id="home-error" class="error" role="status" aria-live="polite"></div>
 
-      <div class="card home-create">
+      <div class="card home-create" id="home-create" hidden>
         <div class="home-row">
           <div class="field grow"><label for="host-name">Criar uma sala nova</label><input id="host-name" maxlength="40" placeholder="Nome da sala, ex.: Resenha da firma"></div>
-          <button class="btn big" id="btn-host">Abrir sala</button>
+          <button class="btn primary big" id="btn-host">Abrir sala</button>
         </div>
         <details class="home-more">
           <summary>Opções avançadas</summary>
@@ -70,20 +86,10 @@
       </div>
 
       <section id="my-rooms" class="home-rooms" aria-label="Minhas salas"></section>
-    </section>
 
-    <aside class="home-side" aria-label="Seu perfil">
-      <div class="card home-profile">
-        <div class="avatar-edit" id="home-avatar" title="Trocar foto" role="button" tabindex="0" aria-label="Trocar foto"></div>
-        <div class="field grow"><label for="home-name">Seu nome</label><input id="home-name" maxlength="32" placeholder="Como te chamam"></div>
-        <div class="field home-color"><label for="home-color">Cor</label><input id="home-color" type="color"></div>
-      </div>
-      <div class="card home-tip">
-        <img src="icon.png" alt="">
-        <p>O código de cada sala nunca muda. Se o anfitrião sair, outro amigo assume sozinho.</p>
-      </div>
+      <p class="home-tip muted small">O código de cada sala nunca muda. Se o anfitrião sair, outro amigo assume sozinho.</p>
       <div id="home-version" class="muted small"></div>
-    </aside>
+    </section>
   </div>
 </div>
 

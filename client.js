@@ -4,6 +4,7 @@ import { esc, clamp, fmtCode } from './format-utils.js';
 import { setScreenRemoteDescription } from './screen-startup.js';
 import { createRoomUI } from './room-ui.js';
 import { createMusic } from './music.js';
+import { clientIdentitySecret } from './client-identity.js';
 // Resenha: cliente (UI + voz WebRTC + chat + DJ). Módulo ES.
 let RnnoiseWorkletNode;
 let roomUI = null;
@@ -40,10 +41,12 @@ if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppressi
 const saveSettings = () => LS.set('settings', settings);
 // 1.6 layout: move untouched old default widths (440/240) to the new ones once; custom widths stay.
 if (!LS.get('layout16', false)) { if (settings.chatWidth === 440) settings.chatWidth = 360; if (settings.sidebarWidth === 240) settings.sidebarWidth = 264; saveSettings(); LS.set('layout16', true); }
-// id fixo deste app: mantém as ligações de voz vivas quando a sala troca de anfitrião
+// Legacy id for older hosts and election tie-breaking. Updated hosts derive the
+// public participant id from IDENTITY_SECRET, preserving it across host transfer.
 const CID = LS.get('cid') || (() => { const c = [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join(''); LS.set('cid', c); return c; })();
-// Private key from the room's welcome: lets this tab replace its own lingering connection,
-// and keeps other tabs or people from taking over this id. Per tab, survives reloads.
+const IDENTITY_SECRET = clientIdentitySecret(LS, crypto);
+// Per-connection key for banner uploads and reconnecting to legacy hosts.
+// Per tab, survives reloads; never shared in public room data.
 const sessionResume = () => { if (S.resume) return S.resume; try { return sessionStorage.getItem('resenha.resume') || undefined; } catch { return undefined; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -297,7 +300,11 @@ async function openStartServer(){
   if(startTried)return;startTried=true;
   const booting=document.documentElement.classList.contains('booting');
   if(!native?.rooms||WEB_VIEWER||!me.name.trim())return endBoot();
-  const code=favoriteCode()||LS.get('lastRoom',null)?.code;
+  // Escolha feita no Hub do launcher (entrar por código, abrir uma sala, criar). Sem escolha, vale o comportamento de sempre.
+  const intent=await native.launchIntent?.().catch(()=>null);
+  if(intent?.type==='join'&&intent.code){endBoot();return joinRoom(intent.code,$('#join-pass').value);}
+  if(intent?.type==='host'){endBoot();showCreate(true);return;}
+  const code=intent?.type==='room'&&intent.code?normCode(intent.code):favoriteCode()||LS.get('lastRoom',null)?.code;
   const room=code&&(storedRooms.length?storedRooms:await native.rooms.list()).find(r=>normCode(r.code)===code);
   if(!room||$('#home').classList.contains('hidden'))return endBoot();
   if(booting){
@@ -409,6 +416,9 @@ function newCode() {
 }
 const looksLikeAddr = (s) => /[.:[]/.test(String(s || '').trim());
 
+// Home: "Criar sala" abre o bloco de criar (fechado por padrão, como no Hub); a senha de entrada só aparece se a sala pedir.
+function showCreate(open) { const box = $('#home-create'); if (!box) return; box.hidden = !open; $('#btn-create-toggle')?.setAttribute('aria-expanded', String(open)); if (open) $('#host-name')?.focus(); }
+function showJoinPass() { const d = $('#join-more'); if (d) d.open = true; $('#join-pass').focus(); }
 function initHome() {
   $('#home-name').value = me.name;
   $('#home-color').value = me.color;
@@ -424,6 +434,8 @@ function initHome() {
   $('#host-name').value = last.name || '';
   $('#host-port').value = last.port || 7777;
   $('#btn-host').onclick = hostRoom;
+  $('#btn-create-toggle').onclick = () => showCreate($('#home-create').hidden);
+  if (!me.name.trim()) $('#home-profile-d').open = true; // o nome é obrigatório para entrar
   $('#btn-join').onclick = () => joinRoom($('#join-addr').value, $('#join-pass').value);
   $('#join-addr').onkeydown = $('#join-pass').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-join').click(); };
   if (!native) { $('#btn-host').disabled = true; $('#btn-host').textContent = 'Criar sala só no app'; }
@@ -467,7 +479,7 @@ function pickAvatar(done) {
   inp.click();
 }
 function checkName() {
-  if (!me.name.trim()) { $('#home-error').textContent = 'Coloca seu nome primeiro.'; $('#home-name').focus(); return false; }
+  if (!me.name.trim()) { $('#home-error').textContent = 'Coloca seu nome primeiro.'; const pd = $('#home-profile-d'); if (pd) pd.open = true; $('#home-name').focus(); return false; }
   return true;
 }
 
@@ -502,7 +514,7 @@ async function joinRoom(addrText, password) {
     const info = await fetch(`${WEB_VIEWER ? location.origin : 'http://' + a.text}/api/info`, { signal: ctl.signal }).then((r) => r.json());
     clearTimeout(to);
     if (info.app !== 'resenha') throw new Error('não é sala do Resenha');
-    if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.code = null; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(a.text, info.name);
     connect(a, password, true);
@@ -522,7 +534,7 @@ async function joinByCode(codeText, password) {
     const t = await Tun.guestConnect(code, (s) => ($('#home-error').textContent = s));
     const a = parseAddr(t.addr);
     const info = await fetch(`http://${a.text}/api/info`).then((r) => r.json());
-    if (info.needsPassword && !password) { Tun.guestClose(); $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { Tun.guestClose(); $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.viaCode = code; S.code = code; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(code, info.name);
     connect(a, password, true);
@@ -550,7 +562,7 @@ async function pwaJoin(code, password) {
     await P.connect(code, (s) => ($('#home-error').textContent = s));
     const info = await P.http({ path: '/api/info' }).then((r) => JSON.parse(new TextDecoder().decode(r.body))); // direto pelo túnel: não depende do service worker
     if (info.app !== 'resenha') throw new Error('notfound');
-    if (info.needsPassword && !password) { P.close(); $('#home-error').textContent = 'Essa sala tem senha.'; $('#join-pass').focus(); $('#btn-join').disabled = false; return; }
+    if (info.needsPassword && !password) { P.close(); $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.viaCode = code; S.code = code; S.joinedAt = Date.now(); S.forceGuest = false;
     LS.set('pwaLastCode', code);
     connect(PWA_ADDR, password, true);
@@ -588,7 +600,7 @@ function connect(addr, password, first) {
   S.base = viaPWA ? viaPWA.base : WEB_VIEWER ? location.origin : `http://${addr.text}`;
   const ws = viaPWA ? viaPWA.socket() : new WebSocket(WEB_VIEWER ? location.origin.replace(/^http/, 'ws') : `ws://${addr.text}`);
   S.ws = ws;
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', cid: CID, resume: sessionResume(), joinedAt: S.joinedAt, name: me.name.trim(), color: me.color, avatar: me.avatar, ...profileExtras(), password, hostKey: S.hostKey, canHost: !!native && !WEB_VIEWER }));
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', cid: CID, identitySecret: IDENTITY_SECRET, resume: sessionResume(), joinedAt: S.joinedAt, name: me.name.trim(), color: me.color, avatar: me.avatar, ...profileExtras(), password, hostKey: S.hostKey, canHost: !!native && !WEB_VIEWER }));
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handle(m); };
   ws.onclose = (ev) => {
     if (S.ws !== ws || S.closing) return;
@@ -1514,28 +1526,38 @@ function setDeafened(d) {
   renderAll();
 }
 
-// Laço: portão de voz, indicadores de fala, ping
+// Laço: portão de voz (40 ms, precisa ser rápido) e contorno de quem fala (120 ms, gasta menos CPU).
+const MIC_TICK = WEB_VIEWER ? 80 : 40, SPEAK_TICK = WEB_VIEWER ? 160 : 120;
 let noiseFloor = -60;
 const lvlBuf = new Float32Array(512);
 const level = (an) => { an.getFloatTimeDomainData(lvlBuf); let s = 0; for (let i = 0; i < lvlBuf.length; i++) s += lvlBuf[i] * lvlBuf[i]; return 20 * Math.log10(Math.sqrt(s / lvlBuf.length) + 1e-9); };
 setInterval(() => {
   if (!V.joined && !V.testing) return;
-  const now = performance.now();
-  if (V.analyser && V.src) {
-    const db = level(V.analyser); V.selfLevel = db;
-    let open;
-    if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
-    else {
-      let thr = settings.threshold;
-      if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
-      if (db > thr) V.gateHold = now + 300;
-      open = now < V.gateHold;
-      if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
-    }
-    const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
-    if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
+  if (!V.analyser || !V.src) return;
+  // Mutado (fora do teste de microfone): nada sai, então não precisa medir.
+  if ((V.muted || V.deafened) && !V.testing) {
+    if (V.gate.gain.value > 0.5) V.gate.gain.setTargetAtTime(0, V.ctx.currentTime, 0.03);
+    if (V.gateOpen) { V.gateOpen = false; refreshSpeaking(); }
+    return;
   }
+  const now = performance.now();
+  const db = level(V.analyser); V.selfLevel = db;
+  let open;
+  if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
+  else {
+    let thr = settings.threshold;
+    if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
+    if (db > thr) V.gateHold = now + 300;
+    open = now < V.gateHold;
+    if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
+  }
+  const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
+  if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
+}, MIC_TICK);
+setInterval(() => {
+  if (!V.joined && !V.testing) return;
   if (!V.windowVisible || document.hidden) return;
+  const now = performance.now();
   let changed = false;
   for (const [id, p] of V.peers) {
     if (!p.analyser) continue;
@@ -1549,7 +1571,7 @@ setInterval(() => {
     if (sp !== V.speaking.has(DJ_ID)) { if (sp) V.speaking.add(DJ_ID); else V.speaking.delete(DJ_ID); changed = true; }
   }
   if (changed) refreshSpeaking();
-}, WEB_VIEWER ? 80 : 40);
+}, SPEAK_TICK);
 setInterval(() => {
   if (V.windowVisible && !document.hidden) tickTimers();
   wsSend({ t: 'ping', ts: Date.now() });
@@ -3378,8 +3400,12 @@ async function maybeWhatsNew() {
 }
 maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
-native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; renderCall(); });
-document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } });
+// Janela escondida ou minimizada: pausa as animações decorativas (o renderer não desacelera sozinho por causa da voz).
+const syncBgPaused = () => document.documentElement.classList.toggle('bg-paused', !V.windowVisible || document.hidden);
+native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); renderCall(); });
+document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); });
+// Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
+native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
 roomUI = createRoomUI({icon,openDM,contacts:()=>[...new Map([...Object.values(LS.get(dmStorageKey()+'.contacts',{})),...Object.values(friends),...[...S.users.values()].filter(u=>u.id!==S.myId&&u.id!==DJ_ID)].map(u=>[u.id,u])).values()],onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
 // Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
