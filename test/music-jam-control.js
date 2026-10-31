@@ -73,3 +73,11 @@ d.st.state = { track_window: { next_tracks: [{ uri: 'spotify:track:n1', name: 'N
 assert.deepEqual([...d.upcoming().map((x) => x.uri)], ['spotify:track:n1', 'spotify:track:n2']);
 d.st.state = null; assert.equal(d.upcoming().length, 0);
 console.log('PASS: fila do convidado vai ao anfitrião; "A seguir" mostra as próximas do Spotify');
+d.st.state = { context: { uri: 'spotify:playlist:pl1', metadata: { context_description: 'Minha lista' } } };
+assert.equal(d.playerCtx().uri, 'spotify:playlist:pl1'); assert.equal(d.playerCtx().kind, 'playlist'); assert.equal(d.playerCtx().name, 'Minha lista');
+d.st.state = { context: { uri: 'spotify:user:x:collection' } }; assert.equal(d.playerCtx(), null);
+d.st.state = null; assert.equal(d.playerCtx(), null);
+// limite de 100 na fila do anfitrião
+{ jam({ role: 'host', host: null, guests: new Set(['g']) }); d.st.queue.length = 0; for (let i = 0; i < 100; i++) d.st.queue.push({ uri: 'spotify:track:f' + i });
+  t0 += 1000; music.onListen('g', { k: 'ctl', a: 'add', track: { uri: 'spotify:track:extra', name: 'e' } }); assert.equal(d.st.queue.length, 100, 'fila cheia recusa'); }
+console.log('PASS: contexto real do player e limite da fila');
