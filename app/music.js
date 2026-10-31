@@ -61,7 +61,8 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     const raw = s?.track_window?.current_track, pu = prev?.track_window?.current_track?.uri;
     if (raw?.uri && pu && raw.uri !== pu) trackChanged(raw);
     else if (raw?.uri && st.current && !st.current.uri) st.current = { ...track(raw), ctx: st.current.ctx }; // tocou a playlist do começo
-    render(); loop(); jamBroadcast();
+    const sig = (x) => (x?.track_window?.next_tracks || []).map((t) => t.uri).join();
+    render(); loop(); jamBroadcast(); if (sig(prev) !== sig(s)) renderQueue();
     if (st.jam.role === 'guest' && st.jam.last) jamFollow(st.jam.last);
   }
   function stopPlayer() { cancelAnimationFrame(st.raf); st.raf = 0; st.player?.disconnect(); st.player = null; st.device = null; st.state = null; }
@@ -118,7 +119,10 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     if (st.current?.ctx && st.player) { st.manual = true; st.player.previousTrack(); setTimeout(() => { st.manual = false; }, 2500); return; }
     st.player?.seek(0);
   }
-  function enqueue(t) { st.queue.push(t); renderQueue(); toast('Na fila', t.name, 1800); }
+  function enqueue(t) {
+    if (jamAsk('add', { track: wire(t) })) return toast('Na fila', t.name + ' (pedido enviado a ' + uname(st.jam.host) + ')', 2200);
+    st.queue.push(t); renderQueue(); toast('Na fila', t.name, 1800);
+  }
 
   function mount() {
     if (st.els) return;
@@ -306,15 +310,19 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   function openSearch() { const p = st.els.panel; p.classList.add('searching'); $('.mu-results', p).classList.remove('hidden'); $('.mu-search-x', p).classList.remove('hidden'); }
   function closeSearch(keepText) { if (!st.els) return; st.ticket = (st.ticket || 0) + 1; const p = st.els.panel; p.classList.remove('searching'); $('.mu-results', p).classList.add('hidden'); $('.mu-search-x', p).classList.add('hidden'); if (keepText !== true) $('.mu-search', p).value = ''; }
   // Fila: clicar toca na hora; arrastar (alça) reordena; deslizar para o lado ou × remove.
+  const upcoming = () => (st.state?.track_window?.next_tracks || []).filter((t) => t?.uri?.startsWith('spotify:track:')).slice(0, 10).map(track);
   function renderQueue() {
     if (!st.els) return;
-    const p = st.els.panel, list = $('.mu-list', p);
+    const p = st.els.panel, list = $('.mu-list', p), up = upcoming();
     $('.mu-count', p).textContent = st.queue.length ? String(st.queue.length) : '';
     const c = st.resume?.ctx || st.current?.ctx;
     $('.mu-after', p).textContent = c ? (st.queue.length ? 'Depois da fila, volta ' : 'Continua ') + (c.kind === 'playlist' ? 'na playlist ' : 'no álbum ') + c.name : '';
     list.innerHTML = st.queue.length ? st.queue.map((t, i) => `<div class="mu-item mu-q" data-i="${i}"><span class="mu-grip" aria-hidden="true">⋮⋮</span><button class="mu-hit" data-i="${i}" title="Tocar agora"><img src="${esc(t.img || blank)}" alt=""><span><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span></button><button class="icon-btn mu-del" data-i="${i}" aria-label="Tirar ${esc(t.name)} da fila">${icon('x', 14)}</button></div>`).join('')
-      : `<p class="mu-empty">A fila está vazia. Busque uma música e toque em ${icon('plus', 12)} para adicionar.</p>`;
-    list.querySelectorAll('.mu-hit').forEach((b) => b.onclick = () => { if (b.closest('.mu-q').dataset.moved) return; const [t] = st.queue.splice(+b.dataset.i, 1); renderQueue(); pick(t); });
+      : (up.length ? '' : `<p class="mu-empty">A fila está vazia. Busque uma música e toque em ${icon('plus', 12)} para adicionar.</p>`);
+    // O que o Spotify já tem na sequência (playlist, álbum ou aleatório): só mostra, tocar leva direto para a faixa.
+    if (up.length) list.innerHTML += `<div class="mu-up-label">Próximas do Spotify</div>` + up.map((t, i) => `<div class="mu-item mu-up"><button class="mu-up-hit" data-i="${i}" title="Tocar agora"><img src="${esc(t.img || blank)}" alt=""><span><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span></button></div>`).join('');
+    list.querySelectorAll('.mu-up-hit').forEach((b) => b.onclick = () => pick({ ...up[+b.dataset.i], ctx: st.current?.ctx || null }));
+    list.querySelectorAll('.mu-q .mu-hit').forEach((b) => b.onclick = () => { if (b.closest('.mu-q').dataset.moved) return; const [t] = st.queue.splice(+b.dataset.i, 1); renderQueue(); pick(t); });
     list.querySelectorAll('.mu-del').forEach((b) => b.onclick = () => { st.queue.splice(+b.dataset.i, 1); renderQueue(); });
     list.querySelectorAll('.mu-q').forEach(bindRow);
   }
@@ -491,8 +499,9 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     return true;
   }
   // Escolher uma faixa/playlist: o convidado pede ao anfitrião; fora da sessão toca direto.
+  const wire = (t) => ({ uri: t.uri || null, name: t.name, artists: t.artists, img: t.img, cover: t.cover, ms: t.ms, ctx: t.ctx ? { uri: t.ctx.uri, name: t.ctx.name } : null });
   function pick(t, resetResume) {
-    if (jamAsk('play', { track: { uri: t.uri || null, name: t.name, artists: t.artists, img: t.img, cover: t.cover, ms: t.ms, ctx: t.ctx ? { uri: t.ctx.uri, name: t.ctx.name } : null }, reset: !!resetResume })) return;
+    if (jamAsk('play', { track: wire(t), reset: !!resetResume })) return;
     if (resetResume) st.resume = null;
     playNow(t);
   }
@@ -516,6 +525,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     else if (m.a === 'next') { next(); toast('Ouvir junto', who + ' pulou a música.', 2000); }
     else if (m.a === 'prev') { previous(); toast('Ouvir junto', who + ' voltou a música.', 2000); }
     else if (m.a === 'seek' && Number.isFinite(m.ms)) st.player.seek(Math.max(0, Math.min(Math.round(m.ms), st.state?.duration || 0)));
+    else if (m.a === 'add') { const t = ctlTrack(m.track); if (!t?.uri || st.queue.length >= 100) return; st.queue.push(t); renderQueue(); toast('Ouvir junto', who + ' pôs ' + (t.name || 'uma música') + ' na fila.', 2500); return; }
     else if (m.a === 'play') { const t = ctlTrack(m.track); if (!t) return; if (m.reset) st.resume = null; playNow(t); toast('Ouvir junto', who + ' escolheu ' + (t.name || 'uma música') + '.', 2500); }
     else return;
     setTimeout(() => jamBroadcast(true), 700);
@@ -589,5 +599,5 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function setEnabled(on) { settings.music = !!on; saveSettings(); on ? mount() : unmount(); }
   if (settings.music) mount();
-  return { setEnabled, onListen, userLeft, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, jamAsk, pick, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
+  return { setEnabled, onListen, userLeft, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, jamAsk, pick, upcoming, enqueue, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
 }
