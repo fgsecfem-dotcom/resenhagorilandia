@@ -73,11 +73,11 @@ html #chat .right-music .mu-searchbox .mu-search, html #chat .right-music .mu-se
 .mu-list { display: flex; flex-direction: column; gap: 2px; }
 .mu-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 10px; min-width: 0; transition: background .15s, transform .25s var(--mu-spring), opacity .2s; }
 .mu-item:hover { background: var(--g-fill, var(--hover)); }
-.mu-hit { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; }
+.mu-hit, .mu-up-hit { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; }
 .mu-item img { width: 36px; height: 36px; border-radius: 8px; flex: none; object-fit: cover; }
-.mu-hit > span { display: flex; flex-direction: column; min-width: 0; }
+.mu-hit > span, .mu-up-hit > span { display: flex; flex-direction: column; min-width: 0; }
 .mu-item b { font-size: 13px; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mu-hit > span > span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mu-hit > span > span, .mu-up-hit > span > span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mu-item-dur { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .mu-item .icon-btn { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; color: var(--muted); }
 .mu-item .icon-btn:hover { color: var(--text-hi); }
@@ -254,3 +254,5 @@ html[data-tk] #music-mini.mm-away.mm-away { border-width: 0 !important; box-shad
 .mu-g-msg { min-height: 1em; font-size: 12.5px; color: #ef4444; } .mu-g-msg:empty { display: none; }
 .mu-g-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 8px; }
 .mu-guide .btn.primary { background: #1ed760; color: #04140a; }
+.mu-up-label { margin: 8px 2px 2px; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.mu-up { opacity: .85; }

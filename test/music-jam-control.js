@@ -54,3 +54,30 @@ const before = calls.length; jam({ role: 'guest', host: 'h', guests: new Set() }
 music.onListen('g', { k: 'ctl', a: 'toggle' });
 assert.equal(calls.length, before);
 console.log('PASS: convidado controla o player do ouvir junto sem sair da sessão');
+
+// "+" do convidado: vai para a fila do anfitrião (validado e limitado), não para uma fila local que nunca toca.
+{
+  const at = sent.length;
+  jam({ role: 'guest', host: 'h' });
+  d.enqueue({ uri: 'spotify:track:q1', name: 'Q1', artists: 'A' });
+  assert.equal(sent.length, at + 1); assert.equal(sent.at(-1)[1].a, 'add');
+  assert.equal(d.st.queue.length, 0, 'convidado não enfileira localmente');
+  jam({ role: 'host', host: null, guests: new Set(['g']) });
+  t0 += 1000; music.onListen('g', { k: 'ctl', a: 'add', track: { uri: 'spotify:track:q1', name: 'Q1' } });
+  t0 += 1000; music.onListen('g', { k: 'ctl', a: 'add', track: { uri: 'x:y', name: 'ruim' } });
+  t0 += 1000; music.onListen('g', { k: 'ctl', a: 'add', track: { uri: null, ctx: { uri: 'spotify:album:al1' } } });
+  assert.deepEqual([...d.st.queue.map((q) => q.uri)], ['spotify:track:q1'], 'só faixa válida entra na fila do anfitrião');
+}
+// "A seguir": mostra o que o Spotify já tem na sequência (next_tracks), só faixas.
+d.st.state = { track_window: { next_tracks: [{ uri: 'spotify:track:n1', name: 'N1', artists: [{ name: 'Z' }] }, { uri: 'spotify:episode:e', name: 'E' }, { uri: 'spotify:track:n2', name: 'N2', artists: [] }] } };
+assert.deepEqual([...d.upcoming().map((x) => x.uri)], ['spotify:track:n1', 'spotify:track:n2']);
+d.st.state = null; assert.equal(d.upcoming().length, 0);
+console.log('PASS: fila do convidado vai ao anfitrião; "A seguir" mostra as próximas do Spotify');
+d.st.state = { context: { uri: 'spotify:playlist:pl1', metadata: { context_description: 'Minha lista' } } };
+assert.equal(d.playerCtx().uri, 'spotify:playlist:pl1'); assert.equal(d.playerCtx().kind, 'playlist'); assert.equal(d.playerCtx().name, 'Minha lista');
+d.st.state = { context: { uri: 'spotify:user:x:collection' } }; assert.equal(d.playerCtx(), null);
+d.st.state = null; assert.equal(d.playerCtx(), null);
+// limite de 100 na fila do anfitrião
+{ jam({ role: 'host', host: null, guests: new Set(['g']) }); d.st.queue.length = 0; for (let i = 0; i < 100; i++) d.st.queue.push({ uri: 'spotify:track:f' + i });
+  t0 += 1000; music.onListen('g', { k: 'ctl', a: 'add', track: { uri: 'spotify:track:extra', name: 'e' } }); assert.equal(d.st.queue.length, 100, 'fila cheia recusa'); }
+console.log('PASS: contexto real do player e limite da fila');
