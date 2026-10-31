@@ -1,0 +1,15 @@
+/* Ilha do Resenha: convite, treino e aba de configurações (a ilha em si fica em overlay/island.css). */
+.ov-train { display: flex; flex-direction: column; gap: 10px; min-width: 320px; max-width: 440px; }
+.ov-train h2 { margin: 0; font-size: 18px; }
+.ov-train p { margin: 0; line-height: 1.5; }
+.ov-train ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ov-train li { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.ov-ck { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); flex: none; transition: background .2s, border-color .2s; }
+.ov-train li.done .ov-ck { background: var(--green); border-color: var(--green); }
+.ov-train kbd, .kbd { font-family: var(--font-mono, monospace); }
+.ov-train kbd { padding: 1px 8px; border-radius: 6px; background: var(--btn); }
+.ov-train footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.ov-game { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 13px; }
+.ov-procs { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+.ov-procs .mb-row { text-align: left; display: flex; justify-content: space-between; gap: 12px; cursor: pointer; border: 0; background: none; color: inherit; padding: 8px; border-radius: 8px; }
+.ov-procs .mb-row:hover { background: var(--btn); }
