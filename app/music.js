@@ -62,10 +62,24 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     if (raw?.uri && pu && raw.uri !== pu) trackChanged(raw);
     else if (raw?.uri && st.current && !st.current.uri) st.current = { ...track(raw), ctx: st.current.ctx }; // tocou a playlist do começo
     const sig = (x) => (x?.track_window?.next_tracks || []).map((t) => t.uri).join();
-    render(); loop(); jamBroadcast(); if (sig(prev) !== sig(s) && !st.els?.panel.querySelector('.mu-q.lifting')) renderQueue(); // não troca a lista no meio de um arrastar
+    render(); loop(); jamBroadcast(); emitInfo(); if (sig(prev) !== sig(s) && !st.els?.panel.querySelector('.mu-q.lifting')) renderQueue(); // não troca a lista no meio de um arrastar
     if (st.jam.role === 'guest' && st.jam.last) jamFollow(st.jam.last);
   }
-  function stopPlayer() { cancelAnimationFrame(st.raf); st.raf = 0; st.player?.disconnect(); st.player = null; st.device = null; st.state = null; }
+  // Ilha do jogo: quem quiser acompanha a música (faixa, pausa, volume) e controla pelos mesmos caminhos dos botões do player.
+  const watchers = new Set();
+  function overlayInfo() {
+    const s = st.state, t = s?.track_window?.current_track; if (!t) return null;
+    return { title: t.name, artist: (t.artists || []).map((a) => a.name).join(', '), cover: t.album?.images?.at(-1)?.url || '', paused: !!s.paused, pos: Math.round(pos()), dur: s.duration, vol: st.vol, at: Date.now() };
+  }
+  function emitInfo() { if (!watchers.size) return; const i = overlayInfo(); watchers.forEach((fn) => fn(i)); }
+  function control(a, v) {
+    if (a === 'toggle') { if (jamAsk(st.state?.paused ? 'resume' : 'pause')) return; st.player?.togglePlay(); }
+    else if (a === 'next') { if (!jamAsk('next')) next(); }
+    else if (a === 'prev') { if (!jamAsk('prev')) previous(); }
+    else if (a === 'duck') { st.duck = !!v; st.player?.setVolume(gain(st.vol) * (st.duck ? 0.4 : 1)); }
+    else if (a === 'vol' && Number.isFinite(v)) { st.vol = Math.round(Math.max(0, Math.min(100, v))); st.player?.setVolume(gain(st.vol) * (st.duck ? 0.4 : 1)); settings.musicVolume = st.vol; saveSettings(); emitInfo(); }
+  }
+  function stopPlayer() { cancelAnimationFrame(st.raf); st.raf = 0; st.player?.disconnect(); st.player = null; st.device = null; st.state = null; emitInfo(); }
   function problem(msg) { if (st.els) $('.mu-note', st.els.panel).textContent = msg || ''; if (msg) toast('Música', msg, 5000, 'err'); }
   async function refreshStatus() {
     st.status = sp ? await sp.status().catch(() => null) : null;
@@ -604,5 +618,5 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
   }
   function setEnabled(on) { settings.music = !!on; saveSettings(); on ? mount() : unmount(); }
   if (settings.music) mount();
-  return { setEnabled, onListen, userLeft, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, jamAsk, pick, upcoming, enqueue, playerCtx, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
+  return { setEnabled, onListen, userLeft, overlayInfo, control, watch: (fn) => { watchers.add(fn); return () => watchers.delete(fn); }, get enabled() { return !!st.els; }, _debug: { st, render, renderQueue, onState, jamAsk, pick, upcoming, enqueue, playerCtx, useSpotify: (x) => { sp = x; } } }; // _debug: só para testes automáticos
 }

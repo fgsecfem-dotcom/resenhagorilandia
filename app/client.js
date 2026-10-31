@@ -4,6 +4,7 @@ import { esc, clamp, fmtCode } from './format-utils.js';
 import { setScreenRemoteDescription } from './screen-startup.js';
 import { createRoomUI } from './room-ui.js';
 import { createMusic } from './music.js';
+import { createOverlayClient } from './overlay-client.js';
 import { clientIdentitySecret } from './client-identity.js';
 // Resenha: cliente (UI + voz WebRTC + chat + DJ). Módulo ES.
 let RnnoiseWorkletNode;
@@ -12,6 +13,7 @@ let roomUI = null;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const native = window.resenhaNative || null;
+let overlayClient = null; // ilha por cima do jogo (criada depois da música)
 const DJ_ID = 'dj-resenha';
 const DJ_NAME = 'DJ Resenha';
 const WEB_VIEWER = !native && location.protocol.startsWith('http');
@@ -1343,7 +1345,7 @@ addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
   addEventListener('resenha-theme', sync); new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['class'] }); sync();
 })();
 
-function renderAll() { renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
+function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
@@ -1354,6 +1356,7 @@ function refreshSpeaking() {
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   for (const [k, t] of tileCache) if (k.startsWith('user:')) t.classList.toggle('speaking', isSpeaking(k.slice(5)));
   $$('.live-person').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
+  overlayClient?.syncSpeaking();
 }
 
 // ---------------- Voz: cadeia de áudio ----------------
@@ -2815,7 +2818,7 @@ async function openSettings(tab = 'voz') {
   const fxBtns = Object.entries(FX).map(([k, f]) => `<button class="fx-btn ${settings.voiceFx === k ? 'sel' : ''}" data-fx="${k}">${esc(f.name)}${f.semis ? `<span>${f.semis > 0 ? '+' : ''}${f.semis}</span>` : ''}</button>`).join('');
   const m = openModal(`<header><div><h2>Configurações</h2></div><button class="icon-btn" data-close>${icon('x')}</button></header>
     <div class="body">
-      <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}</div>
+      <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}${overlayClient ? overlayClient.tabHTML() : ''}</div>
       <div class="tp" data-p="aparencia">
         <div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${Object.entries(THEMES).filter(([key]) => window.VISIBLE_THEMES.includes(key)).map(([k, t]) => { const v = themePreview(k); return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(t.name)}</span></button>`; }).join('')}</div>
         <div class="section-title">Ícone do app</div>
@@ -2887,9 +2890,11 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Mutar som e microfone</label><div class="kbd" data-key="keyDeafen">${esc(settings.keyDeafen || 'Nenhum')}</div></div>
         </div><p class="muted small" style="margin:0">Funcionam até dentro do jogo. Clique e aperte a combinação. Esc limpa.</p>
       </div>
+      ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
     <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { onClose: () => { V.testing = false; setMonitor(false); if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } } });
   const el = m.el;
+  overlayClient?.bindPanel(el);
   const showTab = (t) => { $$('.tab', el).forEach((x) => x.classList.toggle('active', x.dataset.t === t)); $$('.tp', el).forEach((x) => x.classList.toggle('hidden', x.dataset.p !== t)); };
   $$('.tab', el).forEach((x) => x.onclick = () => showTab(x.dataset.t));
   showTab(tab);
@@ -3423,9 +3428,11 @@ document.addEventListener('wheel', (e) => {
 }, { passive: false });
 const music = createMusic({ settings, saveSettings, icon, toast, roomUI, native, esc,
   room: { users: () => [...S.users.values()].filter((u) => u.id !== DJ_ID), me: () => S.myId, now: serverNow, send: (to, data) => sig(to, { listen: data }) } }); window.__resenha.music = music;
+overlayClient = createOverlayClient({ native, settings, saveSettings, S, V, DJ_ID, isSpeaking, setMuted, setDeafened, applyUserVolume, renderAll, music, initials, openModal, openSettings, icon, esc, $, $$, toast }); // ilha por cima do jogo (opcional)
 // Wide windows show the conversation next to the call; narrower ones open it on demand.
 if (innerWidth >= 1280) roomUI.open('chat');
 initHome();
+overlayClient.start();
 native?.captureInfo().then((info) => { if (info.recovered) toast('A captura anterior foi interrompida. O Resenha abriu em modo de compatibilidade.', '', 10000); });
 $('#main').dataset.mobilePane = 'call';
 $$('[data-mobile-pane]', $('#web-nav')).forEach((b) => b.onclick = () => {
