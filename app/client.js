@@ -1521,28 +1521,38 @@ function setDeafened(d) {
   renderAll();
 }
 
-// Laço: portão de voz, indicadores de fala, ping
+// Laço: portão de voz (40 ms, precisa ser rápido) e contorno de quem fala (120 ms, gasta menos CPU).
+const MIC_TICK = WEB_VIEWER ? 80 : 40, SPEAK_TICK = WEB_VIEWER ? 160 : 120;
 let noiseFloor = -60;
 const lvlBuf = new Float32Array(512);
 const level = (an) => { an.getFloatTimeDomainData(lvlBuf); let s = 0; for (let i = 0; i < lvlBuf.length; i++) s += lvlBuf[i] * lvlBuf[i]; return 20 * Math.log10(Math.sqrt(s / lvlBuf.length) + 1e-9); };
 setInterval(() => {
   if (!V.joined && !V.testing) return;
-  const now = performance.now();
-  if (V.analyser && V.src) {
-    const db = level(V.analyser); V.selfLevel = db;
-    let open;
-    if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
-    else {
-      let thr = settings.threshold;
-      if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
-      if (db > thr) V.gateHold = now + 300;
-      open = now < V.gateHold;
-      if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
-    }
-    const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
-    if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
+  if (!V.analyser || !V.src) return;
+  // Mutado (fora do teste de microfone): nada sai, então não precisa medir.
+  if ((V.muted || V.deafened) && !V.testing) {
+    if (V.gate.gain.value > 0.5) V.gate.gain.setTargetAtTime(0, V.ctx.currentTime, 0.03);
+    if (V.gateOpen) { V.gateOpen = false; refreshSpeaking(); }
+    return;
   }
+  const now = performance.now();
+  const db = level(V.analyser); V.selfLevel = db;
+  let open;
+  if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
+  else {
+    let thr = settings.threshold;
+    if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
+    if (db > thr) V.gateHold = now + 300;
+    open = now < V.gateHold;
+    if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
+  }
+  const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
+  if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
+}, MIC_TICK);
+setInterval(() => {
+  if (!V.joined && !V.testing) return;
   if (!V.windowVisible || document.hidden) return;
+  const now = performance.now();
   let changed = false;
   for (const [id, p] of V.peers) {
     if (!p.analyser) continue;
@@ -1556,7 +1566,7 @@ setInterval(() => {
     if (sp !== V.speaking.has(DJ_ID)) { if (sp) V.speaking.add(DJ_ID); else V.speaking.delete(DJ_ID); changed = true; }
   }
   if (changed) refreshSpeaking();
-}, WEB_VIEWER ? 80 : 40);
+}, SPEAK_TICK);
 setInterval(() => {
   if (V.windowVisible && !document.hidden) tickTimers();
   wsSend({ t: 'ping', ts: Date.now() });
