@@ -16,24 +16,27 @@ function createFileHTTP({ token, maxUpload, filesDir, files, saveSoon, json, saf
     let size = 0; let aborted = false;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > maxUpload && !aborted) { aborted = true; req.destroy(); out.destroy(); fs.rm(dir, { recursive: true, force: true }, () => {}); json(res, 413, { error: 'Arquivo grande demais' }); }
+      if (size > maxUpload && !aborted) { aborted = true; json(res, 413, { error: 'Arquivo grande demais' }); req.destroy(); out.destroy(); fs.rm(dir, { recursive: true, force: true }, () => {}); }
     });
     req.pipe(out);
     out.on('finish', () => {
       if (aborted) return;
-      const type = (req.headers['content-type'] && req.headers['content-type'] !== 'application/octet-stream') ? req.headers['content-type'] : mimeOf(name);
-      const meta = { id, name, size, type, url: `/files/${id}/${encodeURIComponent(name)}` };
+      // O tipo informado pelo remetente só vale se for um tipo simples; ele decide como o anexo aparece.
+      const sent = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      const type = /^[a-z]+\/[a-z0-9.+-]{1,80}$/.test(sent) && sent !== 'application/octet-stream' ? sent : mimeOf(name);
+      const meta = { id, name, size, type, url: `/files/${id}/${encodeURIComponent(name)}`, pendingSince: Date.now() };
       files[id] = meta; saveSoon();
-      json(res, 200, meta);
+      const { pendingSince, ...reply } = meta;
+      json(res, 200, reply);
     });
     out.on('error', (e) => { if (!aborted) json(res, 500, { error: e.message }); });
     req.on('aborted', () => { aborted = true; out.destroy(); fs.rm(dir, { recursive: true, force: true }, () => {}); });
   }
 
-  function serveFile(req, res, filePath, type, download, name) {
+  function serveFile(req, res, filePath, type, download, name, extraHeaders = {}) {
     fs.stat(filePath, (err, st) => {
       if (err || !st.isFile()) { res.writeHead(404); return res.end('não encontrado'); }
-      const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': res.getHeader('Cache-Control') || 'private, max-age=86400' };
+      const headers = { ...extraHeaders, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': res.getHeader('Cache-Control') || 'private, max-age=86400' };
       if (download) headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(name)}`;
       const range = req.headers.range && /bytes=(\d*)-(\d*)/.exec(req.headers.range);
       if (range) {

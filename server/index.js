@@ -32,6 +32,12 @@ const chanName = (s, type) => {
   if (type === 'text') n = n.toLowerCase().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}_-]/gu, '');
   return n;
 };
+// Tipos que o navegador pode mostrar direto. HTML, SVG, PDF e o resto saem como download,
+// porque na versão web o anexo teria a mesma origem do app e poderia ler os dados de quem abrisse.
+const INLINE_TYPE = /^(image\/(png|jpeg|gif|webp|bmp|avif|x-icon)|video\/[a-z0-9.+-]+|audio\/[a-z0-9.+-]+)$/i;
+const inlineType = (t) => { const base = String(t || '').split(';')[0].trim().toLowerCase(); return INLINE_TYPE.test(base) ? base : null; };
+const ATTACHMENT_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; media-src 'self'" };
+const PASSWORD_FAILS = 20, PASSWORD_WINDOW = 10 * 60000, PASSWORD_LOCK = 60000;
 const DJ_ID = 'dj-resenha';
 const SERVER_VERSION = require('../package.json').version;
 const FEATURES = ['room-snapshot', 'chat-ack', 'dm-ack', 'dj-ack', 'watch', 'client-identity'];
@@ -74,6 +80,7 @@ function createServer(opts = {}) {
     history = Array.isArray(h) ? { [channels.find((c) => c.type === 'text').id]: h } : h; // migra formato antigo
   } catch {}
   try { files = JSON.parse(fs.readFileSync(filesIndex, 'utf8')); } catch {}
+  files = Object.assign(Object.create(null), files && typeof files === 'object' && !Array.isArray(files) ? files : {}); // sem protótipo: id nenhum cai em Object.prototype
   // Troca de anfitrião: o novo anfitrião traz a cópia que tinha da sala
   const R = opts.restore || null;
   if(R?.code && roomState.norm(R.code)!==roomCode)throw new Error('Snapshot pertence a outro código.');
@@ -96,6 +103,8 @@ function createServer(opts = {}) {
   for (const [id, meta] of Object.entries(files)) { const safe = safeAttachment({ ...meta, id }); if (safe) files[id] = { ...meta, name: safe.name }; else delete files[id]; }
   for(const list of Object.values(history))for(const m of list)for(const a of m.attachments||[]){a.url=`/files/${a.id}/${encodeURIComponent(a.name)}`;a.unavailable=!fs.existsSync(path.join(filesDir,a.id,a.name));}
   revision=Math.max(revision,Number(R?.revision)||0);
+  // files vem de JSON e de quem está na sala: "__proto__" ou "constructor" não podem virar anexo.
+  const ownFile = (id) => (typeof id === 'string' && Object.prototype.hasOwnProperty.call(files, id) && files[id] && typeof files[id] === 'object' ? files[id] : null);
   const textIds = () => channels.filter((c) => c.type === 'text').map((c) => c.id);
   const findMsg = (id) => { for (const [cid, list] of Object.entries(history)) { const i = list.findIndex((m) => m.id === id); if (i > -1) return { cid, list, i, msg: list[i] }; } return null; };
 
@@ -109,6 +118,7 @@ function createServer(opts = {}) {
   const saveSoon = () => { revision++; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 500); };
 
   const clients = new Map(); // id -> { ws, user }
+  const passwordFails = new Map(); // endereço -> { since, count, lockedUntil }
   const send = (ws, obj) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
   const broadcast = (obj, exceptId) => {
     const data = JSON.stringify(obj);
@@ -305,7 +315,15 @@ function createServer(opts = {}) {
   const banners = createBannerHTTP({ dataDir, clients, token, json, broadcast: (msg) => broadcast(msg), rid });
 
   let secureServer = null, publicCA = null;
+  // Um pedido estranho nunca pode derrubar o app do anfitrião: qualquer erro vira 500 só para quem pediu.
   const requestHandler = (req, res) => {
+    try { return routeRequest(req, res); }
+    catch (e) {
+      log('erro no pedido HTTP', e.message);
+      try { if (!res.headersSent) res.writeHead(500); res.end(); } catch {}
+    }
+  };
+  const routeRequest = (req, res) => {
     cors(res);
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     let url;
@@ -313,11 +331,13 @@ function createServer(opts = {}) {
     const p = url.pathname;
 
     if(p === '/mobile-setup') {
-      const ip=String(req.headers.host||'').split(':')[0];
-      if(!require('net').isIP(ip)) { res.writeHead(400);return res.end('Abra pelo IP local do anfitrião.'); }
-      const secureURL=secureServer ? `https://${ip}:${secureServer.address().port}/` : '';
+      let ip='';try{ip=new URL('http://'+String(req.headers.host||'')).hostname.replace(/^\[|\]$/g,'');}catch{}
+      const ipKind=require('net').isIP(ip);
+      if(!ipKind) { res.writeHead(400);return res.end('Abra pelo IP local do anfitrião.'); }
+      const secureAddr=secureServer?.address();
+      const secureURL=secureAddr ? `https://${ipKind===6?`[${ip}]`:ip}:${secureAddr.port}/` : '';
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      return res.end(`<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resenha no celular</title><link rel="stylesheet" href="/app/mobile-setup.css"><main><img width="90" src="/app/brand-pipoca.png" alt="Pipoca"><h1>Seu Resenha no celular</h1><p>Use o mesmo Wi-Fi do anfitrião. Para falar na call, configure o certificado deste computador uma vez.</p><ol><li><a href="/resenha-local.cer">Baixar certificado local</a>. Instale somente se você confia no anfitrião.</li><li><b>iPhone:</b> Ajustes → Geral → VPN e Gerenciamento de Dispositivo → perfil baixado → Instalar. Depois Geral → Sobre → Ajustes de Confiança de Certificados → ativar confiança total no certificado Resenha.</li><li><b>Android:</b> Configurações → Segurança → Criptografia e credenciais (ou Mais configurações de segurança) → Instalar certificado → Certificado CA. Escolha o arquivo baixado. O nome dos menus varia por aparelho.</li><li><a href="${secureURL}">Abrir Resenha com voz</a> e permitir o microfone quando entrar no canal.</li></ol><p>Se surgir “Sua conexão não é particular” ou “Esta conexão não é privada”, a confiança ainda não foi estabelecida. Volte à configuração do certificado; apenas ignorar o aviso não garante voz.</p><p>Essa confiança permite validar certificados assinados pelo anfitrião. Você pode removê-la nas configurações de certificados/perfis do aparelho. Não compartilhe chaves privadas.</p><p>Sem instalar: <a href="/">entrar por HTTP para chat e assistir</a>, sem microfone. Use fone. Chamadas em segundo plano não são garantidas.</p></main></html>`);
+      return res.end(`<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resenha no celular</title><link rel="stylesheet" href="/app/mobile-setup.css"><main><img width="90" src="/app/brand-pipoca.png" alt="Pipoca"><h1>Seu Resenha no celular</h1><p>Use o mesmo Wi-Fi do anfitrião. Para falar na call, configure o certificado deste computador uma vez.</p><ol><li><a href="/resenha-local.cer">Baixar certificado local</a>. Instale somente se você confia no anfitrião. Ele só vale para a rede local; se você já tinha instalado um certificado Resenha antes, apague o antigo.</li><li><b>iPhone:</b> Ajustes → Geral → VPN e Gerenciamento de Dispositivo → perfil baixado → Instalar. Depois Geral → Sobre → Ajustes de Confiança de Certificados → ativar confiança total no certificado Resenha.</li><li><b>Android:</b> Configurações → Segurança → Criptografia e credenciais (ou Mais configurações de segurança) → Instalar certificado → Certificado CA. Escolha o arquivo baixado. O nome dos menus varia por aparelho.</li><li><a href="${secureURL}">Abrir Resenha com voz</a> e permitir o microfone quando entrar no canal.</li></ol><p>Se surgir “Sua conexão não é particular” ou “Esta conexão não é privada”, a confiança ainda não foi estabelecida. Volte à configuração do certificado; apenas ignorar o aviso não garante voz.</p><p>Essa confiança permite validar certificados assinados pelo anfitrião. Você pode removê-la nas configurações de certificados/perfis do aparelho. Não compartilhe chaves privadas.</p><p>Sem instalar: <a href="/">entrar por HTTP para chat e assistir</a>, sem microfone. Use fone. Chamadas em segundo plano não são garantidas.</p></main></html>`);
     }
     if (p === '/resenha-local.cer' && publicCA) { res.writeHead(200, {'Content-Type':'application/pkix-cert','Content-Disposition':'attachment; filename=Resenha-local.cer'}); return res.end(publicCA); }
     if (p === '/api/info') return json(res, 200, { app: 'resenha', name: roomName, needsPassword: !!password, users: clients.size });
@@ -327,16 +347,18 @@ function createServer(opts = {}) {
       if (url.searchParams.get('t') !== token) { res.writeHead(403); return res.end('sem permissão'); }
       const b = banners.bannerFile(p.split('/')[2] || '');
       if (!b) { res.writeHead(404); return res.end('não encontrado'); }
-      return serveFile(req, res, b.file, b.type, false, '');
+      return serveFile(req, res, b.file, b.type, false, '', ATTACHMENT_HEADERS);
     }
     if (p.startsWith('/files/')) {
       if (url.searchParams.get('t') !== token) { res.writeHead(403); return res.end('sem permissão'); }
       const [, , id] = p.split('/');
-      const meta = files[id];
+      const meta = ownFile(id);
       if (!meta) { res.writeHead(404); return res.end('não encontrado'); }
       const filePath = path.resolve(filesDir, id, meta.name);
       if (!filePath.startsWith(path.resolve(filesDir) + path.sep)) { res.writeHead(403); return res.end('sem permissão'); }
-      return serveFile(req, res, filePath, meta.type || mimeOf(meta.name), url.searchParams.has('dl'), meta.name);
+      // Anexo nunca roda como página do app: só mídia abre no navegador, o resto vira download.
+      const type = inlineType(meta.type || mimeOf(meta.name));
+      return serveFile(req, res, filePath, type || 'application/octet-stream', url.searchParams.has('dl') || !type, meta.name, ATTACHMENT_HEADERS);
     }
     if (p.startsWith('/dj/')) {
       if (url.searchParams.get('t') !== token) { res.writeHead(403); return res.end(); }
@@ -364,14 +386,15 @@ function createServer(opts = {}) {
   };
   const httpServer = http.createServer(requestHandler);
 
-  const handleTextCommand = createTextCommands({ clients, send, broadcast, cleanText, clean, validAvatar, rid, textIds, files, history, findMsg, saveSoon });
+  const handleTextCommand = createTextCommands({ clients, send, broadcast, cleanText, clean, validAvatar, rid, textIds, ownFile, history, findMsg, saveSoon });
 
   // ---------------- WebSocket ----------------
   const wss = new WebSocketServer({ server: httpServer, maxPayload: 256 * 1024 });
   wss.on('error', () => {}); // erros do servidor HTTP (porta ocupada etc.) são tratados no listen()
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
     let id = null;
+    const addr = String(req?.socket?.remoteAddress || '');
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
     const helloTimer = setTimeout(() => { if (!id) ws.close(4000, 'sem hello'); }, 15000);
@@ -381,7 +404,17 @@ function createServer(opts = {}) {
       if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.t !== 'string') return;
       if (!id) {
         if (m.t !== 'hello') return;
-        if (password && m.password !== password) { send(ws, { t: 'error', code: 'password', msg: 'Senha incorreta' }); return ws.close(4001, 'senha'); }
+        if (password) {
+          const now = Date.now(), f = passwordFails.get(addr);
+          if (f && f.lockedUntil > now) { send(ws, { t: 'error', code: 'password', msg: 'Muitas tentativas de senha. Espere um minuto.' }); return ws.close(4001, 'senha'); }
+          if (m.password !== password) {
+            const cur = f && now - f.since < PASSWORD_WINDOW ? f : { since: now, count: 0, lockedUntil: 0 };
+            if (++cur.count >= PASSWORD_FAILS) { cur.lockedUntil = now + PASSWORD_LOCK; cur.since = now; cur.count = 0; }
+            passwordFails.set(addr, cur);
+            send(ws, { t: 'error', code: 'password', msg: 'Senha incorreta' }); return ws.close(4001, 'senha');
+          }
+          passwordFails.delete(addr);
+        }
         clearTimeout(helloTimer);
         // The public id is derived from a private 256-bit bearer credential, never from
         // a caller-supplied cid. It remains verifiable after restart/host transfer without
@@ -467,7 +500,7 @@ function createServer(opts = {}) {
           channels = channels.filter((x) => x.id !== ch.id);
           if (ch.type === 'text') delete history[ch.id];
           else {
-            for (const cl of clients.values()) if (cl.user.voiceChannel === ch.id) { cl.user.voiceChannel = null; cl.user.sharing = false; cl.user.voiceSince = null; broadcast({ t: 'user-update', user: cl.user }); }
+            for (const cl of clients.values()) if (cl.user.voiceChannel === ch.id) { cl.user.voiceChannel = null; cl.user.sharing = false; cl.user.screenStreamId = null; cl.user.voiceSince = null; broadcast({ t: 'user-update', user: cl.user }); }
             if (dj.channelId === ch.id) djLeave();
           }
           saveSoon();
@@ -483,7 +516,7 @@ function createServer(opts = {}) {
           broadcast({ t: 'channels', channels });
           break;
         }
-        case 'typing': broadcast({ t: 'typing', id, channelId: m.channelId }, id); break;
+        case 'typing': if (textIds().includes(m.channelId)) broadcast({ t: 'typing', id, channelId: m.channelId }, id); break;
         case 'signal': {
           const target = clients.get(m.to);
           if (target) send(target.ws, { t: 'signal', from: id, data: m.data });
@@ -518,6 +551,17 @@ function createServer(opts = {}) {
     ws.on('error', () => {});
   });
 
+  // Envio que nunca entrou numa mensagem (aba fechada no meio, ou abuso) é apagado depois de 1 hora.
+  const sweepUploads = () => {
+    const limit = Date.now() - 3600000; let changed = false;
+    for (const [fid, meta] of Object.entries(files)) {
+      if (!meta || !meta.pendingSince || meta.pendingSince > limit) continue;
+      delete files[fid]; changed = true;
+      fs.rm(path.join(filesDir, fid), { recursive: true, force: true }, () => {});
+    }
+    if (changed) saveSoon();
+  };
+  const uploadSweep = setInterval(sweepUploads, 10 * 60000);
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {
       if (!ws.isAlive) { ws.terminate(); continue; }
@@ -553,7 +597,7 @@ function createServer(opts = {}) {
     // code: 4002 = sala encerrada pra todos; 4003 = anfitrião saiu, outro assume; 4004 = já existe outro anfitrião
     close(code = 4002) {
       if(secureServer) { secureServer.close(); secureServer.closeAllConnections(); }
-      clearInterval(heartbeat);
+      clearInterval(heartbeat); clearInterval(uploadSweep);
       clearTimeout(saveTimer);
       clearTimeout(djRestoreTimer); djRestoreTimer = null; // do not start downloads for a closed room
       if (dj.active) djLeave();

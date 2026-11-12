@@ -2330,7 +2330,8 @@ function linkify(text, mentions) {
   const blocks = [];
   h = h.replace(/```(?:\w+\n)?([\s\S]*?)```/g, (_, c) => { blocks.push(`<pre>${c.replace(/^\n/, '')}</pre>`); return `\u0000${blocks.length - 1}\u0000`; });
   h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, '<a href="#" data-href="$1">$1</a>');
+  // O link vira bloco protegido: menção (@canal) e negrito não podem cair dentro do data-href.
+  h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, (_, u) => { blocks.push(`<a href="#" data-href="${u}">${u}</a>`); return `\u0000${blocks.length - 1}\u0000`; });
   h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
   // Menções: nomes conhecidos (podem ter espaço) e @todos
   const names = [...new Set([...(mentions || []), ...[...S.users.values()].map((u) => u.name), 'todos'])].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -2343,10 +2344,11 @@ function linkify(text, mentions) {
 }
 const fileUrl = (a, dl) => `${S.base}${a.url}?t=${S.token}${dl ? '&dl=1' : ''}`;
 function attHTML(a) {
+  if (!a || typeof a !== 'object' || !a.id || !a.url) return ''; // anexo inválido vindo da sala não pode travar o chat
   if(a.unavailable)return `<div class="att-file unavailable">${icon('file',30)}<div class="fi"><div class="fn" title="${esc(a.name)}">${esc(a.name)}</div><p class="muted small">Arquivo não disponível neste anfitrião. Peça para enviar novamente.</p></div></div>`;
   const url = fileUrl(a);
   const t = a.type || '';
-  if (t.startsWith('image/')) return `<img class="att-img" src="${url}" data-full="${url}" data-name="${esc(a.name)}" data-dl="${fileUrl(a, 1)}" loading="lazy" alt="${esc(a.name)}">`;
+  if (/^image\/(png|jpeg|gif|webp|bmp|avif|x-icon)$/i.test(t)) return `<img class="att-img" src="${url}" data-full="${url}" data-name="${esc(a.name)}" data-dl="${fileUrl(a, 1)}" loading="lazy" alt="${esc(a.name)}">`;
   if (t.startsWith('video/')) return `<video class="att-video" src="${url}" controls preload="metadata"></video>`;
   const audio = t.startsWith('audio/') ? `<audio controls preload="none" src="${url}"></audio>` : '';
   return `<div class="att-file">${icon('file', 30)}<div class="fi"><div class="fn att-dl" data-dl="${fileUrl(a, 1)}" title="${esc(a.name)} · clique para baixar">${esc(a.name)}</div><div class="fs">${fmtSize(a.size)}</div>${audio}</div><span class="icon-btn att-dl" data-dl="${fileUrl(a, 1)}" title="Baixar">${icon('download', 20)}</span></div>`;

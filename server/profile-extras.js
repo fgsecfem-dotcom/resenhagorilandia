@@ -34,7 +34,7 @@ function createBannerHTTP({ dataDir, clients, token, json, broadcast, rid }) {
     if (!BANNER_TYPES[type]) return json(res, 415, { error: 'Use foto ou GIF (png, jpg, gif ou webp).' });
     if (Number(req.headers['content-length'] || 0) > MAX_BANNER) return json(res, 413, { error: 'Banner grande demais (máximo 8 MB).' });
     fs.mkdirSync(dir, { recursive: true });
-    const tmp = fileFor(uid) + '.tmp', out = fs.createWriteStream(tmp);
+    const tmp = fileFor(uid) + '.' + rid(4) + '.tmp', out = fs.createWriteStream(tmp); // um tmp por envio: dois envios seguidos não se misturam
     let size = 0, failed = false;
     const fail = (code, error) => { if (failed) return; failed = true; out.destroy(); fs.rm(tmp, { force: true }, () => {}); json(res, code, { error }); };
     req.on('data', (chunk) => { size += chunk.length; if (size > MAX_BANNER) { fail(413, 'Banner grande demais (máximo 8 MB).'); req.destroy(); } });
@@ -43,7 +43,8 @@ function createBannerHTTP({ dataDir, clients, token, json, broadcast, rid }) {
     req.pipe(out);
     out.on('finish', () => {
       if (failed) return;
-      fs.renameSync(tmp, fileFor(uid));
+      // No Windows a troca falha se o banner antigo estiver sendo lido; isso não pode derrubar a sala.
+      try { fs.renameSync(tmp, fileFor(uid)); } catch { return fail(500, 'Não consegui salvar o banner. Tente de novo.'); }
       store.set(uid, { file: fileFor(uid), type });
       const now = clients.get(uid);
       if (now) { now.user.banner = rid(6); broadcast({ t: 'user-update', user: now.user }); }

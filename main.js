@@ -10,6 +10,9 @@ const { createServer } = require('./server');
 const { DJTools } = require('./server/dj');
 const net = require('./net-tools');
 const Turn = require('node-turn');
+// Rede de segurança: um erro solto (sala, túnel, DJ) fica no log em vez de abrir a caixa de erro do Electron e travar a sala.
+process.on('uncaughtException', (e) => console.log('[erro]', e && e.message));
+process.on('unhandledRejection', (e) => console.log('[erro]', e && e.message));
 const { Tunnel } = require('./tunnel-main');
 const updater = require('./updater');
 const {UpdateManager,busy:updateBusy}=require('./update-manager');
