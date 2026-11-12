@@ -653,6 +653,16 @@ function snapshot() {
     dj: S.dj && S.dj.active ? { active: true, channelId: S.dj.channelId, textChannel: S.dj.textChannel, queue: S.dj.queue } : null,
   };
 }
+// Versões diferentes entre anfitrião e convidado já impediram de entrar e deixaram live preta: avisa uma vez por anfitrião.
+function warnVersionMismatch(hostVersion) {
+  if (!native?.version || !hostVersion) return;
+  native.version().then((mine) => {
+    const key = hostVersion + '|' + mine;
+    if (!mine || mine === hostVersion || S.versionWarned === key) return;
+    S.versionWarned = key;
+    toast(`O anfitrião está na versão ${hostVersion} e você na ${mine}. Se algo falhar (entrar, ouvir, live), atualizem os dois para a mesma versão.`, 'warn', 9000);
+  }).catch(() => {});
+}
 function showBanner(text, kind = 'warn') {
   let b = $('#conn-banner');
   if (!b) { b = document.createElement('div'); b.id = 'conn-banner'; $('#main').appendChild(b); }
@@ -826,6 +836,7 @@ function handle(m) {
       S.channels = m.channels; S.history = m.history || {};
       S.dj = m.dj; S.djAvailable = m.djAvailable;
       S.serverVersion = m.version || 'não informada'; S.features = m.features || [];
+      warnVersionMismatch(m.version);
       rejectPendingCommands('A sala reconectou. Tente enviar novamente.');
       if (!chanById(S.textChannel)) S.textChannel = textChannels()[0]?.id;
       // ligações de voz com quem sumiu da sala: espera um pouco (na troca de anfitrião a galera volta aos poucos)
@@ -1599,7 +1610,7 @@ function getPeer(uid) {
   let p = V.peers.get(uid);
   if (p) return p;
   const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && !S.isHost ? 'relay' : 'all' });
-  p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null };
+  p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null, since: Date.now(), okAt: 0 };
   V.peers.set(uid, p);
   pc.onnegotiationneeded = async () => {
     try { p.makingOffer = true; await pc.setLocalDescription(); sig(uid, { desc: pc.localDescription }); }
@@ -1631,6 +1642,27 @@ function getPeer(uid) {
   if (watching) sig(uid, watchMsg(watching));
   return p;
 }
+// 2.3.3: às vezes duas pessoas ficavam sem se ouvir até sair e entrar da call. Um caso: as duas entram juntas, a oferta
+// de uma chega enquanto a outra ainda abre o microfone e se perde, e cada uma fica esperando a resposta da outra.
+// Se a conexão não fica pronta em 15 s (ou cai e não volta), quem tem o id menor recomeça do zero, como sair e entrar.
+const PEER_STUCK_MS = 15000, PEER_RESET_GAP_MS = 20000;
+function resetPeer(uid, notify) {
+  const watching = V.watching.get(uid);
+  closePeer(uid);
+  if (watching) V.watching.set(uid, watching); // quem assistia a live dessa pessoa volta a pedir na conexão nova
+  if (notify) { sig(uid, { reset: true }); getPeer(uid).resetAt = Date.now(); }
+  renderCall();
+}
+function checkStuckPeers(now = Date.now()) {
+  if (!V.joined) return;
+  for (const [uid, p] of [...V.peers]) {
+    if (p.pc.connectionState === 'connected') { p.okAt = now; continue; }
+    const u = S.users.get(uid);
+    if (!u || u.voiceChannel !== V.channel || !(S.myId < uid)) continue;
+    if (now - Math.max(p.okAt || 0, p.since || 0) > PEER_STUCK_MS && now - (p.resetAt || 0) > PEER_RESET_GAP_MS) resetPeer(uid, true);
+  }
+}
+setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
 function closePeer(uid) {
   const p = V.peers.get(uid); if (!p) return;
   V.peers.delete(uid); V.speaking.delete(uid);
@@ -1649,6 +1681,7 @@ function onSignal(from, data) {
   if (data && data.listen) return music?.onListen(from, data.listen); // Ouvir junto (música), não é voz
   if (!V.joined) return;
   const u = S.users.get(from); if (!u || u.voiceChannel !== V.channel) return;
+  if (data && data.reset) { if (V.peers.has(from)) resetPeer(from, false); return; } // o outro lado recomeçou a conexão
   const p = getPeer(from);
   p.queue = p.queue.then(async () => {
     const pc = p.pc;
@@ -2011,7 +2044,10 @@ function preferH264(pc, sender) {
 // live directly and becomes the relay; later 2.0.1+ viewers receive it from the relay, which re-encodes on its
 // own machine. Older viewers and the browser still get it directly.
 function canRelay() { return typeof native !== 'undefined' && !!native; }
-function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), ...extra }; }
+// relayV: versão do repasse. Quem transmite só escolhe como repasse quem tem a versão atual (2.3.3+);
+// um repasse de versão antiga deixava a live preta para quem chegava depois.
+const RELAY_VERSION = 2;
+function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, ...extra }; }
 function routeViewer(p, data) {
   const relay = V.relayId && V.relayId !== p.uid && V.screenSenders.has(V.relayId) && V.peers.get(V.relayId);
   if (relay && data.acceptsRelay && !data.noRelay) {
@@ -2020,7 +2056,7 @@ function routeViewer(p, data) {
     return;
   }
   V.relayed.delete(p.uid); addScreenTo(p);
-  if (!V.relayId && data.canRelay) V.relayId = p.uid;
+  if (!V.relayId && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
 }
 function dropRelay(keepRelay = false) { // relayed viewers ask again and get a new route
   if (!keepRelay) V.relayId = null;
@@ -2047,7 +2083,7 @@ function onRelaySignal(from, p, data) {
   if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId); else stopRelayingTo(from); return true; }
   if ('relayVia' in data) { // from the streamer: watch through this relay
     if (V.watching.get(from) !== data.streamId || !V.peers.has(data.relayVia)) return sig(from, watchMsg(data.streamId, true, { noRelay: true })), true;
-    V.relayVia.set(from, data.relayVia); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
+    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
     return true;
   }
   if ('relayLost' in data) { // from the streamer: the relay went away, ask again
@@ -2066,7 +2102,7 @@ function onRelaySignal(from, p, data) {
 // 2.1.3: a live que chega por repasse depende do upload e do PC de quem repassa. Se ela chegar ruim
 // (imagem baixa, poucos quadros ou quase sem dados) por ~8 s seguidos, pede direto para quem transmite.
 
-const relayHealth = new Map();
+const relayHealth = new Map(), RELAY_DEAD_MS = 10000;
 function goDirect(owner) {
   const via = V.relayVia.get(owner); relayHealth.delete(owner); V.directOnly.add(owner);
   if (via) sig(via, { relayWatch: false, owner });
@@ -2077,9 +2113,11 @@ function goDirect(owner) {
 async function checkRelayQuality() {
   for (const [owner, via] of [...V.relayVia]) {
     const p = V.peers.get(via), sid = V.watching.get(owner), track = sid && p?.streams?.get(sid)?.getVideoTracks()[0];
-    if (!track) { relayHealth.delete(owner); continue; }
+    // Repasse que não entrega nada (tela preta) em 10 s: pede direto para quem transmite.
+    const waited = Date.now() - (relayHealth.get(owner)?.since ?? Date.now());
+    if (!track) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     let r = null; try { (await p.pc.getStats(track)).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') r = x; }); } catch {}
-    if (!r) continue;
+    if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
     h.bytes = r.bytesReceived; h.at = now; relayHealth.set(owner, h);
