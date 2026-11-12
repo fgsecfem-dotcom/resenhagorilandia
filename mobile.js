@@ -27,6 +27,7 @@ export function initMobile(R) {
   try {
    await R.ensureAudio();
    if(V.ctx?.state!=='running') await V.ctx.resume();
+   if(V.outEl?.paused) await V.outEl.play().catch(()=>{});
    if(V.joined&&R.WEB_VOICE&&(!V.raw||V.raw.getAudioTracks().some(t=>t.readyState==='ended'))){await R.openMic();R.setMuted(V.muted,true);}
    for(const p of V.peers.values())if(['failed','disconnected'].includes(p.pc.iceConnectionState))p.pc.restartIce();
    interrupted=V.ctx?.state!=='running'||V.raw?.getAudioTracks().some(t=>t.muted||t.readyState==='ended');
@@ -112,5 +113,57 @@ export function initMobile(R) {
   $('#web-unlock').textContent=stopped?'Áudio interrompido · toque para retomar':'Retomar áudio';
  },1000);
  setInterval(sample,3000);
+
+ // ---------- Segundo plano: controle de mídia e Picture in Picture ----------
+ // Com a call tocando como mídia, o celular mostra o controle na notificação e não congela a página.
+ // Onde o navegador permite, a live que você assiste vira Picture in Picture sozinha ao minimizar.
+ const ms=navigator.mediaSession;let msKey='';
+ const liveVideo=()=>[...document.querySelectorAll('#call-stage .tile.is-screen video')].find(v=>v.srcObject&&v.readyState>=2);
+ function syncMediaSession(){
+  if(!ms)return;
+  const key=V.joined?V.channel+'|'+(S.roomName||''):'';if(key===msKey)return;msKey=key;
+  try{
+   if(!V.joined){ms.metadata=null;ms.playbackState='none';return;}
+   const ch=S.channels.find(c=>c.id===V.channel)?.name||'Call';
+   ms.metadata=new MediaMetadata({title:ch,artist:S.roomName||'Resenha',album:'Resenha',artwork:[{src:'icon.png',sizes:'256x256',type:'image/png'}]});
+   ms.playbackState='playing';
+   ms.setActionHandler('hangup',()=>R.leaveVoice());
+  }catch{}
+ }
+ try{ms?.setActionHandler('enterpictureinpicture',async()=>{const v=liveVideo();if(v&&!document.pictureInPictureElement)await v.requestPictureInPicture().catch(()=>{});});}catch{}
+ // Safari (iPhone): a live marcada com autoPictureInPicture vira PiP sozinha ao ir para a tela inicial.
+ setInterval(()=>{syncMediaSession();for(const v of document.querySelectorAll('#call-stage .tile.is-screen video'))if('autoPictureInPicture' in v&&!v.autoPictureInPicture)v.autoPictureInPicture=true;},1000);
+
+ // ---------- Pessoa na call: tocar abre uma folha com volume, live e mensagem ----------
+ let sheet=null;
+ function closeSheet(){if(!sheet)return;const s=sheet;sheet=null;s.classList.remove('open');setTimeout(()=>s.remove(),220);}
+ function openPerson(uid){
+  const u=S.users.get(uid);if(!u||uid===S.myId)return;
+  closeSheet();
+  const root=document.createElement('div');root.className='m-sheet';root.setAttribute('role','dialog');root.setAttribute('aria-label',u.name);
+  const back=document.createElement('div');back.className='m-sheet-back';back.onclick=closeSheet;
+  const panel=document.createElement('div');panel.className='m-sheet-panel';
+  const head=document.createElement('div');head.className='m-sheet-head';
+  const av=document.createElement('div');av.className='avatar';if(u.avatar)av.style.backgroundImage=`url(${u.avatar})`;else{av.style.backgroundColor=u.color||'#5865f2';av.textContent=(u.name||'?').trim().slice(0,1).toUpperCase();}
+  const who=document.createElement('div');const nm=document.createElement('strong');nm.textContent=u.name;const st=document.createElement('small');st.textContent=u.sharing?'Ao vivo agora':u.deafened?'Sem áudio':u.muted?'Microfone desligado':'Na call';who.append(nm,st);
+  head.append(av,who);panel.appendChild(head);
+  panel.appendChild(slider('Volume',settings.userVolumes[u.name]??100,v=>{settings.userVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
+  if(u.sharing){
+   panel.appendChild(slider('Som da live',settings.streamVolumes[u.name]??100,v=>{settings.streamVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
+   const live=button(V.watching.has(uid)?'Sair da transmissão':'Assistir à live',()=>{R.setWatching(uid,!V.watching.has(uid));closeSheet();});live.className='primary';panel.appendChild(live);
+  }
+  if(uid!=='dj-resenha')panel.appendChild(button('Mensagem privada',()=>{closeSheet();R.openDM(uid);}));
+  panel.appendChild(button('Fechar',closeSheet));
+  root.append(back,panel);document.body.appendChild(root);sheet=root;
+  requestAnimationFrame(()=>root.classList.add('open'));
+ }
+ // Captura antes do clique normal do quadro (que no PC foca a pessoa).
+ document.addEventListener('click',e=>{
+  const t=e.target.closest('#call-stage .tile[data-key^="user:"]');
+  if(!t||e.target.closest('.tile-tools button'))return;
+  const uid=t.dataset.key.slice(5);if(uid===S.myId)return;
+  e.preventDefault();e.stopPropagation();openPerson(uid);
+ },true);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
  window.addEventListener('pagehide',()=>{wake?.release().catch(()=>{});});
 }
