@@ -52,3 +52,38 @@
 .web-viewer #modal-root .overlay {top:var(--web-top,0);height:var(--web-height,100dvh);bottom:auto}
 
 .web-viewer .screen {top:0}
+
+/* Celular: call em grade de duas colunas; tocar na pessoa abre a folha com volume, live e mensagem. */
+@media(max-width:760px),(max-width:1000px) and (max-height:500px) {
+ .web-viewer #call #call-stage .grid {justify-content:flex-start!important;flex:0 0 auto!important;width:100%!important;height:auto!important;grid-template-rows:none!important;grid-auto-rows:auto!important;align-content:start;gap:8px!important}
+ .web-viewer #call-stage {justify-content:flex-start!important;align-items:stretch!important}
+ .web-viewer #call-stage .tile[data-key^="user:"] {cursor:pointer}
+ /* Grade: duas colunas, live ocupa a largura toda */
+ .web-viewer #call-stage .grid {display:grid!important;grid-template-columns:1fr 1fr!important}
+ .web-viewer #call-stage .grid > .tile {width:auto!important;height:auto!important;aspect-ratio:1/1;min-height:0}
+ .web-viewer #call-stage .grid > .tile.is-screen {grid-column:1/-1;aspect-ratio:16/9}
+ .web-viewer #call-stage .tile .avatar {width:56px;height:56px;font-size:20px}
+ /* Botão de live no quadro: pílula discreta no canto, sem cobrir o nome */
+ .web-viewer #call #call-stage .tile .tile-tools:has(.live-join) {position:absolute;inset:8px 8px auto auto!important;padding:0!important;pointer-events:auto!important;transform:none!important;justify-content:flex-end}
+ .web-viewer #call-stage .tile .live-join {min-height:32px!important;padding:4px 10px;font-size:12px;border-radius:999px}
+ .web-viewer #call-stage .tile .live-join span {display:none}
+ .web-viewer #call-stage .tile .live-join::after {content:'Ao vivo'}
+ .web-viewer #call-stage .tile .live-join {display:inline-flex;align-items:center;gap:6px;width:auto!important;min-width:0!important}
+ /* "Pessoas, volumes e lives" sai da aba Sala: agora é tocar na pessoa */
+ .web-viewer #mobile-participants {display:none}
+}
+.m-sheet {position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;justify-content:flex-end}
+.m-sheet-back {position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:opacity .2s ease}
+.m-sheet-panel {position:relative;background:var(--bg-panel);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:18px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;transform:translateY(100%);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.m-sheet.open .m-sheet-back {opacity:1}
+.m-sheet.open .m-sheet-panel {transform:none}
+.m-sheet-head {display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.m-sheet-head .avatar {width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;background-size:cover;background-position:center;flex-shrink:0}
+.m-sheet-head strong {display:block;font-size:17px;color:var(--text-hi)}
+.m-sheet-head small {color:var(--muted);font-size:13px}
+.m-sheet-panel label {display:grid;grid-template-columns:88px 1fr 46px;align-items:center;gap:10px;font-size:13px;color:var(--text)}
+.m-sheet-panel input[type=range] {flex:1;min-height:44px;accent-color:var(--blurple)}
+.m-sheet-panel output {min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
+.m-sheet-panel button {min-height:48px;border-radius:14px;background:var(--bg-input);color:var(--text-hi);border:1px solid var(--line);font:inherit;font-weight:600}
+.m-sheet-panel button.primary {background:var(--blurple);border-color:transparent;color:#fff}
+html.reduce-motion .m-sheet-panel,html.reduce-motion .m-sheet-back {transition:none}

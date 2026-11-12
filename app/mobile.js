@@ -112,5 +112,37 @@ export function initMobile(R) {
   $('#web-unlock').textContent=stopped?'Áudio interrompido · toque para retomar':'Retomar áudio';
  },1000);
  setInterval(sample,3000);
+
+ // ---------- Pessoa na call: tocar abre uma folha com volume, live e mensagem ----------
+ let sheet=null;
+ function closeSheet(){if(!sheet)return;const s=sheet;sheet=null;s.classList.remove('open');setTimeout(()=>s.remove(),220);}
+ function openPerson(uid){
+  const u=S.users.get(uid);if(!u||uid===S.myId)return;
+  closeSheet();
+  const root=document.createElement('div');root.className='m-sheet';root.setAttribute('role','dialog');root.setAttribute('aria-label',u.name);
+  const back=document.createElement('div');back.className='m-sheet-back';back.onclick=closeSheet;
+  const panel=document.createElement('div');panel.className='m-sheet-panel';
+  const head=document.createElement('div');head.className='m-sheet-head';
+  const av=document.createElement('div');av.className='avatar';if(u.avatar)av.style.backgroundImage=`url(${u.avatar})`;else{av.style.backgroundColor=u.color||'#5865f2';av.textContent=(u.name||'?').trim().slice(0,1).toUpperCase();}
+  const who=document.createElement('div');const nm=document.createElement('strong');nm.textContent=u.name;const st=document.createElement('small');st.textContent=u.sharing?'Ao vivo agora':u.deafened?'Sem áudio':u.muted?'Microfone desligado':'Na call';who.append(nm,st);
+  head.append(av,who);panel.appendChild(head);
+  panel.appendChild(slider('Volume',settings.userVolumes[u.name]??100,v=>{settings.userVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
+  if(u.sharing){
+   panel.appendChild(slider('Som da live',settings.streamVolumes[u.name]??100,v=>{settings.streamVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
+   const live=button(V.watching.has(uid)?'Sair da transmissão':'Assistir à live',()=>{R.setWatching(uid,!V.watching.has(uid));closeSheet();});live.className='primary';panel.appendChild(live);
+  }
+  if(uid!=='dj-resenha')panel.appendChild(button('Mensagem privada',()=>{closeSheet();R.openDM(uid);}));
+  panel.appendChild(button('Fechar',closeSheet));
+  root.append(back,panel);document.body.appendChild(root);sheet=root;
+  requestAnimationFrame(()=>root.classList.add('open'));
+ }
+ // Captura antes do clique normal do quadro (que no PC foca a pessoa).
+ document.addEventListener('click',e=>{
+  const t=e.target.closest('#call-stage .tile[data-key^="user:"]');
+  if(!t||e.target.closest('.tile-tools button'))return;
+  const uid=t.dataset.key.slice(5);if(uid===S.myId)return;
+  e.preventDefault();e.stopPropagation();openPerson(uid);
+ },true);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
  window.addEventListener('pagehide',()=>{wake?.release().catch(()=>{});});
 }
