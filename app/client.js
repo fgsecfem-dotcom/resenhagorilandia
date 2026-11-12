@@ -73,7 +73,7 @@ const S = {
 };
 const V = {
   joined: false, channel: null, muted: LS.get('muted', false), deafened: LS.get('deafened', false), mutedBeforeDeafen: false,
-  ctx: null, raw: null, src: null, micGain: null, rn: null, rnReady: false, fx: null, analyser: null, gate: null, dest: null,
+  ctx: null, raw: null, src: null, micGain: null, rn: null, rnReady: false, dfn: null, dfnReady: false, nsAn: null, fx: null, analyser: null, gate: null, dest: null,
   gateOpen: false, gateHold: 0, vadOpen: false, vadLevel: 0,
   master: null, screenMaster: null, peers: new Map(), speaking: new Set(), selfLevel: -100,
   screen: null, screenSenders: new Map(), watching: new Map(), previewHidden: true,
@@ -1067,7 +1067,7 @@ function tickTimers() {
   $$('#voice-channels .timer').forEach((t) => { const s = +t.dataset.since; t.textContent = s ? fmtDur(serverNow() - s) : ''; });
 }
 function isSpeaking(id) {
-  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && V.rnReady ? V.vadOpen : V.gateOpen);
+  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
   return V.speaking.has(id);
 }
 
@@ -1444,6 +1444,7 @@ async function ensureAudio() {
       V.rnReady = true;
     } catch (e) { console.warn('rnnoise', e); V.rn = null; }
     applyNoiseMode();
+    loadDeepFilterNet(); // 2.4: filtro melhor no PC; carrega em segundo plano e assume quando estiver pronto
     applyVoiceFx();
     applyOutputDevice();
   }
@@ -1451,12 +1452,40 @@ async function ensureAudio() {
   V.master.gain.value = V.deafened ? 0 : 1;
   if (V.micGain) V.micGain.gain.value = settings.micGain / 100;
 }
+// 2.4: no PC, o DeepFilterNet3 (melhor em louça, TV, ventilador e conversa ao fundo no teste comparativo).
+// O RNNoise fica de reserva: entra se o DeepFilterNet3 não carregar ou se o PC não der conta.
+async function loadDeepFilterNet() {
+  if (WEB_VIEWER || V.dfn || V.dfnLoading || V.dfnOff) return;
+  V.dfnLoading = true;
+  try {
+    const { createDeepFilterNetAudioWorklet } = await import('./vendor/dfn3/deepfilternet.js');
+    const w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => dropDeepFilterNet(true) });
+    await w.ready;
+    if (V.dfnOff) { w.dispose(); return; }
+    V.dfn = w.node; V.dfnDispose = w.dispose;
+    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; V.dfn.connect(V.nsAn); // nível depois do filtro: diz quando você fala
+    V.dfnReady = true;
+    applyNoiseMode();
+  } catch (e) { console.warn('deepfilternet', e); V.dfnOff = true; }
+  finally { V.dfnLoading = false; }
+}
+function dropDeepFilterNet(overload) {
+  if (V.dfnOff) return;
+  V.dfnOff = true; V.dfnReady = false;
+  try { V.micGain?.disconnect(V.dfn); } catch {}
+  try { V.dfnDispose?.(); } catch {}
+  V.dfn = null; V.nsAn = null;
+  applyNoiseMode();
+  if (overload) toast('Seu PC está ocupado: o filtro de ruído passou para o modo leve.', '', 6000);
+}
 function applyNoiseMode() {
   if (!V.micGain) return;
-  try { V.micGain.disconnect(V.pre); } catch {}
-  try { V.micGain.disconnect(V.rn); } catch {}
+  for (const n of [V.pre, V.rn, V.dfn]) if (n) try { V.micGain.disconnect(n); } catch {}
   try { if (V.rn) V.rn.disconnect(); } catch {}
-  if (settings.aiNoise && V.rn) {
+  try { if (V.dfn) V.dfn.disconnect(V.pre); } catch {}
+  if (settings.aiNoise && V.dfnReady && V.dfn) {
+    V.micGain.connect(V.dfn); V.dfn.connect(V.pre);
+  } else if (settings.aiNoise && V.rn) {
     V.micGain.connect(V.rn); V.rn.connect(V.pre);
     V.rn.port.postMessage({ gate: true, thr: 1 - settings.vadSens / 100 * 0.9, holdMs: 350 });
   } else V.micGain.connect(V.pre);
@@ -1584,7 +1613,11 @@ setInterval(() => {
   const now = performance.now();
   const db = level(V.analyser); V.selfLevel = db;
   let open;
-  if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
+  if (settings.aiNoise && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
+    if (level(V.nsAn) > -60 + settings.vadSens * 0.25) V.dfnHold = now + 300;
+    const sp = now < (V.dfnHold || 0); if (sp !== V.vadOpen) { V.vadOpen = sp; refreshSpeaking(); }
+    open = true;
+  } else if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
   else {
     let thr = settings.threshold;
     if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
@@ -3052,7 +3085,7 @@ registerShortcuts();
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
       if (!document.body.contains(el)) return;
-      const ai = settings.aiNoise && V.rnReady;
+      const ai = settings.aiNoise && (V.rnReady || V.dfnReady);
       const open = ai ? V.vadOpen : V.gateOpen;
       lvl.style.width = pos(V.selfLevel);
       lvl.style.background = open ? 'var(--green)' : '#4e5058';

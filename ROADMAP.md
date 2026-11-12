@@ -2,7 +2,7 @@
 
 Cada milestone é uma versão (ou etapa) com objetivo e critério de pronto. As tarefas ficam nas [issues](https://github.com/fgsecfem-dotcom/resenhagorilandia/issues) e são agrupadas nos [milestones](https://github.com/fgsecfem-dotcom/resenhagorilandia/milestones). Ao fechar um milestone, atualize esta página.
 
-**Versão publicada:** 2.2.2
+**Versão publicada:** 2.4.0
 
 ## M0 · Organização (concluído)
 Objetivo: deixar o projeto pronto para trabalhar por milestones, a dois.
