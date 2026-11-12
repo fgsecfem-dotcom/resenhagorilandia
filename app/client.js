@@ -19,7 +19,8 @@ const DJ_NAME = 'DJ Resenha';
 const WEB_VIEWER = !native && location.protocol.startsWith('http');
 const WEB_VOICE = WEB_VIEWER && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 // The web viewer also works over LAN HTTP, where AudioWorkletNode is unavailable.
-if (native && typeof AudioWorkletNode === 'function') ({ RnnoiseWorkletNode } = await import('./vendor/ns/index.js'));
+// 2.4: o celular (com voz) também carrega o filtro de ruído com IA; se falhar, a call segue sem ele.
+if ((native || WEB_VOICE) && typeof AudioWorkletNode === 'function') { try { ({ RnnoiseWorkletNode } = await import('./vendor/ns/index.js')); } catch (e) { console.warn('rnnoise', e); } }
 
 // ---------------- Persistência ----------------
 const LS = {
@@ -1398,12 +1399,26 @@ async function ensureAudio() {
     if (WEB_VIEWER) {
       V.micGain = V.ctx.createGain(); V.analyser = V.ctx.createAnalyser(); V.analyser.fftSize=512;
       V.gate = V.ctx.createGain(); V.gate.gain.value=0;
-      V.micGain.connect(V.analyser); V.micGain.connect(V.gate); V.gate.connect(V.dest);
+      V.pre = V.ctx.createGain(); // entrada depois do filtro de ruído (no celular não há efeitos de voz)
+      V.micGain.connect(V.analyser); V.pre.connect(V.gate); V.gate.connect(V.dest);
       // No navegador a call toca por um <audio> de verdade: assim o celular entende que há mídia tocando e não
       // congela a página ao minimizar (som saindo só pelo WebAudio não conta como mídia para o sistema).
       V.master.disconnect(); V.sink = V.ctx.createMediaStreamDestination(); V.master.connect(V.sink);
       V.outEl = new Audio(); V.outEl.srcObject = V.sink.stream; V.outEl.play().catch(() => {});
-      V.master.gain.value=V.deafened?0:1; await V.ctx.resume(); applyOutputDevice(); return;
+      // Tocar e acordar o áudio ainda dentro do toque (o iPhone exige); o filtro carrega depois.
+      const resuming = V.ctx.resume();
+      // 2.4: mesmo filtro de ruído com IA do PC (RNNoise). Ele só deixa passar voz: louça, torneira e TV ficam de fora.
+      if (WEB_VOICE && RnnoiseWorkletNode) {
+        try {
+          rnBinary = rnBinary || await fetch('vendor/ns/rnnoise_simd.wasm').then((r) => { if (!r.ok) throw Error(r.status); return r.arrayBuffer(); }).catch(() => fetch('vendor/ns/rnnoise.wasm').then((r) => r.arrayBuffer()));
+          await V.ctx.audioWorklet.addModule('vendor/ns/rnnoiseWorklet.js');
+          V.rn = new RnnoiseWorkletNode(V.ctx, { wasmBinary: rnBinary, maxChannels: 1 });
+          V.rn.port.onmessage = (e) => { const d = e.data; if (!d || typeof d !== 'object') return; V.vadLevel = d.vad; if (d.open !== V.vadOpen) { V.vadOpen = d.open; refreshSpeaking(); } };
+          V.rnReady = true;
+        } catch (e) { console.warn('rnnoise', e); V.rn = null; V.rnReady = false; }
+      }
+      applyNoiseMode();
+      V.master.gain.value=V.deafened?0:1; await resuming; applyOutputDevice(); return;
     }
     V.micGain = V.ctx.createGain();
     V.pre = V.ctx.createGain(); // entrada do filtro de voz
