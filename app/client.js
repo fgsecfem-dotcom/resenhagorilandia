@@ -1864,7 +1864,7 @@ async function toggleShare() {
     renderSrc();
   }).catch(() => { if (m.el.isConnected) $('.sources', m.el).innerHTML = '<p class="muted small">Não consegui listar as telas. Feche e tente de novo.</p>'; });
   $('#sh-log', m.el).onclick = () => native.captureDiagnostics();
-  // Compatibility mode is only switched on automatically after a capture crash; this is the way back.
+  // Compatibility mode now only comes from the emergency launcher (--compatibility); this is the way back.
   const compat = $('#sh-compat', m.el);
   if (compat) compat.onclick = async () => {
     if (await confirmModal('Reiniciar o Resenha', 'O app vai reiniciar para aplicar o modo de captura. Você precisará entrar na sala novamente.', 'Reiniciar', false)) native.setCaptureCompatibility(false);
@@ -3473,7 +3473,6 @@ overlayClient = createOverlayClient({ native, settings, saveSettings, S, V, DJ_I
 if (innerWidth >= 1280) roomUI.open('chat');
 initHome();
 overlayClient.start();
-native?.captureInfo().then((info) => { if (info.recovered) toast('A captura anterior foi interrompida. O Resenha abriu em modo de compatibilidade.', '', 10000); });
 $('#main').dataset.mobilePane = 'call';
 $$('[data-mobile-pane]', $('#web-nav')).forEach((b) => b.onclick = () => {
   $('#main').dataset.mobilePane = b.dataset.mobilePane;
