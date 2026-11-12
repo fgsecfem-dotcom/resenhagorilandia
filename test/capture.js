@@ -17,13 +17,14 @@ for (const [build, supported] of [[18363,false],[19040,false],[19041,true],[1904
 }
 const source=fs.readFileSync(require.resolve('../main.js'),'utf8');
 const startupCode=source.slice(source.indexOf('const capturePrefsFile ='),source.indexOf('let captureActive ='));
-for(const [previous,flag,expected] of [[false,false,false],[true,false,true],[false,true,true]]) {
+// 2.3.3: live interrompida e preferência antiga não ligam mais o modo sem placa de vídeo; só o lançador de emergência.
+for(const [previous,flag,expected,prefs] of [[false,false,false],[true,false,false],[true,false,false,{compatibility:true}],[false,true,true]]) {
  const calls=[];
  const ctx=vm.createContext({DATA_DIR:'.',path:require('node:path'),os:{release:()=> '10.0.22631'},process:{platform:'win32',argv:flag?['resenha','--compatibility']:['resenha']},capturePolicy,
-  fs:{readFileSync:(file)=>file.endsWith('capture-state.json')?JSON.stringify({active:previous}):'{}'},
+  fs:{readFileSync:(file)=>file.endsWith('capture-state.json')?JSON.stringify({active:previous}):JSON.stringify(prefs||{})},
   app:{getPath:()=>'.',disableHardwareAcceleration:()=>calls.push('gpu-off'),commandLine:{appendSwitch:name=>calls.push(name)}}});
  vm.runInContext(startupCode,ctx);
- assert.equal(calls.includes('gpu-off'),expected,'recovery/flag decides compatibility before app ready');
+ assert.equal(calls.includes('gpu-off'),expected,'only the emergency flag turns the GPU off');
  assert.equal(calls.includes('disable-accelerated-video-encode'),expected);
 }
 const client=fs.readFileSync(require.resolve('../app/client.js'),'utf8');

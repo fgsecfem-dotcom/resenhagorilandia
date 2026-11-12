@@ -25,12 +25,31 @@ async function viaTunnel(event) {
   const body = ['GET', 'HEAD'].includes(req.method) ? null : await req.arrayBuffer();
   const headers = [...req.headers].filter(([k]) => /^(range|content-type|if-none-match|if-modified-since)$/i.test(k));
   const ch = new MessageChannel();
-  const reply = new Promise((res) => { ch.port1.onmessage = (m) => res(m.data); setTimeout(() => res({ error: 'tempo' }), 130000); });
-  client.postMessage({ t: 'tun-fetch', method: req.method, path: url.pathname.slice((BASE + 'tun').length) + url.search, headers, body }, [ch.port2, ...(body ? [body] : [])]);
+  // O corpo chega aos pedaços (stream): anexos grandes tocam sem ficar inteiros na memória do celular.
+  let ctrl = null; const early = [];
+  const push = (d) => {
+    if (!ctrl) return early.push(d);
+    try {
+      if (d.t === 'chunk') ctrl.enqueue(new Uint8Array(d.body));
+      else if (d.t === 'end') ctrl.close();
+      else if (d.t === 'abort') ctrl.error(new Error(d.error || 'interrompido'));
+    } catch {}
+  };
+  const stream = new ReadableStream({ start(c) { ctrl = c; for (const d of early.splice(0)) push(d); }, cancel() { try { ch.port1.close(); } catch {} } });
+  const reply = new Promise((res) => {
+    const t = setTimeout(() => res({ error: 'tempo' }), 130000);
+    ch.port1.onmessage = (m) => {
+      const d = m.data || {};
+      if (d.t === 'head' || d.t === 'error' || !d.t) { clearTimeout(t); res(d); } // sem "t": página antiga, resposta inteira
+      else push(d);
+    };
+  });
+  client.postMessage({ t: 'tun-fetch', stream: true, method: req.method, path: url.pathname.slice((BASE + 'tun').length) + url.search, headers, body }, [ch.port2, ...(body ? [body] : [])]);
   const r = await reply;
   if (r.error) return new Response('', { status: 502, statusText: r.error });
   const empty = [101, 204, 205, 304].includes(r.status) || req.method === 'HEAD';
-  return new Response(empty ? null : r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
+  const out = empty ? null : r.t === 'head' ? stream : r.body;
+  return new Response(out, { status: r.status, statusText: r.statusText, headers: r.headers });
 }
 
 self.addEventListener('fetch', (event) => {

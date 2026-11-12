@@ -30,7 +30,11 @@ function createSpotify({ getWindow }) {
       if (!refresh && !clientId) return fs.rmSync(file(), { force: true });
       // sem criptografia do sistema o login não vai para o disco (a chave é pública e pode ir)
       const enc = refresh && safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(refresh).toString('base64') : null;
-      fs.writeFileSync(file(), JSON.stringify({ ...(enc ? { refresh: enc, user, scope } : {}), ...(clientId ? { clientId } : {}) }));
+      // Grava num temporário e troca: se o app fechar no meio, o arquivo antigo fica inteiro (antes, um arquivo cortado
+      // apagava o login E a chave própria, e a pessoa tinha que refazer o passo a passo do Spotify dev).
+      const tmp = file() + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify({ ...(enc ? { refresh: enc, user, scope } : {}), ...(clientId ? { clientId } : {}) }));
+      fs.renameSync(tmp, file());
     } catch {}
   }
   // Troca a chave. O login fica preso à chave, então trocar desconecta. Vazio volta para a chave padrão.
@@ -84,11 +88,22 @@ function createSpotify({ getWindow }) {
       loginWin.loadURL('https://accounts.spotify.com/authorize?' + q);
     });
   }
+  // O Spotify troca o refresh token a cada renovação. Dois pedidos juntos (player e busca) usavam o mesmo token:
+  // o segundo recebia invalid_grant e apagava o login. Agora só uma renovação por vez, e só desconecta se o token
+  // recusado ainda for o atual.
+  let refreshing = null;
   async function token() {
     if (access && access.expires > Date.now()) return { token: access.token };
     if (!refresh) throw Error('Não conectado');
-    try { await tokenRequest({ grant_type: 'refresh_token', refresh_token: refresh }); save(); return { token: access.token }; }
-    catch (e) { if (e.code === 'invalid_grant') { refresh = null; access = null; save(); } throw e; }
+    if (!refreshing) {
+      const used = refresh;
+      refreshing = tokenRequest({ grant_type: 'refresh_token', refresh_token: used })
+        .then(() => { save(); })
+        .catch((e) => { if (e.code === 'invalid_grant' && refresh === used) { refresh = null; access = null; save(); } throw e; })
+        .finally(() => { refreshing = null; });
+    }
+    await refreshing;
+    return { token: access.token };
   }
   function logout() { access = null; refresh = null; user = null; scope = ''; save(); }
   async function status() {

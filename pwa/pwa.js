@@ -170,6 +170,42 @@
     });
   }
 
+  // Mesma coisa, mas entrega o corpo aos pedaços: um vídeo de 1 GB não pode ficar inteiro na memória do celular.
+  // O prazo só corre enquanto nada chega (download longo e contínuo não é cortado no meio).
+  function httpStream({ method = 'GET', path = '/', headers = [], body = null }, onHead, onChunk) {
+    return new Promise((resolve, reject) => {
+      let s; try { s = openStream('h'); } catch (e) { return reject(e); }
+      let pending = [], head = null, len = NaN, sent = 0, chunked = false, done = false, idle = 0;
+      const stop = (err) => { if (done) return; done = true; clearTimeout(idle); s.close(); err ? reject(err) : resolve(); };
+      const arm = () => { clearTimeout(idle); idle = setTimeout(() => stop(new Error('tempo esgotado')), 60000); };
+      const emit = (part) => { if (!part.length) return; sent += part.length; onChunk(part); };
+      s.onData = (d) => {
+        if (done) return; arm();
+        if (!head) {
+          pending.push(d); const all = concat(pending); head = parseHead(all); if (!head) return;
+          pending = [all.subarray(head.bodyStart)];
+          chunked = head.headers.some(([k, v]) => k === 'transfer-encoding' && /chunked/i.test(v));
+          len = Number(head.headers.find(([k]) => k === 'content-length')?.[1]);
+          onHead({ status: head.status, statusText: head.statusText, headers: head.headers.filter(([k]) => !['transfer-encoding', 'connection'].includes(k)) });
+          if (chunked) return; // raro aqui (o servidor manda o tamanho); junta tudo e entrega no fim
+          emit(pending[0]); pending = [];
+        } else if (chunked) { pending.push(d); return; }
+        else emit(d);
+        if (Number.isFinite(len) && sent >= len) stop();
+      };
+      s.onClose = () => {
+        if (done) return;
+        if (!head) return stop(new Error('resposta inválida'));
+        if (chunked) emit(dechunk(concat(pending)));
+        stop();
+      };
+      const lines = [`${method} ${path} HTTP/1.1`, 'Host: resenha', 'Connection: close', ...headers.filter(([k]) => !/^(host|connection|content-length)$/i.test(k)).map(([k, v]) => `${k}: ${v}`)];
+      if (body) lines.push('Content-Length: ' + body.byteLength);
+      arm();
+      s.write(concat([enc.encode(lines.join('\r\n') + '\r\n\r\n'), ...(body ? [new Uint8Array(body)] : [])])).catch((e) => stop(e));
+    });
+  }
+
   // ---------- WebSocket por dentro do túnel (a conexão da sala) ----------
   class TunnelWebSocket {
     constructor() {
@@ -218,6 +254,16 @@
   navigator.serviceWorker?.addEventListener('message', async (e) => {
     if (e.data?.t !== 'tun-fetch') return;
     const port = e.ports[0];
+    if (e.data.stream) { // service worker novo: cabeçalho, pedaços e fim
+      let started = false;
+      try {
+        await httpStream({ method: e.data.method, path: e.data.path, headers: e.data.headers, body: e.data.body },
+          (h) => { started = true; port.postMessage({ t: 'head', ...h }); },
+          (part) => { const b = part.slice().buffer; port.postMessage({ t: 'chunk', body: b }, [b]); });
+        port.postMessage({ t: 'end' });
+      } catch (err) { port.postMessage({ t: started ? 'abort' : 'error', error: String(err.message || err) }); }
+      return;
+    }
     try {
       const r = await http({ method: e.data.method, path: e.data.path, headers: e.data.headers, body: e.data.body });
       const body = r.body.slice().buffer;

@@ -7,7 +7,8 @@ const out = path.resolve(process.argv[process.argv.length - 1]);
 const version = require(path.join(root, 'package.json')).version;
 
 // Só o necessário para o navegador (nada de instalador, ícones de Windows/Mac ou janela de inicialização).
-const SKIP = /^(launcher[.-]|pipoca-.*-master\.png$|brand-pipoca\.png$|.*\.ico$|.*\.icns$|icon256\.png$)/;
+// dfn3: filtro de ruído só do PC (22 MB); o celular usa o RNNoise de vendor/ns.
+const SKIP = /^(launcher[.-]|pipoca-.*-master\.png$|brand-pipoca\.png$|.*\.ico$|.*\.icns$|icon256\.png$|dfn3$)/;
 function copyDir(from, to) {
   fs.mkdirSync(to, { recursive: true });
   for (const e of fs.readdirSync(from, { withFileTypes: true })) {

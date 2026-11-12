@@ -19,7 +19,8 @@ const DJ_NAME = 'DJ Resenha';
 const WEB_VIEWER = !native && location.protocol.startsWith('http');
 const WEB_VOICE = WEB_VIEWER && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 // The web viewer also works over LAN HTTP, where AudioWorkletNode is unavailable.
-if (native && typeof AudioWorkletNode === 'function') ({ RnnoiseWorkletNode } = await import('./vendor/ns/index.js'));
+// 2.4: o celular (com voz) também carrega o filtro de ruído com IA; se falhar, a call segue sem ele.
+if ((native || WEB_VOICE) && typeof AudioWorkletNode === 'function') { try { ({ RnnoiseWorkletNode } = await import('./vendor/ns/index.js')); } catch (e) { console.warn('rnnoise', e); } }
 
 // ---------------- Persistência ----------------
 const LS = {
@@ -72,7 +73,7 @@ const S = {
 };
 const V = {
   joined: false, channel: null, muted: LS.get('muted', false), deafened: LS.get('deafened', false), mutedBeforeDeafen: false,
-  ctx: null, raw: null, src: null, micGain: null, rn: null, rnReady: false, fx: null, analyser: null, gate: null, dest: null,
+  ctx: null, raw: null, src: null, micGain: null, rn: null, rnReady: false, dfn: null, dfnReady: false, nsAn: null, fx: null, analyser: null, gate: null, dest: null,
   gateOpen: false, gateHold: 0, vadOpen: false, vadLevel: 0,
   master: null, screenMaster: null, peers: new Map(), speaking: new Set(), selfLevel: -100,
   screen: null, screenSenders: new Map(), watching: new Map(), previewHidden: true,
@@ -612,9 +613,11 @@ function connect(addr, password, first) {
     if (!S.myId && first && ev.code !== 4004) { leaveRoom(); $('#home-error').textContent = 'A conexão caiu antes de entrar.'; return; }
     // Sala com código: se o anfitrião cair, outro amigo assume e todo mundo reconecta sozinho
     if (S.code && window.Tun && native) { failover(ev.code); return; }
-    if (S.code && addr === PWA_ADDR && globalThis.RESENHA_PWA) { const wasIn = V.joined ? V.channel : null; teardownVoice(); S.myId = null; setConnStatus('bad', 'Reconectando...'); pwaReconnect(S.code, password, ev.code, wasIn); return; }
-    const wasIn = V.joined ? V.channel : null;
-    teardownVoice();
+    // 2.3.3: a conexão com a sala piscou (celular em segundo plano, Wi-Fi). A voz e a live são diretas entre vocês e
+    // continuam; só a conexão com a sala reconecta. Antes, aqui a call caía inteira (e o Picture in Picture junto).
+    S.softResume = V.joined;
+    if (S.code && addr === PWA_ADDR && globalThis.RESENHA_PWA) { S.myId = null; setConnStatus('bad', 'Reconectando...'); pwaReconnect(S.code, password, ev.code, null); return; }
+    const wasIn = null;
     S.myId = null;
     setConnStatus('bad', 'Reconectando...');
     if (S.reconnectTries++ > 30) { leaveRoom(); $('#home-error').textContent = 'Perdi a conexão com a sala.'; return; }
@@ -652,6 +655,16 @@ function snapshot() {
     ...(S.latestRoomSnapshot || {}), channels: S.channels, history: S.history,
     dj: S.dj && S.dj.active ? { active: true, channelId: S.dj.channelId, textChannel: S.dj.textChannel, queue: S.dj.queue } : null,
   };
+}
+// Versões diferentes entre anfitrião e convidado já impediram de entrar e deixaram live preta: avisa uma vez por anfitrião.
+function warnVersionMismatch(hostVersion) {
+  if (!native?.version || !hostVersion) return;
+  native.version().then((mine) => {
+    const key = hostVersion + '|' + mine;
+    if (!mine || mine === hostVersion || S.versionWarned === key) return;
+    S.versionWarned = key;
+    toast(`O anfitrião está na versão ${hostVersion} e você na ${mine}. Se algo falhar (entrar, ouvir, live), atualizem os dois para a mesma versão.`, 'warn', 9000);
+  }).catch(() => {});
 }
 function showBanner(text, kind = 'warn') {
   let b = $('#conn-banner');
@@ -826,6 +839,7 @@ function handle(m) {
       S.channels = m.channels; S.history = m.history || {};
       S.dj = m.dj; S.djAvailable = m.djAvailable;
       S.serverVersion = m.version || 'não informada'; S.features = m.features || [];
+      warnVersionMismatch(m.version);
       rejectPendingCommands('A sala reconectou. Tente enviar novamente.');
       if (!chanById(S.textChannel)) S.textChannel = textChannels()[0]?.id;
       // ligações de voz com quem sumiu da sala: espera um pouco (na troca de anfitrião a galera volta aos poucos)
@@ -842,7 +856,13 @@ function handle(m) {
       syncDJ();
       if (V.joined) { // reconectou (troca de anfitrião): a voz continuou, só avisa o novo servidor
         if (!chanById(V.channel)) V.channel = voiceChannels()[0]?.id;
+        const kept = S.users.get(S.myId)?.voiceChannel === V.channel; // o servidor segurou meu lugar na call?
         wsSend({ t: 'state', voiceChannel: V.channel, muted: V.muted, deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
+        if (S.softResume && !kept) { // demorou demais (ou anfitrião antigo): os outros fecharam a voz comigo, então refaço
+          for (const uid of [...V.peers.keys()]) resetPeer(uid, false);
+          for (const u of usersIn(V.channel)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
+        }
+        S.softResume = false;
         setConnStatus('good', 'Voz conectada');
       } else if (S.rejoinVoice) { const c = S.rejoinVoice; S.rejoinVoice = null; joinVoice(chanById(c) ? c : voiceChannels()[0]?.id); }
       else if (S.isHost && !S.invitedOnce) { S.invitedOnce = true; const seen = new Set(LS.get('invitedRooms', [])), c = normCode(S.code); if (c && !seen.has(c)) { seen.add(c); LS.set('invitedRooms', [...seen]); openInvite(); } }
@@ -1047,7 +1067,7 @@ function tickTimers() {
   $$('#voice-channels .timer').forEach((t) => { const s = +t.dataset.since; t.textContent = s ? fmtDur(serverNow() - s) : ''; });
 }
 function isSpeaking(id) {
-  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && V.rnReady ? V.vadOpen : V.gateOpen);
+  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
   return V.speaking.has(id);
 }
 
@@ -1379,8 +1399,26 @@ async function ensureAudio() {
     if (WEB_VIEWER) {
       V.micGain = V.ctx.createGain(); V.analyser = V.ctx.createAnalyser(); V.analyser.fftSize=512;
       V.gate = V.ctx.createGain(); V.gate.gain.value=0;
-      V.micGain.connect(V.analyser); V.micGain.connect(V.gate); V.gate.connect(V.dest);
-      V.master.gain.value=V.deafened?0:1; await V.ctx.resume(); applyOutputDevice(); return;
+      V.pre = V.ctx.createGain(); // entrada depois do filtro de ruído (no celular não há efeitos de voz)
+      V.micGain.connect(V.analyser); V.pre.connect(V.gate); V.gate.connect(V.dest);
+      // No navegador a call toca por um <audio> de verdade: assim o celular entende que há mídia tocando e não
+      // congela a página ao minimizar (som saindo só pelo WebAudio não conta como mídia para o sistema).
+      V.master.disconnect(); V.sink = V.ctx.createMediaStreamDestination(); V.master.connect(V.sink);
+      V.outEl = new Audio(); V.outEl.srcObject = V.sink.stream; V.outEl.play().catch(() => {});
+      // Tocar e acordar o áudio ainda dentro do toque (o iPhone exige); o filtro carrega depois.
+      const resuming = V.ctx.resume();
+      // 2.4: mesmo filtro de ruído com IA do PC (RNNoise). Ele só deixa passar voz: louça, torneira e TV ficam de fora.
+      if (WEB_VOICE && RnnoiseWorkletNode) {
+        try {
+          rnBinary = rnBinary || await fetch('vendor/ns/rnnoise_simd.wasm').then((r) => { if (!r.ok) throw Error(r.status); return r.arrayBuffer(); }).catch(() => fetch('vendor/ns/rnnoise.wasm').then((r) => r.arrayBuffer()));
+          await V.ctx.audioWorklet.addModule('vendor/ns/rnnoiseWorklet.js');
+          V.rn = new RnnoiseWorkletNode(V.ctx, { wasmBinary: rnBinary, maxChannels: 1 });
+          V.rn.port.onmessage = (e) => { const d = e.data; if (!d || typeof d !== 'object') return; V.vadLevel = d.vad; if (d.open !== V.vadOpen) { V.vadOpen = d.open; refreshSpeaking(); } };
+          V.rnReady = true;
+        } catch (e) { console.warn('rnnoise', e); V.rn = null; V.rnReady = false; }
+      }
+      applyNoiseMode();
+      V.master.gain.value=V.deafened?0:1; await resuming; applyOutputDevice(); return;
     }
     V.micGain = V.ctx.createGain();
     V.pre = V.ctx.createGain(); // entrada do filtro de voz
@@ -1406,6 +1444,7 @@ async function ensureAudio() {
       V.rnReady = true;
     } catch (e) { console.warn('rnnoise', e); V.rn = null; }
     applyNoiseMode();
+    loadDeepFilterNet(); // 2.4: filtro melhor no PC; carrega em segundo plano e assume quando estiver pronto
     applyVoiceFx();
     applyOutputDevice();
   }
@@ -1413,12 +1452,40 @@ async function ensureAudio() {
   V.master.gain.value = V.deafened ? 0 : 1;
   if (V.micGain) V.micGain.gain.value = settings.micGain / 100;
 }
+// 2.4: no PC, o DeepFilterNet3 (melhor em louça, TV, ventilador e conversa ao fundo no teste comparativo).
+// O RNNoise fica de reserva: entra se o DeepFilterNet3 não carregar ou se o PC não der conta.
+async function loadDeepFilterNet() {
+  if (WEB_VIEWER || V.dfn || V.dfnLoading || V.dfnOff) return;
+  V.dfnLoading = true;
+  try {
+    const { createDeepFilterNetAudioWorklet } = await import('./vendor/dfn3/deepfilternet.js');
+    const w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => dropDeepFilterNet(true) });
+    await w.ready;
+    if (V.dfnOff) { w.dispose(); return; }
+    V.dfn = w.node; V.dfnDispose = w.dispose;
+    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; V.dfn.connect(V.nsAn); // nível depois do filtro: diz quando você fala
+    V.dfnReady = true;
+    applyNoiseMode();
+  } catch (e) { console.warn('deepfilternet', e); V.dfnOff = true; }
+  finally { V.dfnLoading = false; }
+}
+function dropDeepFilterNet(overload) {
+  if (V.dfnOff) return;
+  V.dfnOff = true; V.dfnReady = false;
+  try { V.micGain?.disconnect(V.dfn); } catch {}
+  try { V.dfnDispose?.(); } catch {}
+  V.dfn = null; V.nsAn = null;
+  applyNoiseMode();
+  if (overload) toast('Seu PC está ocupado: o filtro de ruído passou para o modo leve.', '', 6000);
+}
 function applyNoiseMode() {
   if (!V.micGain) return;
-  try { V.micGain.disconnect(V.pre); } catch {}
-  try { V.micGain.disconnect(V.rn); } catch {}
+  for (const n of [V.pre, V.rn, V.dfn]) if (n) try { V.micGain.disconnect(n); } catch {}
   try { if (V.rn) V.rn.disconnect(); } catch {}
-  if (settings.aiNoise && V.rn) {
+  try { if (V.dfn) V.dfn.disconnect(V.pre); } catch {}
+  if (settings.aiNoise && V.dfnReady && V.dfn) {
+    V.micGain.connect(V.dfn); V.dfn.connect(V.pre);
+  } else if (settings.aiNoise && V.rn) {
     V.micGain.connect(V.rn); V.rn.connect(V.pre);
     V.rn.port.postMessage({ gate: true, thr: 1 - settings.vadSens / 100 * 0.9, holdMs: 350 });
   } else V.micGain.connect(V.pre);
@@ -1459,7 +1526,7 @@ async function openMic(attempt = V.voiceAttempt) {
 }
 function applyOutputDevice() {
   const id = settings.outputDevice === 'default' ? '' : settings.outputDevice;
-  for (const c of [V.ctx, sfxCtx]) if (c && c.setSinkId) c.setSinkId(id).catch(() => c.setSinkId('').catch(() => {}));
+  for (const c of [V.ctx, sfxCtx, V.outEl]) if (c && c.setSinkId) c.setSinkId(id).catch(() => c.setSinkId('').catch(() => {}));
 }
 
 async function joinVoice(channelId) {
@@ -1546,7 +1613,11 @@ setInterval(() => {
   const now = performance.now();
   const db = level(V.analyser); V.selfLevel = db;
   let open;
-  if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
+  if (settings.aiNoise && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
+    if (level(V.nsAn) > -60 + settings.vadSens * 0.25) V.dfnHold = now + 300;
+    const sp = now < (V.dfnHold || 0); if (sp !== V.vadOpen) { V.vadOpen = sp; refreshSpeaking(); }
+    open = true;
+  } else if (settings.aiNoise && V.rnReady) open = true; // RNNoise já corta quando não é voz
   else {
     let thr = settings.threshold;
     if (settings.autoSens) { noiseFloor = db < noiseFloor ? db : noiseFloor + 0.02; noiseFloor = clamp(noiseFloor, -80, -35); thr = Math.max(noiseFloor + 12, -60); V.autoThr = thr; }
@@ -1599,7 +1670,7 @@ function getPeer(uid) {
   let p = V.peers.get(uid);
   if (p) return p;
   const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && !S.isHost ? 'relay' : 'all' });
-  p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null };
+  p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null, since: Date.now(), okAt: 0 };
   V.peers.set(uid, p);
   pc.onnegotiationneeded = async () => {
     try { p.makingOffer = true; await pc.setLocalDescription(); sig(uid, { desc: pc.localDescription }); }
@@ -1631,6 +1702,27 @@ function getPeer(uid) {
   if (watching) sig(uid, watchMsg(watching));
   return p;
 }
+// 2.3.3: às vezes duas pessoas ficavam sem se ouvir até sair e entrar da call. Um caso: as duas entram juntas, a oferta
+// de uma chega enquanto a outra ainda abre o microfone e se perde, e cada uma fica esperando a resposta da outra.
+// Se a conexão não fica pronta em 15 s (ou cai e não volta), quem tem o id menor recomeça do zero, como sair e entrar.
+const PEER_STUCK_MS = 15000, PEER_RESET_GAP_MS = 20000;
+function resetPeer(uid, notify) {
+  const watching = V.watching.get(uid);
+  closePeer(uid);
+  if (watching) V.watching.set(uid, watching); // quem assistia a live dessa pessoa volta a pedir na conexão nova
+  if (notify) { sig(uid, { reset: true }); getPeer(uid).resetAt = Date.now(); }
+  renderCall();
+}
+function checkStuckPeers(now = Date.now()) {
+  if (!V.joined) return;
+  for (const [uid, p] of [...V.peers]) {
+    if (p.pc.connectionState === 'connected') { p.okAt = now; continue; }
+    const u = S.users.get(uid);
+    if (!u || u.voiceChannel !== V.channel || !(S.myId < uid)) continue;
+    if (now - Math.max(p.okAt || 0, p.since || 0) > PEER_STUCK_MS && now - (p.resetAt || 0) > PEER_RESET_GAP_MS) resetPeer(uid, true);
+  }
+}
+setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
 function closePeer(uid) {
   const p = V.peers.get(uid); if (!p) return;
   V.peers.delete(uid); V.speaking.delete(uid);
@@ -1649,6 +1741,7 @@ function onSignal(from, data) {
   if (data && data.listen) return music?.onListen(from, data.listen); // Ouvir junto (música), não é voz
   if (!V.joined) return;
   const u = S.users.get(from); if (!u || u.voiceChannel !== V.channel) return;
+  if (data && data.reset) { if (V.peers.has(from)) resetPeer(from, false); return; } // o outro lado recomeçou a conexão
   const p = getPeer(from);
   p.queue = p.queue.then(async () => {
     const pc = p.pc;
@@ -1698,7 +1791,7 @@ function attachRemoteAudio(p, stream, isScreen) {
   const gain = V.ctx.createGain();
   src.connect(gain);
   if (isScreen) {
-    if (!V.screenMaster) { V.screenMaster = V.ctx.createGain(); V.screenMaster.connect(V.ctx.destination); V.screenMaster.gain.value = V.deafened ? 0 : 1; }
+    if (!V.screenMaster) { V.screenMaster = V.ctx.createGain(); V.screenMaster.connect(V.sink || V.ctx.destination); V.screenMaster.gain.value = V.deafened ? 0 : 1; }
     gain.connect(V.screenMaster);
   } else {
     const an = V.ctx.createAnalyser(); an.fftSize = 512; src.connect(an); p.analyser = an;
@@ -1831,7 +1924,7 @@ async function toggleShare() {
     renderSrc();
   }).catch(() => { if (m.el.isConnected) $('.sources', m.el).innerHTML = '<p class="muted small">Não consegui listar as telas. Feche e tente de novo.</p>'; });
   $('#sh-log', m.el).onclick = () => native.captureDiagnostics();
-  // Compatibility mode is only switched on automatically after a capture crash; this is the way back.
+  // Compatibility mode now only comes from the emergency launcher (--compatibility); this is the way back.
   const compat = $('#sh-compat', m.el);
   if (compat) compat.onclick = async () => {
     if (await confirmModal('Reiniciar o Resenha', 'O app vai reiniciar para aplicar o modo de captura. Você precisará entrar na sala novamente.', 'Reiniciar', false)) native.setCaptureCompatibility(false);
@@ -2011,7 +2104,10 @@ function preferH264(pc, sender) {
 // live directly and becomes the relay; later 2.0.1+ viewers receive it from the relay, which re-encodes on its
 // own machine. Older viewers and the browser still get it directly.
 function canRelay() { return typeof native !== 'undefined' && !!native; }
-function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), ...extra }; }
+// relayV: versão do repasse. Quem transmite só escolhe como repasse quem tem a versão atual (2.3.3+);
+// um repasse de versão antiga deixava a live preta para quem chegava depois.
+const RELAY_VERSION = 2;
+function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, ...extra }; }
 function routeViewer(p, data) {
   const relay = V.relayId && V.relayId !== p.uid && V.screenSenders.has(V.relayId) && V.peers.get(V.relayId);
   if (relay && data.acceptsRelay && !data.noRelay) {
@@ -2020,7 +2116,7 @@ function routeViewer(p, data) {
     return;
   }
   V.relayed.delete(p.uid); addScreenTo(p);
-  if (!V.relayId && data.canRelay) V.relayId = p.uid;
+  if (!V.relayId && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
 }
 function dropRelay(keepRelay = false) { // relayed viewers ask again and get a new route
   if (!keepRelay) V.relayId = null;
@@ -2047,7 +2143,7 @@ function onRelaySignal(from, p, data) {
   if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId); else stopRelayingTo(from); return true; }
   if ('relayVia' in data) { // from the streamer: watch through this relay
     if (V.watching.get(from) !== data.streamId || !V.peers.has(data.relayVia)) return sig(from, watchMsg(data.streamId, true, { noRelay: true })), true;
-    V.relayVia.set(from, data.relayVia); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
+    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
     return true;
   }
   if ('relayLost' in data) { // from the streamer: the relay went away, ask again
@@ -2066,7 +2162,7 @@ function onRelaySignal(from, p, data) {
 // 2.1.3: a live que chega por repasse depende do upload e do PC de quem repassa. Se ela chegar ruim
 // (imagem baixa, poucos quadros ou quase sem dados) por ~8 s seguidos, pede direto para quem transmite.
 
-const relayHealth = new Map();
+const relayHealth = new Map(), RELAY_DEAD_MS = 10000;
 function goDirect(owner) {
   const via = V.relayVia.get(owner); relayHealth.delete(owner); V.directOnly.add(owner);
   if (via) sig(via, { relayWatch: false, owner });
@@ -2077,9 +2173,11 @@ function goDirect(owner) {
 async function checkRelayQuality() {
   for (const [owner, via] of [...V.relayVia]) {
     const p = V.peers.get(via), sid = V.watching.get(owner), track = sid && p?.streams?.get(sid)?.getVideoTracks()[0];
-    if (!track) { relayHealth.delete(owner); continue; }
+    // Repasse que não entrega nada (tela preta) em 10 s: pede direto para quem transmite.
+    const waited = Date.now() - (relayHealth.get(owner)?.since ?? Date.now());
+    if (!track) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     let r = null; try { (await p.pc.getStats(track)).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') r = x; }); } catch {}
-    if (!r) continue;
+    if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
     h.bytes = r.bytesReceived; h.at = now; relayHealth.set(owner, h);
@@ -2330,7 +2428,8 @@ function linkify(text, mentions) {
   const blocks = [];
   h = h.replace(/```(?:\w+\n)?([\s\S]*?)```/g, (_, c) => { blocks.push(`<pre>${c.replace(/^\n/, '')}</pre>`); return `\u0000${blocks.length - 1}\u0000`; });
   h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, '<a href="#" data-href="$1">$1</a>');
+  // O link vira bloco protegido: menção (@canal) e negrito não podem cair dentro do data-href.
+  h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, (_, u) => { blocks.push(`<a href="#" data-href="${u}">${u}</a>`); return `\u0000${blocks.length - 1}\u0000`; });
   h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
   // Menções: nomes conhecidos (podem ter espaço) e @todos
   const names = [...new Set([...(mentions || []), ...[...S.users.values()].map((u) => u.name), 'todos'])].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -2343,10 +2442,11 @@ function linkify(text, mentions) {
 }
 const fileUrl = (a, dl) => `${S.base}${a.url}?t=${S.token}${dl ? '&dl=1' : ''}`;
 function attHTML(a) {
+  if (!a || typeof a !== 'object' || !a.id || !a.url) return ''; // anexo inválido vindo da sala não pode travar o chat
   if(a.unavailable)return `<div class="att-file unavailable">${icon('file',30)}<div class="fi"><div class="fn" title="${esc(a.name)}">${esc(a.name)}</div><p class="muted small">Arquivo não disponível neste anfitrião. Peça para enviar novamente.</p></div></div>`;
   const url = fileUrl(a);
   const t = a.type || '';
-  if (t.startsWith('image/')) return `<img class="att-img" src="${url}" data-full="${url}" data-name="${esc(a.name)}" data-dl="${fileUrl(a, 1)}" loading="lazy" alt="${esc(a.name)}">`;
+  if (/^image\/(png|jpeg|gif|webp|bmp|avif|x-icon)$/i.test(t)) return `<img class="att-img" src="${url}" data-full="${url}" data-name="${esc(a.name)}" data-dl="${fileUrl(a, 1)}" loading="lazy" alt="${esc(a.name)}">`;
   if (t.startsWith('video/')) return `<video class="att-video" src="${url}" controls preload="metadata"></video>`;
   const audio = t.startsWith('audio/') ? `<audio controls preload="none" src="${url}"></audio>` : '';
   return `<div class="att-file">${icon('file', 30)}<div class="fi"><div class="fn att-dl" data-dl="${fileUrl(a, 1)}" title="${esc(a.name)} · clique para baixar">${esc(a.name)}</div><div class="fs">${fmtSize(a.size)}</div>${audio}</div><span class="icon-btn att-dl" data-dl="${fileUrl(a, 1)}" title="Baixar">${icon('download', 20)}</span></div>`;
@@ -2985,7 +3085,7 @@ registerShortcuts();
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
       if (!document.body.contains(el)) return;
-      const ai = settings.aiNoise && V.rnReady;
+      const ai = settings.aiNoise && (V.rnReady || V.dfnReady);
       const open = ai ? V.vadOpen : V.gateOpen;
       lvl.style.width = pos(V.selfLevel);
       lvl.style.background = open ? 'var(--green)' : '#4e5058';
@@ -3433,7 +3533,6 @@ overlayClient = createOverlayClient({ native, settings, saveSettings, S, V, DJ_I
 if (innerWidth >= 1280) roomUI.open('chat');
 initHome();
 overlayClient.start();
-native?.captureInfo().then((info) => { if (info.recovered) toast('A captura anterior foi interrompida. O Resenha abriu em modo de compatibilidade.', '', 10000); });
 $('#main').dataset.mobilePane = 'call';
 $$('[data-mobile-pane]', $('#web-nav')).forEach((b) => b.onclick = () => {
   $('#main').dataset.mobilePane = b.dataset.mobilePane;

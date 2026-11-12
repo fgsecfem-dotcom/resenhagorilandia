@@ -10,6 +10,9 @@ const { createServer } = require('./server');
 const { DJTools } = require('./server/dj');
 const net = require('./net-tools');
 const Turn = require('node-turn');
+// Rede de segurança: um erro solto (sala, túnel, DJ) fica no log em vez de abrir a caixa de erro do Electron e travar a sala.
+process.on('uncaughtException', (e) => console.log('[erro]', e && e.message));
+process.on('unhandledRejection', (e) => console.log('[erro]', e && e.message));
 const { Tunnel } = require('./tunnel-main');
 const updater = require('./updater');
 const {UpdateManager,busy:updateBusy}=require('./update-manager');
@@ -52,8 +55,12 @@ const captureStateFile = path.join(DATA_DIR, 'capture-state.json');
 let capturePrefs = {}, previousCapture = {};
 try { capturePrefs = JSON.parse(fs.readFileSync(capturePrefsFile, 'utf8')); } catch {}
 try { previousCapture = JSON.parse(fs.readFileSync(captureStateFile, 'utf8')); } catch {}
-const recoveredCapture = !!previousCapture.active;
-const compatibility = process.argv.includes('--compatibility') || !!capturePrefs.compatibility || recoveredCapture;
+const recoveredCapture = !!previousCapture.active; // só para o diagnóstico: não muda mais nada na abertura
+// 2.3.3: o modo compatibilidade (sem placa de vídeo) não liga mais sozinho. Ligava depois de qualquer live
+// interrompida (PC desligado, Windows reiniciando, driver de vídeo reiniciando no jogo) e deixava a live pesada,
+// codificada no processador. Também ignora a preferência salva antiga. Sobra só a saída de emergência manual
+// (abrir-compativel.cmd / --compatibility), para PC em que o driver de vídeo nem deixa o app abrir.
+const compatibility = process.argv.includes('--compatibility');
 if (compatibility) {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-accelerated-video-encode');
@@ -79,7 +86,7 @@ function setCaptureState(active, detail = {}) {
 }
 app.on('child-process-gone', (event, detail) => {
   recordCapture('child-process-gone', { type: detail.type, reason: detail.reason, exitCode: detail.exitCode });
-  if (captureActive && ['GPU', 'Utility'].includes(detail.type) && !['clean-exit', 'killed'].includes(detail.reason)) { captureFailed = true; win?.webContents.send('capture:failure', 'Um processo de captura falhou. A transmissão foi encerrada. Ative o modo de compatibilidade.'); }
+  if (captureActive && ['GPU', 'Utility'].includes(detail.type) && !['clean-exit', 'killed'].includes(detail.reason)) { captureFailed = true; win?.webContents.send('capture:failure', 'Um processo de captura falhou e a transmissão foi encerrada. Tente transmitir de novo.'); }
 });
 
 // Só uma janela do Resenha por vez (abrir de novo traz a que está na bandeja)

@@ -10,14 +10,19 @@ const same = (a, b, msg) => assert.deepEqual(JSON.parse(JSON.stringify(a)), b, m
 const pc = () => ({ senders: [], addTrack(track) { const s = { track, getParameters: () => ({ encodings: [{}] }), setParameters: async () => {} }; this.senders.push(s); return s; }, removeTrack(s) { this.senders = this.senders.filter((x) => x !== s); } });
 const peers = new Map(['relay', 'newer', 'older'].map((uid) => [uid, { uid, pc: pc(), streams: new Map() }]));
 const V = { screen, screenQ: { br: 2500000, fps: 30 }, screenSenders: new Map(), peers, relayId: null, relayed: new Set(), relayVia: new Map(), relayOut: new Map(), watching: new Map() };
-const ctx = vm.createContext({ V, native: {}, sig: (to, data) => signals.push({ to, data }), tuneSender: () => {} });
+const ctx = vm.createContext({ V, native: {}, sig: (to, data) => signals.push({ to, data }), tuneSender: () => {}, RELAY_VERSION: 2, relayHealth: new Map() });
 vm.runInContext(['preferH264', 'canRelay', 'watchMsg', 'addScreenTo', 'removeScreenFrom', 'routeViewer', 'dropRelay', 'stopRelayingTo', 'relayTo', 'onRelaySignal'].map((n) => declaration(source, n)).join('\n'), ctx);
 const watch = (uid, extra) => { const p = peers.get(uid); p.wantsScreen = true; ctx.routeViewer(p, { watch: true, streamId: 'live-1', ...extra }); };
 
-watch('relay', { acceptsRelay: true, canRelay: true });
+// 2.3.3: um viewer de versão antiga (sem relayV) não vira repasse: com ele a live ficava preta para quem chegava depois.
+const oldRelay = { uid: 'oldrelay', pc: pc(), streams: new Map(), wantsScreen: true }; peers.set('oldrelay', oldRelay);
+ctx.routeViewer(oldRelay, { watch: true, streamId: 'live-1', acceptsRelay: true, canRelay: true });
+assert.equal(V.relayId, null, 'a viewer on an old relay version is never chosen as the relay');
+ctx.removeScreenFrom(oldRelay); peers.delete('oldrelay');
+watch('relay', { acceptsRelay: true, canRelay: true, relayV: 2 });
 assert.equal(V.relayId, 'relay', 'first desktop viewer becomes the relay');
 assert.equal(peers.get('relay').pc.senders.length, 2, 'relay receives video and sound directly');
-watch('newer', { acceptsRelay: true, canRelay: true });
+watch('newer', { acceptsRelay: true, canRelay: true, relayV: 2 });
 assert.equal(peers.get('newer').pc.senders.length, 0, 'the streamer does not encode again for a 2.0.1 viewer');
 same(signals.pop(), { to: 'newer', data: { relayVia: 'relay', streamId: 'live-1' } });
 watch('older', {});

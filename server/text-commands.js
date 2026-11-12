@@ -1,6 +1,6 @@
 const { applyProfileExtras } = require('./profile-extras');
 
-function createTextCommands({ clients, send, broadcast, cleanText, clean, validAvatar, rid, textIds, files, history, findMsg, saveSoon }) {
+function createTextCommands({ clients, send, broadcast, cleanText, clean, validAvatar, rid, textIds, ownFile, history, findMsg, saveSoon }) {
   return function handleTextCommand({ id, u, m, ws }) {
       switch (m.t) {
         case 'dm': {
@@ -22,7 +22,8 @@ function createTextCommands({ clients, send, broadcast, cleanText, clean, validA
         case 'chat': {
           const cid = textIds().includes(m.channelId) ? m.channelId : textIds()[0];
           const text = cleanText(m.text, 4000);
-          const atts = (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 10).map((a) => files[a && a.id]).filter(Boolean);
+          const atts = (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 10).map((a) => ownFile(a && a.id)).filter(Boolean);
+          for (const a of atts) delete a.pendingSince; // usado numa mensagem: não é mais envio solto
           if (!text && !atts.length) { if(m.requestId) send(ws,{t:'command-result',requestId:m.requestId,ok:false,error:'Mensagem vazia.'}); return; }
           let replyTo = null;
           if (m.replyTo) { const f = findMsg(String(m.replyTo)); if (f) replyTo = { id: f.msg.id, name: f.msg.name, color: f.msg.color, text: (f.msg.text || (f.msg.attachments.length ? '📎 Anexo' : '')).slice(0, 140) }; }
