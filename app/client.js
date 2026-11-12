@@ -612,9 +612,11 @@ function connect(addr, password, first) {
     if (!S.myId && first && ev.code !== 4004) { leaveRoom(); $('#home-error').textContent = 'A conexão caiu antes de entrar.'; return; }
     // Sala com código: se o anfitrião cair, outro amigo assume e todo mundo reconecta sozinho
     if (S.code && window.Tun && native) { failover(ev.code); return; }
-    if (S.code && addr === PWA_ADDR && globalThis.RESENHA_PWA) { const wasIn = V.joined ? V.channel : null; teardownVoice(); S.myId = null; setConnStatus('bad', 'Reconectando...'); pwaReconnect(S.code, password, ev.code, wasIn); return; }
-    const wasIn = V.joined ? V.channel : null;
-    teardownVoice();
+    // 2.3.3: a conexão com a sala piscou (celular em segundo plano, Wi-Fi). A voz e a live são diretas entre vocês e
+    // continuam; só a conexão com a sala reconecta. Antes, aqui a call caía inteira (e o Picture in Picture junto).
+    S.softResume = V.joined;
+    if (S.code && addr === PWA_ADDR && globalThis.RESENHA_PWA) { S.myId = null; setConnStatus('bad', 'Reconectando...'); pwaReconnect(S.code, password, ev.code, null); return; }
+    const wasIn = null;
     S.myId = null;
     setConnStatus('bad', 'Reconectando...');
     if (S.reconnectTries++ > 30) { leaveRoom(); $('#home-error').textContent = 'Perdi a conexão com a sala.'; return; }
@@ -853,7 +855,13 @@ function handle(m) {
       syncDJ();
       if (V.joined) { // reconectou (troca de anfitrião): a voz continuou, só avisa o novo servidor
         if (!chanById(V.channel)) V.channel = voiceChannels()[0]?.id;
+        const kept = S.users.get(S.myId)?.voiceChannel === V.channel; // o servidor segurou meu lugar na call?
         wsSend({ t: 'state', voiceChannel: V.channel, muted: V.muted, deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
+        if (S.softResume && !kept) { // demorou demais (ou anfitrião antigo): os outros fecharam a voz comigo, então refaço
+          for (const uid of [...V.peers.keys()]) resetPeer(uid, false);
+          for (const u of usersIn(V.channel)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
+        }
+        S.softResume = false;
         setConnStatus('good', 'Voz conectada');
       } else if (S.rejoinVoice) { const c = S.rejoinVoice; S.rejoinVoice = null; joinVoice(chanById(c) ? c : voiceChannels()[0]?.id); }
       else if (S.isHost && !S.invitedOnce) { S.invitedOnce = true; const seen = new Set(LS.get('invitedRooms', [])), c = normCode(S.code); if (c && !seen.has(c)) { seen.add(c); LS.set('invitedRooms', [...seen]); openInvite(); } }
@@ -1391,6 +1399,10 @@ async function ensureAudio() {
       V.micGain = V.ctx.createGain(); V.analyser = V.ctx.createAnalyser(); V.analyser.fftSize=512;
       V.gate = V.ctx.createGain(); V.gate.gain.value=0;
       V.micGain.connect(V.analyser); V.micGain.connect(V.gate); V.gate.connect(V.dest);
+      // No navegador a call toca por um <audio> de verdade: assim o celular entende que há mídia tocando e não
+      // congela a página ao minimizar (som saindo só pelo WebAudio não conta como mídia para o sistema).
+      V.master.disconnect(); V.sink = V.ctx.createMediaStreamDestination(); V.master.connect(V.sink);
+      V.outEl = new Audio(); V.outEl.srcObject = V.sink.stream; V.outEl.play().catch(() => {});
       V.master.gain.value=V.deafened?0:1; await V.ctx.resume(); applyOutputDevice(); return;
     }
     V.micGain = V.ctx.createGain();
@@ -1470,7 +1482,7 @@ async function openMic(attempt = V.voiceAttempt) {
 }
 function applyOutputDevice() {
   const id = settings.outputDevice === 'default' ? '' : settings.outputDevice;
-  for (const c of [V.ctx, sfxCtx]) if (c && c.setSinkId) c.setSinkId(id).catch(() => c.setSinkId('').catch(() => {}));
+  for (const c of [V.ctx, sfxCtx, V.outEl]) if (c && c.setSinkId) c.setSinkId(id).catch(() => c.setSinkId('').catch(() => {}));
 }
 
 async function joinVoice(channelId) {
@@ -1731,7 +1743,7 @@ function attachRemoteAudio(p, stream, isScreen) {
   const gain = V.ctx.createGain();
   src.connect(gain);
   if (isScreen) {
-    if (!V.screenMaster) { V.screenMaster = V.ctx.createGain(); V.screenMaster.connect(V.ctx.destination); V.screenMaster.gain.value = V.deafened ? 0 : 1; }
+    if (!V.screenMaster) { V.screenMaster = V.ctx.createGain(); V.screenMaster.connect(V.sink || V.ctx.destination); V.screenMaster.gain.value = V.deafened ? 0 : 1; }
     gain.connect(V.screenMaster);
   } else {
     const an = V.ctx.createAnalyser(); an.fftSize = 512; src.connect(an); p.analyser = an;

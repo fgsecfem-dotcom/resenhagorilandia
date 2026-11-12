@@ -37,6 +37,9 @@ const chanName = (s, type) => {
 const INLINE_TYPE = /^(image\/(png|jpeg|gif|webp|bmp|avif|x-icon)|video\/[a-z0-9.+-]+|audio\/[a-z0-9.+-]+)$/i;
 const inlineType = (t) => { const base = String(t || '').split(';')[0].trim().toLowerCase(); return INLINE_TYPE.test(base) ? base : null; };
 const ATTACHMENT_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; media-src 'self'" };
+// Conexão que cai sem aviso (celular em segundo plano, Wi-Fi piscando): a pessoa continua na call por 20 s.
+// Se voltar nesse tempo, ninguém fecha a voz nem a live com ela.
+const RESUME_GRACE_MS = 20000;
 const PASSWORD_FAILS = 20, PASSWORD_WINDOW = 10 * 60000, PASSWORD_LOCK = 60000;
 const DJ_ID = 'dj-resenha';
 const SERVER_VERSION = require('../package.json').version;
@@ -119,6 +122,7 @@ function createServer(opts = {}) {
 
   const clients = new Map(); // id -> { ws, user }
   const passwordFails = new Map(); // endereço -> { since, count, lockedUntil }
+  let closing = false;
   const send = (ws, obj) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
   const broadcast = (obj, exceptId) => {
     const data = JSON.stringify(obj);
@@ -429,7 +433,10 @@ function createServer(opts = {}) {
           if (typeof m.resume === 'string') old = [...clients.values()].find(c => c.resume === m.resume);
           id = old ? old.user.id : rid(6);
         }
-        if (old) { clients.delete(id); try { old.ws.terminate(); } catch {} }
+        // Voltou dentro do prazo: mantém o canal de voz e a live de antes (só se a conexão velha já tinha caído;
+        // uma segunda aba aberta não herda a call da primeira).
+        const resumed = old && old.ws.readyState !== 1 ? old.user : null;
+        if (old) { clearTimeout(old.leaveTimer); clients.delete(id); try { old.ws.terminate(); } catch {} }
         const user = {
           id, name: clean(m.name, 32) || 'Anônimo', color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : '#5865f2',
           avatar: validAvatar(m.avatar), voiceChannel: null, muted: false, deafened: false, sharing: false, screenStreamId: null, voiceSince: null,
@@ -437,6 +444,9 @@ function createServer(opts = {}) {
           ...(m.canHost === true ? { canHost: true } : {}), // app de PC (o navegador do celular não hospeda); ausente nos clientes antigos
           joinedAt: Number(m.joinedAt) > 0 ? Number(m.joinedAt) : Date.now(),
         };
+        if (resumed && resumed.voiceChannel && channels.some((x) => x.id === resumed.voiceChannel && x.type === 'voice')) {
+          for (const k of ['voiceChannel', 'muted', 'deafened', 'sharing', 'screenStreamId', 'voiceSince']) user[k] = resumed[k];
+        }
         applyProfileExtras(user, m);
         const resume = rid(16); // private to this connection; never broadcast
         clients.set(id, { ws, user, resume });
@@ -538,15 +548,21 @@ function createServer(opts = {}) {
       }
     });
 
-    ws.on('close', () => {
+    const leave = () => {
+      if (!id || !clients.has(id) || clients.get(id).ws !== ws) return;
+      const name = clients.get(id).user.name;
+      clients.delete(id);
+      broadcast({ t: 'user-leave', id });
+      log(`${name} saiu (${clients.size} na sala)`);
+      djCheckIdle(); if (dj.active) djVoteCheck();
+    };
+    ws.on('close', (code) => {
       clearTimeout(helloTimer);
-      if (id && clients.has(id) && clients.get(id).ws === ws) {
-        const name = clients.get(id).user.name;
-        clients.delete(id);
-        broadcast({ t: 'user-leave', id });
-        log(`${name} saiu (${clients.size} na sala)`);
-        djCheckIdle(); if (dj.active) djVoteCheck();
-      }
+      const c = id && clients.get(id);
+      if (!c || c.ws !== ws) return;
+      // 1006 = caiu sem aviso. Saída de verdade (fechar a aba, sair da sala) manda aviso e sai na hora.
+      if (code === 1006 && !closing) { c.leaveTimer = setTimeout(leave, Number(opts.resumeGraceMs) || RESUME_GRACE_MS); return; }
+      leave();
     });
     ws.on('error', () => {});
   });
@@ -596,6 +612,8 @@ function createServer(opts = {}) {
     },
     // code: 4002 = sala encerrada pra todos; 4003 = anfitrião saiu, outro assume; 4004 = já existe outro anfitrião
     close(code = 4002) {
+      closing = true;
+      for (const c of clients.values()) clearTimeout(c.leaveTimer);
       if(secureServer) { secureServer.close(); secureServer.closeAllConnections(); }
       clearInterval(heartbeat); clearInterval(uploadSweep);
       clearTimeout(saveTimer);

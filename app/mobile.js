@@ -27,6 +27,7 @@ export function initMobile(R) {
   try {
    await R.ensureAudio();
    if(V.ctx?.state!=='running') await V.ctx.resume();
+   if(V.outEl?.paused) await V.outEl.play().catch(()=>{});
    if(V.joined&&R.WEB_VOICE&&(!V.raw||V.raw.getAudioTracks().some(t=>t.readyState==='ended'))){await R.openMic();R.setMuted(V.muted,true);}
    for(const p of V.peers.values())if(['failed','disconnected'].includes(p.pc.iceConnectionState))p.pc.restartIce();
    interrupted=V.ctx?.state!=='running'||V.raw?.getAudioTracks().some(t=>t.muted||t.readyState==='ended');
@@ -112,6 +113,26 @@ export function initMobile(R) {
   $('#web-unlock').textContent=stopped?'Áudio interrompido · toque para retomar':'Retomar áudio';
  },1000);
  setInterval(sample,3000);
+
+ // ---------- Segundo plano: controle de mídia e Picture in Picture ----------
+ // Com a call tocando como mídia, o celular mostra o controle na notificação e não congela a página.
+ // Onde o navegador permite, a live que você assiste vira Picture in Picture sozinha ao minimizar.
+ const ms=navigator.mediaSession;let msKey='';
+ const liveVideo=()=>[...document.querySelectorAll('#call-stage .tile.is-screen video')].find(v=>v.srcObject&&v.readyState>=2);
+ function syncMediaSession(){
+  if(!ms)return;
+  const key=V.joined?V.channel+'|'+(S.roomName||''):'';if(key===msKey)return;msKey=key;
+  try{
+   if(!V.joined){ms.metadata=null;ms.playbackState='none';return;}
+   const ch=S.channels.find(c=>c.id===V.channel)?.name||'Call';
+   ms.metadata=new MediaMetadata({title:ch,artist:S.roomName||'Resenha',album:'Resenha',artwork:[{src:'icon.png',sizes:'256x256',type:'image/png'}]});
+   ms.playbackState='playing';
+   ms.setActionHandler('hangup',()=>R.leaveVoice());
+  }catch{}
+ }
+ try{ms?.setActionHandler('enterpictureinpicture',async()=>{const v=liveVideo();if(v&&!document.pictureInPictureElement)await v.requestPictureInPicture().catch(()=>{});});}catch{}
+ // Safari (iPhone): a live marcada com autoPictureInPicture vira PiP sozinha ao ir para a tela inicial.
+ setInterval(()=>{syncMediaSession();for(const v of document.querySelectorAll('#call-stage .tile.is-screen video'))if('autoPictureInPicture' in v&&!v.autoPictureInPicture)v.autoPictureInPicture=true;},1000);
 
  // ---------- Pessoa na call: tocar abre uma folha com volume, live e mensagem ----------
  let sheet=null;
