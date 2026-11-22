@@ -9,3 +9,11 @@ class_name = "Hub"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Hub"]
+
+# Desempenho anônimo (rota /perf). Antes do deploy: `npx wrangler d1 create resenha-perf`,
+# copie o database_id aqui e rode `npx wrangler d1 migrations apply resenha-perf --remote`.
+[[d1_databases]]
+binding = "PERF"
+database_name = "resenha-perf"
+database_id = "e5947d62-5e50-48e7-ace2-50ae682721ed"
+migrations_dir = "migrations"

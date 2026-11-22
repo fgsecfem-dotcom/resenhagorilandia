@@ -4,7 +4,7 @@ const part=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
 (async()=>{
  for(const web of [false,true]){
   let mic=0,peer=0;const track={enabled:true},V={joined:false,muted:false,deafened:false,raw:{getAudioTracks:()=>[track]},gate:{gain:{value:0}},peers:new Map()};
-  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},closePeer:()=>{}});
+  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},closePeer:()=>{},perfStart:()=>{},perfStop:()=>{},perf:{timer:null}});
   vm.runInContext(part('async function joinVoice(','// Laço: portão'),ctx);
   await ctx.joinVoice('lobby');assert.equal(mic,1);assert.equal(peer,1);assert(V.joined);
   ctx.setMuted(true);assert(V.muted);if(web)assert.equal(track.enabled,false);
