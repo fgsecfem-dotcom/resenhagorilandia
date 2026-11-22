@@ -15,5 +15,5 @@ new_sqlite_classes = ["Hub"]
 [[d1_databases]]
 binding = "PERF"
 database_name = "resenha-perf"
-database_id = "COLE-AQUI-O-ID-DO-D1"
+database_id = "e5947d62-5e50-48e7-ace2-50ae682721ed"
 migrations_dir = "migrations"
