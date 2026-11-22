@@ -36,7 +36,7 @@ const settings = Object.assign({
   voiceFx: 'normal', pitchSemis: 0, theme: 'system', themeColor: 'lavanda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
-  userVolumes: {}, userMuted: {}, streamVolumes: {},
+  userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
 document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
@@ -1553,6 +1553,7 @@ async function joinVoice(channelId) {
   setConnStatus('good', 'Voz conectada');
   syncDJ();
   renderAll();
+  perfStart();
 }
 function leaveVoice(silentSwitch) {
   if (!V.joined) return;
@@ -1563,6 +1564,7 @@ function leaveVoice(silentSwitch) {
   renderAll();
 }
 function teardownVoice() {
+  if (perf.timer) perfStop();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -2829,6 +2831,46 @@ function updateDJProgress() {
   if (tm) tm.textContent = el < 0 ? 'começando...' : fmtDur(t * 1000) + (c.duration ? ' / ' + fmtDur(c.duration * 1000) : '');
 }
 
+// ---------------- Desempenho anônimo (ligado por padrão; Configurações > Voz) ----------------
+// Uma leitura a cada 30 s durante a call e um resumo de ~2 KB no fim, em segundo plano. Se falhar, descarta.
+const PERF_URL = 'https://resenha-signal.resenha-signal.workers.dev/perf';
+const perf = { timer: null, samples: [], startedAt: 0, sys: null };
+const perfOn = () => !WEB_VIEWER && !!native?.performanceSample && settings.perfTelemetry !== false;
+function perfInstall() {
+  let id = LS.get('perfId', '');
+  if (!/^[0-9a-f]{32}$/.test(id)) { id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join(''); LS.set('perfId', id); }
+  return id;
+}
+async function perfTick() {
+  if (!V.joined) return;
+  try {
+    const n = await native.performanceSample(); perf.sys = n.system;
+    const media = await window.readMediaStats(V.peers);
+    if (!perf.timer) return;
+    perf.samples.push(window.ResenhaPerf.sample(n, media, { peers: V.peers.size, sharing: !!V.screen, quality: V.screen ? V.screenQ || null : null, viewers: V.screenSenders.size, watching: V.watching.size }));
+    if (perf.samples.length > 240) perf.samples.splice(1, 1); // call de mais de 2 h: fica com as leituras mais recentes
+  } catch {}
+}
+function perfStart() {
+  perfStop(false);
+  if (!perfOn()) return;
+  if (!LS.get('perfNotice', false)) { LS.set('perfNotice', true); toast('O Resenha envia dados anônimos de desempenho (CPU, memória e qualidade da call) para ficar mais leve. Dá para desligar em Configurações > Voz.', '', 10000); }
+  perf.startedAt = Date.now(); perf.timer = setInterval(perfTick, 30000); perfTick();
+}
+function perfStop(send = true) {
+  clearInterval(perf.timer); perf.timer = null;
+  const samples = perf.samples; perf.samples = [];
+  if (!send || !perfOn() || samples.length < 3) return;
+  const meta = {
+    install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
+    noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
+    theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
+    reduceMotion: !!settings.reduceMotion, overlay: !!overlayClient?.cfg?.enabled, ...window.ResenhaPerf.system(perf.sys),
+  };
+  const report = window.ResenhaPerf.summarize(samples, meta);
+  if (report) try { navigator.sendBeacon(PERF_URL, new Blob([JSON.stringify(report)], { type: 'text/plain' })); } catch {}
+}
+
 // ---------------- Diagnóstico local de desempenho ----------------
 function openPerformance() {
   let timer=null,busy=false,generation=0;
@@ -2976,6 +3018,7 @@ async function openSettings(tab = 'voz') {
           <label class="check"><input type="checkbox" id="st-ec" ${settings.echoCancellation ? 'checked' : ''}> Cancelamento de eco</label>
           <label class="check"><input type="checkbox" id="st-ag" ${settings.autoGain ? 'checked' : ''}> Ganho automático</label>
           <label class="check"><input type="checkbox" id="st-snd" ${settings.sounds ? 'checked' : ''}> Sons de entrar/sair</label>
+          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small" style="margin:2px 0 0 26px">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
         </div>
       </div>
       <div class="tp" data-p="filtros">
@@ -3042,6 +3085,7 @@ async function openSettings(tab = 'voz') {
   });
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
+  if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
   $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
   // Aparência
   bindPaletteCards(el);
@@ -3563,7 +3607,7 @@ registerShortcuts();
 document.addEventListener('fullscreenchange', () => { renderCall(); document.fullscreenElement?.revealControls?.(); });
 setTimeout(checkUpdates, 2500);
 setInterval(checkUpdates, 30 * 60 * 1000);
-window.addEventListener('beforeunload', () => { try { if (S.ws) S.ws.close(); } catch {} });
+window.addEventListener('beforeunload', () => { try { if (perf.timer) perfStop(); } catch {} try { if (S.ws) S.ws.close(); } catch {} });
 
 // Acknowledge only after the client has initialized and remained alive for five seconds.
 if(native?.updateReady)setTimeout(()=>native.updateReady(),5000);

@@ -33,9 +33,23 @@ export class Hub {
   webSocketClose(ws) { try { ws.close(); } catch {} }
   webSocketError(ws) { try { ws.close(); } catch {} }
 }
+// Desempenho anônimo (POST /perf): o app manda um resumo de números no fim da call. Só grava o resumo e a hora;
+// nunca lê nem guarda o IP. Sem o banco PERF configurado, só responde e descarta.
+export async function savePerf(req, env, now = Date.now()) {
+  if (req.method !== 'POST') return new Response(null, { status: 405 });
+  if (!env.PERF) return new Response(null, { status: 204 });
+  const text = await req.text();
+  if (text.length > 8192) return new Response(null, { status: 413 });
+  let r; try { r = JSON.parse(text); } catch { return new Response(null, { status: 400 }); }
+  if (!r || r.schema !== 1 || !/^[0-9a-f]{32}$/.test(r.install) || !/^\d+\.\d+\.\d+/.test(String(r.version || ''))) return new Response(null, { status: 400 });
+  await env.PERF.prepare('INSERT INTO perf (at, install, version, platform, data) VALUES (?, ?, ?, ?, ?)')
+    .bind(now, r.install, String(r.version).slice(0, 20), String(r.platform || '').slice(0, 10), text).run();
+  return new Response(null, { status: 204 });
+}
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname === '/perf') return savePerf(req, env).catch(() => new Response(null, { status: 500 }));
     if (url.pathname !== '/ws') return new Response('Resenha signal', { status: 200 });
     return env.HUB.get(env.HUB.idFromName('hub')).fetch(req);
   },
