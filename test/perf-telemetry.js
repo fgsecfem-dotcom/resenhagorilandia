@@ -11,8 +11,9 @@ const media = [
   { peer: 0, type: 'outbound-rtp', codec: 'video/H264', framesPerSecond: 30, frameHeight: 720, encoderImplementation: 'NVIDIA', qualityLimitationReason: 'bandwidth' },
   { peer: 0, type: 'inbound-rtp', framesPerSecond: 24, frameHeight: 540, framesDecoded: 90, framesDropped: 10, decoderImplementation: 'D3D11' },
   { peer: 0, type: 'connection', rtt: 0.04 },
+  { peer: 0, type: 'source', framesPerSecond: 12 },
 ];
-const call = { peers: 2, sharing: true, quality: '720p30', viewers: 1, watching: 0 };
+const call = { peers: 2, sharing: true, quality: '720p30', viewers: 1, watching: 0, host: true, viaRelay: 1, directOnly: 0, relaying: 2 };
 
 (() => {
   assert.equal(P.summarize([], {}), null);
@@ -29,6 +30,10 @@ const call = { peers: 2, sharing: true, quality: '720p30', viewers: 1, watching:
   assert.deepEqual({ ...r.sent.limited }, { bandwidth: 2 });
   assert.equal(r.received.droppedPct, 10);
   assert.equal(r.rttMs.avg, 40);
+  assert.deepEqual({ ...r.ramMB.by }, { Browser: 100, Tab: 200 }, 'memória por processo');
+  assert.equal(r.sent.sourceFps, 12, 'FPS da captura separa tela parada de falta de banda');
+  assert.equal(r.hostPct, 100);
+  assert.deepEqual({ ...r.relay }, { viaRelayMax: 1, directOnlyMax: 0, relayingMax: 2 });
   assert.ok(JSON.stringify(r).length < 2048, 'resumo pequeno');
   console.log('PASS: resumo de desempenho descarta a 1ª leitura e fica pequeno');
 })();
@@ -52,6 +57,8 @@ const call = { peers: 2, sharing: true, quality: '720p30', viewers: 1, watching:
   assert.match(src, /id="st-perf"/, 'opção para desligar');
   assert.match(src, /LS\.get\('perfNotice', false\)/, 'aviso uma vez só');
   assert.match(src, /quality: V\.screen \? V\.screenQName \|\| null/, 'qualidade vai como nome (ex.: 720p30), não como objeto');
+  assert.match(src, /observe\(\{ type: 'longtask' \}\)/, 'conta as travadinhas da call');
+  assert.match(src, /longTasks: jank/, 'manda as travadinhas no resumo');
   console.log('PASS: app coleta na call, avisa uma vez e deixa desligar');
 })();
 
