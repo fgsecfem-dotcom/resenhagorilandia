@@ -1569,7 +1569,7 @@ async function joinVoice(channelId) {
   }
   // The person left the room or picked another channel while the microphone was starting.
   if (attempt !== V.voiceAttempt || S.closing) return;
-  V.joined = true; V.channel = channelId;
+  V.joined = true; V.channel = channelId; watchDevices();
   if (V.deafened) V.muted = true;
   wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
   sfx('join');
@@ -3496,6 +3496,13 @@ function bind() {
   $('#online-users').oncontextmenu = (e) => { const el = e.target.closest('[data-uid]'); if (el) userMenu(e, el.dataset.uid); };
   $('#online-users').onclick = (e) => { const el = e.target.closest('[data-uid]'); if (el) userMenu(e, el.dataset.uid); };
   initLayout();
+}
+// 2.5: vigiar troca de microfone só a partir da 1ª entrada na voz. Registrado na abertura, o Chromium deixava
+// o serviço de captura de vídeo (~84 MB) aberto o tempo todo, mesmo sem call.
+let watchingDevices = false;
+function watchDevices() {
+  if (watchingDevices) return;
+  watchingDevices = true;
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 

@@ -43,5 +43,9 @@ function setup() {
   assert.equal(c.V.ctx.state, 'running', 'quem entrou na voz no meio continua com áudio');
 
   assert.match(source, /syncDJ\(\);\r?\n      prewarmVoice\(\);/, 'pré-carrega ao entrar na sala');
-  console.log('PASS: filtro pré-carrega na sala, pausado; entrar na voz no meio não deixa o áudio pela metade nem mudo');
+  // Vigiar troca de dispositivo na abertura deixava os serviços de captura de vídeo e de áudio abertos (~157 MB).
+  assert.equal((source.match(/addEventListener\?\.\('devicechange'/g) || []).length, 1, 'um registro só');
+  assert.match(declaration(source, 'watchDevices'), /devicechange/, 'registrado dentro de watchDevices');
+  assert.match(declaration(source, 'joinVoice'), /watchDevices\(\)/, 'só ao entrar na voz');
+  console.log('PASS: filtro pré-carrega na sala, pausado; entrar na voz no meio não deixa o áudio pela metade nem mudo; troca de dispositivo só é vigiada na voz');
 })().catch((e) => { console.error(e); process.exitCode = 1; });
