@@ -47,10 +47,11 @@ const call = { peers: 2, sharing: true, quality: '720p30', viewers: 1, watching:
 (() => {
   const src = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
   assert.match(src, /perfTelemetry: true/, 'ligado por padrão');
-  assert.match(src, /renderAll\(\);\n  perfStart\(\);\n\}\nfunction leaveVoice/, 'começa ao entrar na voz');
-  assert.match(src, /function teardownVoice\(\) \{\n  if \(perf\.timer\) perfStop\(\);/, 'envia ao sair da voz');
+  assert.match(src, /renderAll\(\);\r?\n  perfStart\(\);\r?\n\}\r?\nfunction leaveVoice/, 'começa ao entrar na voz');
+  assert.match(src, /function teardownVoice\(\) \{\r?\n  if \(perf\.timer\) perfStop\(\);/, 'envia ao sair da voz');
   assert.match(src, /id="st-perf"/, 'opção para desligar');
   assert.match(src, /LS\.get\('perfNotice', false\)/, 'aviso uma vez só');
+  assert.match(src, /quality: V\.screen \? V\.screenQName \|\| null/, 'qualidade vai como nome (ex.: 720p30), não como objeto');
   console.log('PASS: app coleta na call, avisa uma vez e deixa desligar');
 })();
 

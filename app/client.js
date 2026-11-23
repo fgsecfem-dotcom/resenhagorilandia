@@ -2162,7 +2162,10 @@ function onRelaySignal(from, p, data) {
   return false;
 }
 // 2.1.3: a live que chega por repasse depende do upload e do PC de quem repassa. Se ela chegar ruim
-// (imagem baixa, poucos quadros ou quase sem dados) por ~8 s seguidos, pede direto para quem transmite.
+// por ~8 s seguidos, pede direto para quem transmite.
+// 2.4.2: tela parada (navegador, slides) manda poucos quadros e pouca taxa de propósito, e isso não é repasse
+// ruim. Antes contava, todo mundo saía do repasse e quem transmitia ficava com uma cópia por espectador.
+// Agora ruim é imagem rebaixada (o repasse baixa a resolução quando falta banda ou CPU) ou quadros parados.
 
 const relayHealth = new Map(), RELAY_DEAD_MS = 10000;
 function goDirect(owner) {
@@ -2182,9 +2185,10 @@ async function checkRelayQuality() {
     if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
-    h.bytes = r.bytesReceived; h.at = now; relayHealth.set(owner, h);
+    const frames = Number(r.framesDecoded), stalled = Number.isFinite(frames) && Number.isFinite(h.frames) ? frames <= h.frames : !r.framesPerSecond;
+    h.bytes = r.bytesReceived; h.frames = frames; h.at = now; relayHealth.set(owner, h);
     if (kbps === null || now - h.since < 8000) continue; // deixa a conexão estabilizar
-    const low = (r.frameHeight > 0 && r.frameHeight < 600) || (r.framesPerSecond != null && r.framesPerSecond < 15) || kbps < 800;
+    const low = (r.frameHeight > 0 && r.frameHeight < 600) || (stalled && kbps < 50);
     h.bad = low ? h.bad + 1 : 0;
     if (h.bad >= 4) goDirect(owner);
   }
@@ -2847,7 +2851,7 @@ async function perfTick() {
     const n = await native.performanceSample(); perf.sys = n.system;
     const media = await window.readMediaStats(V.peers);
     if (!perf.timer) return;
-    perf.samples.push(window.ResenhaPerf.sample(n, media, { peers: V.peers.size, sharing: !!V.screen, quality: V.screen ? V.screenQ || null : null, viewers: V.screenSenders.size, watching: V.watching.size }));
+    perf.samples.push(window.ResenhaPerf.sample(n, media, { peers: V.peers.size, sharing: !!V.screen, quality: V.screen ? V.screenQName || null : null, viewers: V.screenSenders.size, watching: V.watching.size }));
     if (perf.samples.length > 240) perf.samples.splice(1, 1); // call de mais de 2 h: fica com as leituras mais recentes
   } catch {}
 }
