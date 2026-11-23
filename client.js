@@ -36,7 +36,7 @@ const settings = Object.assign({
   voiceFx: 'normal', pitchSemis: 0, theme: 'system', themeColor: 'lavanda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
-  userVolumes: {}, userMuted: {}, streamVolumes: {},
+  userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
 document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
@@ -854,6 +854,7 @@ function handle(m) {
       rememberRoom();
       uploadBanner();
       syncDJ();
+      prewarmVoice();
       if (V.joined) { // reconectou (troca de anfitrião): a voz continuou, só avisa o novo servidor
         if (!chanById(V.channel)) V.channel = voiceChannels()[0]?.id;
         const kept = S.users.get(S.myId)?.voiceChannel === V.channel; // o servidor segurou meu lugar na call?
@@ -1391,8 +1392,34 @@ function iceServers() {
 }
 
 let rnBinary = null;
+// Uma preparação só: entrar na voz enquanto o pré-carregamento ainda monta o áudio espera a mesma promessa.
 async function ensureAudio() {
-  if (!V.ctx) {
+  if (!V.ctx) V.audioInit = initAudioGraph();
+  if (await V.audioInit === 'web') return;
+  if (V.ctx.state === 'suspended') await V.ctx.resume();
+  V.master.gain.value = V.deafened ? 0 : 1;
+  if (V.micGain) V.micGain.gain.value = settings.micGain / 100;
+}
+// 2.5: o DeepFilterNet3 (WASM de 14,6 MB e modelo de 8 MB) carregava na hora de entrar na voz e travava a tela
+// por ~0,5 s em metade das vezes (medido num Ryzen 5 1600). Agora carrega uns segundos depois de entrar na sala,
+// com o app parado, e o áudio fica pausado até a pessoa entrar na voz.
+let voiceWarm = false;
+function prewarmVoice() {
+  if (voiceWarm || WEB_VIEWER || V.ctx) return;
+  voiceWarm = true;
+  setTimeout(() => (window.requestIdleCallback || setTimeout)(async () => {
+    if (V.ctx || V.joined) return;
+    const attempt = V.voiceAttempt, busy = () => V.joined || V.testing || V.voiceAttempt !== attempt;
+    try {
+      await ensureAudio();
+      if (busy()) return;
+      await V.ctx.suspend();
+      if (busy()) await V.ctx.resume(); // entrou na voz (ou no teste de microfone) no meio da pausa
+    } catch (e) { console.warn('pré-carregar voz', e); }
+  }), 3000);
+}
+async function initAudioGraph() {
+  {
     V.ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
     V.master = V.ctx.createGain(); V.master.connect(V.ctx.destination);
     V.dest = V.ctx.createMediaStreamDestination();
@@ -1418,7 +1445,7 @@ async function ensureAudio() {
         } catch (e) { console.warn('rnnoise', e); V.rn = null; V.rnReady = false; }
       }
       applyNoiseMode();
-      V.master.gain.value=V.deafened?0:1; await resuming; applyOutputDevice(); return;
+      V.master.gain.value=V.deafened?0:1; await resuming; applyOutputDevice(); return 'web';
     }
     V.micGain = V.ctx.createGain();
     V.pre = V.ctx.createGain(); // entrada do filtro de voz
@@ -1448,9 +1475,6 @@ async function ensureAudio() {
     applyVoiceFx();
     applyOutputDevice();
   }
-  if (V.ctx.state === 'suspended') await V.ctx.resume();
-  V.master.gain.value = V.deafened ? 0 : 1;
-  if (V.micGain) V.micGain.gain.value = settings.micGain / 100;
 }
 // 2.4: no PC, o DeepFilterNet3 (melhor em louça, TV, ventilador e conversa ao fundo no teste comparativo).
 // O RNNoise fica de reserva: entra se o DeepFilterNet3 não carregar ou se o PC não der conta.
@@ -1545,7 +1569,7 @@ async function joinVoice(channelId) {
   }
   // The person left the room or picked another channel while the microphone was starting.
   if (attempt !== V.voiceAttempt || S.closing) return;
-  V.joined = true; V.channel = channelId;
+  V.joined = true; V.channel = channelId; watchDevices();
   if (V.deafened) V.muted = true;
   wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
   sfx('join');
@@ -1553,6 +1577,7 @@ async function joinVoice(channelId) {
   setConnStatus('good', 'Voz conectada');
   syncDJ();
   renderAll();
+  perfStart();
 }
 function leaveVoice(silentSwitch) {
   if (!V.joined) return;
@@ -1563,6 +1588,7 @@ function leaveVoice(silentSwitch) {
   renderAll();
 }
 function teardownVoice() {
+  if (perf.timer) perfStop();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -2160,7 +2186,10 @@ function onRelaySignal(from, p, data) {
   return false;
 }
 // 2.1.3: a live que chega por repasse depende do upload e do PC de quem repassa. Se ela chegar ruim
-// (imagem baixa, poucos quadros ou quase sem dados) por ~8 s seguidos, pede direto para quem transmite.
+// por ~8 s seguidos, pede direto para quem transmite.
+// 2.4.2: tela parada (navegador, slides) manda poucos quadros e pouca taxa de propósito, e isso não é repasse
+// ruim. Antes contava, todo mundo saía do repasse e quem transmitia ficava com uma cópia por espectador.
+// Agora ruim é imagem rebaixada (o repasse baixa a resolução quando falta banda ou CPU) ou quadros parados.
 
 const relayHealth = new Map(), RELAY_DEAD_MS = 10000;
 function goDirect(owner) {
@@ -2180,9 +2209,10 @@ async function checkRelayQuality() {
     if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
-    h.bytes = r.bytesReceived; h.at = now; relayHealth.set(owner, h);
+    const frames = Number(r.framesDecoded), stalled = Number.isFinite(frames) && Number.isFinite(h.frames) ? frames <= h.frames : !r.framesPerSecond;
+    h.bytes = r.bytesReceived; h.frames = frames; h.at = now; relayHealth.set(owner, h);
     if (kbps === null || now - h.since < 8000) continue; // deixa a conexão estabilizar
-    const low = (r.frameHeight > 0 && r.frameHeight < 600) || (r.framesPerSecond != null && r.framesPerSecond < 15) || kbps < 800;
+    const low = (r.frameHeight > 0 && r.frameHeight < 600) || (stalled && kbps < 50);
     h.bad = low ? h.bad + 1 : 0;
     if (h.bad >= 4) goDirect(owner);
   }
@@ -2829,6 +2859,57 @@ function updateDJProgress() {
   if (tm) tm.textContent = el < 0 ? 'começando...' : fmtDur(t * 1000) + (c.duration ? ' / ' + fmtDur(c.duration * 1000) : '');
 }
 
+// ---------------- Desempenho anônimo (ligado por padrão; Configurações > Voz) ----------------
+// Uma leitura a cada 30 s durante a call e um resumo de ~2 KB no fim, em segundo plano. Se falhar, descarta.
+const PERF_URL = 'https://resenha-signal.resenha-signal.workers.dev/perf';
+const perf = { timer: null, samples: [], startedAt: 0, sys: null, lt: null, obs: null };
+// 2.5: travadinhas na tela durante a call (tarefas de mais de 50 ms): o CPU médio baixo esconde isso.
+function perfWatchJank(on) {
+  try { perf.obs?.disconnect(); } catch {}
+  perf.obs = null;
+  if (!on || typeof PerformanceObserver !== 'function') return;
+  perf.lt = { n: 0, totalMs: 0, maxMs: 0, over200: 0 };
+  try {
+    perf.obs = new PerformanceObserver((list) => { for (const e of list.getEntries()) { const d = Math.round(e.duration); perf.lt.n++; perf.lt.totalMs += d; if (d > perf.lt.maxMs) perf.lt.maxMs = d; if (d > 200) perf.lt.over200++; } });
+    perf.obs.observe({ type: 'longtask' });
+  } catch { perf.obs = null; }
+}
+const perfOn = () => !WEB_VIEWER && !!native?.performanceSample && settings.perfTelemetry !== false;
+function perfInstall() {
+  let id = LS.get('perfId', '');
+  if (!/^[0-9a-f]{32}$/.test(id)) { id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join(''); LS.set('perfId', id); }
+  return id;
+}
+async function perfTick() {
+  if (!V.joined) return;
+  try {
+    const n = await native.performanceSample(); perf.sys = n.system;
+    const media = await window.readMediaStats(V.peers);
+    if (!perf.timer) return;
+    perf.samples.push(window.ResenhaPerf.sample(n, media, { peers: V.peers.size, sharing: !!V.screen, quality: V.screen ? V.screenQName || null : null, viewers: V.screenSenders.size, watching: V.watching.size, host: !!S.isHost, viaRelay: V.relayVia.size, directOnly: V.directOnly.size, relaying: V.relayOut.size }));
+    if (perf.samples.length > 240) perf.samples.splice(1, 1); // call de mais de 2 h: fica com as leituras mais recentes
+  } catch {}
+}
+function perfStart() {
+  perfStop(false);
+  if (!perfOn()) return;
+  if (!LS.get('perfNotice', false)) { LS.set('perfNotice', true); toast('O Resenha envia dados anônimos de desempenho (CPU, memória e qualidade da call) para ficar mais leve. Dá para desligar em Configurações > Voz.', '', 10000); }
+  perf.startedAt = Date.now(); perf.timer = setInterval(perfTick, 30000); perfTick(); perfWatchJank(true);
+}
+function perfStop(send = true) {
+  clearInterval(perf.timer); perf.timer = null; perfWatchJank(false);
+  const samples = perf.samples, jank = perf.lt; perf.samples = []; perf.lt = null;
+  if (!send || !perfOn() || samples.length < 3) return;
+  const meta = {
+    install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
+    noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
+    theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
+    reduceMotion: !!settings.reduceMotion, overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
+  };
+  const report = window.ResenhaPerf.summarize(samples, meta);
+  if (report) try { navigator.sendBeacon(PERF_URL, new Blob([JSON.stringify(report)], { type: 'text/plain' })); } catch {}
+}
+
 // ---------------- Diagnóstico local de desempenho ----------------
 function openPerformance() {
   let timer=null,busy=false,generation=0;
@@ -2976,6 +3057,7 @@ async function openSettings(tab = 'voz') {
           <label class="check"><input type="checkbox" id="st-ec" ${settings.echoCancellation ? 'checked' : ''}> Cancelamento de eco</label>
           <label class="check"><input type="checkbox" id="st-ag" ${settings.autoGain ? 'checked' : ''}> Ganho automático</label>
           <label class="check"><input type="checkbox" id="st-snd" ${settings.sounds ? 'checked' : ''}> Sons de entrar/sair</label>
+          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small" style="margin:2px 0 0 26px">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
         </div>
       </div>
       <div class="tp" data-p="filtros">
@@ -3042,6 +3124,7 @@ async function openSettings(tab = 'voz') {
   });
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
+  if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
   $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
   // Aparência
   bindPaletteCards(el);
@@ -3413,6 +3496,13 @@ function bind() {
   $('#online-users').oncontextmenu = (e) => { const el = e.target.closest('[data-uid]'); if (el) userMenu(e, el.dataset.uid); };
   $('#online-users').onclick = (e) => { const el = e.target.closest('[data-uid]'); if (el) userMenu(e, el.dataset.uid); };
   initLayout();
+}
+// 2.5: vigiar troca de microfone só a partir da 1ª entrada na voz. Registrado na abertura, o Chromium deixava
+// o serviço de captura de vídeo (~84 MB) aberto o tempo todo, mesmo sem call.
+let watchingDevices = false;
+function watchDevices() {
+  if (watchingDevices) return;
+  watchingDevices = true;
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 
@@ -3563,7 +3653,7 @@ registerShortcuts();
 document.addEventListener('fullscreenchange', () => { renderCall(); document.fullscreenElement?.revealControls?.(); });
 setTimeout(checkUpdates, 2500);
 setInterval(checkUpdates, 30 * 60 * 1000);
-window.addEventListener('beforeunload', () => { try { if (S.ws) S.ws.close(); } catch {} });
+window.addEventListener('beforeunload', () => { try { if (perf.timer) perfStop(); } catch {} try { if (S.ws) S.ws.close(); } catch {} });
 
 // Acknowledge only after the client has initialized and remained alive for five seconds.
 if(native?.updateReady)setTimeout(()=>native.updateReady(),5000);
