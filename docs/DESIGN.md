@@ -18,6 +18,11 @@ Leia antes de mexer em qualquer coisa visual (label `visual`, CSS, temas, anima�
   - Molas curtas e troca de layout fluida (FLIP em `app/motion.js`).
   - Conteúdo que entra em etapas.
   - Hover discreto: escurecer de leve em cerca de 0,2 s mais um contorno fino, sem zoom nem inclinação.
+- **Padrão de movimento (2.6, `app/motion.js`):** uma curva só (`--ease-out`, ease-out forte) e durações curtas (`--dur-*`):
+  - Clique 120 ms (afunda para 97%), menus 150 ms, saídas 200 ms, janelas 250 ms, layout e gaveta ~350 ms.
+  - Anime só o que explica algo (de onde veio, para onde foi). O que se usa o dia todo (menus, chat, entrar na sala) é rápido e sem sequência longa.
+  - Nada cresce do zero (mínimo 94–96%), nada quica, nada de `ease-in`. Sair é mais rápido do que entrar.
+  - Os temas não mudam o tempo das animações. As referências vêm da biblioteca de movimento do Screenrove.
 - **Fluidez:** no mínimo 60 fps. Blur só onde é barato (dock e rótulos) e desligado durante a live.
 - **Respeitar "Reduzir animações"** (`settings.reduceMotion` e `html.reduce-motion`).
 - **Material:** vidro fumê no estilo visionOS ("Líquido"). A identidade padrão é grafite neutro mais vidro esfumaçado, com laranja **só** em pequenos detalhes.
