@@ -1152,7 +1152,7 @@ function makeTile(key) {
     if (!t.contains(e.target) || e.target.closest('.tile-tools, button, a, input') || document.fullscreenElement === t) return;
     if (key === 'user:' + DJ_ID) return openDJPanel();
     if (key.startsWith('screen:') && (key === 'screen:' + S.myId ? !V.previewHidden && V.windowVisible : V.watching.has(key.slice(7)))) { V.focus = V.focus === key ? null : key; renderCall(); }
-    // Clicar numa pessoa amplia o quadrado dela; os outros vão para a fileira de baixo.
+    // Clicar numa pessoa amplia o avatar dela; os outros vão para a fileira de baixo.
     else if (key.startsWith('user:') && (V.focus === key || $$('#call-stage .tile').length > 1)) { V.focus = V.focus === key ? null : key; renderCall(); }
   };
   t.oncontextmenu = (e) => { const uid = key.split(':')[1]; if (uid !== DJ_ID) userMenu(e, uid); }; // clique direito no quadro abre o card (também o seu)
@@ -1163,6 +1163,7 @@ function makeTile(key) {
 function updateTile(key, u, isScreen) {
   const t = tileCache.get(key) || makeTile(key);
   t.classList.toggle('is-screen', isScreen);
+  t.classList.toggle('is-voice', !isScreen);
   t.dataset.tone = String([...u.id].reduce((sum, c) => sum + c.charCodeAt(0), 0) % 4);
   t.classList.toggle('speaking', !isScreen && isSpeaking(u.id));
   const body = t.firstElementChild;
@@ -1347,15 +1348,30 @@ function renderCall() {
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
 function layoutGrid() {
-  const grid = $('#call-stage .grid'); if (!grid) return;
-  const n = grid.children.length || 1;
-  const W = grid.clientWidth, H = grid.clientHeight, gap = 10;
-  let best = { cols: 1, w: 0, h: 0, rows: 1 };
+  const grid = $('#call-stage .grid'); if (!grid || WEB_VIEWER) return;
+  const fit = avatarGrid(grid.children.length, grid.clientWidth, grid.clientHeight);
+  if (!fit) return;
+  grid.style.setProperty('--av', fit.d + 'px');
+  grid.style.setProperty('--cell-w', fit.width + 'px');
+  grid.style.setProperty('--cell-h', fit.height + 'px');
+}
+// Maximiza o círculo. Em empate escolhe a grade com menos vazios;
+// o flex centraliza a última fileira sem forçar um lugar vazio.
+function avatarGrid(n, w, h) {
+  if (!n || !w || !h) return null;
+  const gap = 8, trim = 56, max = 224;
+  let best = null;
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
-    let w = (W - gap * (cols - 1)) / cols; let h = w * 9 / 16;
-    if (h * rows + gap * (rows - 1) > H) { h = (H - gap * (rows - 1)) / rows; w = h * 16 / 9; }
-    if (w > best.w) best = { cols, w, h, rows };
+    const cw = Math.floor((w - gap * (cols - 1)) / cols);
+    const ch = Math.floor((h - gap * (rows - 1)) / rows);
+    if (cw < 32 || ch < trim + 16) continue;
+    const d = Math.floor(Math.min(cw * .8, ch - trim, max));
+    const empty = cols * rows - n;
+    const score = d - Math.max(0, cols - rows - 2) * 4;
+    if (!best || score > best.score || (score === best.score && (empty < best.empty || (empty === best.empty && cols > best.cols)))) {
+      best = {cols, d, empty, score, width: Math.min(cw, 328), height: d + trim};
+    }
   }
   grid.style.gridTemplateColumns = `repeat(${best.cols}, ${Math.floor(best.w)}px)`;
   grid.style.gridTemplateRows = `repeat(${best.rows}, ${Math.floor(best.h)}px)`;

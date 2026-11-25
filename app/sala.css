@@ -21,3 +21,19 @@
   #call .focus-strip { --strip-h: 80px; }
   #call .focus-strip > .tile { flex-basis: 100px; max-width: 128px; }
 }
+
+/* Voz é gente: círculo, nome embaixo e anel de fala, sem fundo de vídeo. */
+html:not(.web-viewer) #call #call-stage .grid { display: flex; flex-wrap: wrap; align-content: safe center; justify-content: center; align-items: center; gap: 8px; overflow-y: auto; scrollbar-width: thin; }
+html:not(.web-viewer) #call #call-stage .grid > .tile.is-voice { flex: 0 0 var(--cell-w, 144px); width: var(--cell-w, 144px); height: var(--cell-h, 112px); --voice-size: var(--av, 56px); }
+html #call #call-stage .tile.is-voice { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 24px 4px 4px; background: transparent; box-shadow: none; overflow: visible; }
+html #call #call-stage .tile.is-voice::after { content: none; }
+html #call #call-stage .tile.is-voice .tile-body { position: static; flex: none; width: auto; height: auto; }
+html #call #call-stage .tile.is-voice .avatar { width: var(--voice-size, 64px); height: var(--voice-size, 64px); font-size: calc(var(--voice-size, 64px) * .35); border-radius: 50%; transform: none; }
+html #call #call-stage .tile.is-voice.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-rail), 0 0 0 4px var(--green); }
+html #call #call-stage .tile.is-voice .label { position: static; max-width: calc(100% - 8px); padding: 0; background: transparent; color: var(--text-hi); backdrop-filter: none; white-space: nowrap; }
+#call #call-stage .focus-main > .tile.is-voice { --voice-size: min(38cqh, 224px); }
+#call #call-stage .focus-strip > .tile.is-voice { --voice-size: 40px; }
+#call #call-stage .focus-strip > .tile.is-voice .label { font-size: 12px; }
+@media (height < 720px) {
+  #call #call-stage .focus-strip > .tile.is-voice { --voice-size: 32px; }
+}
