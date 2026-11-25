@@ -1,0 +1,19 @@
+# Repasse (TURN) do Resenha: só gera credenciais temporárias do TURN da Cloudflare. Conta do Felipe.
+# Segredos (painel: Workers & Pages > resenha-turn > Settings > Variables and Secrets):
+#   TURN_KEY_ID e TURN_KEY_API_TOKEN, da chave criada em Realtime > TURN Server;
+#   ANALYTICS_TOKEN, para o teto de gasto.
+name = "resenha-turn"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# Teto de gasto (src/index.js): o Worker mede o uso do TURN e para de entregar credenciais em 800 GB.
+# Segredo extra: ANALYTICS_TOKEN (token de API com Account > Account Analytics > Read).
+[vars]
+CF_ACCOUNT_ID = "5fb50b9259dda38676ab583e823f1458"
+
+# Freio contra abuso: no máximo 30 pedidos de credencial por minuto por IP (o app pede 1 por hora).
+[[ratelimits]]
+name = "LIMIT"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }

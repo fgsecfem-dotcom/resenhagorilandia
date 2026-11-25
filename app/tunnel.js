@@ -5,6 +5,12 @@ const TUN_ICE = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
+// STUN + repasse da Cloudflare (app/turn.js) no mesmo pedido: se a ligação direta não fura o NAT, o repasse já está lá.
+async function tunConfig() {
+  const turn = (await window.ResenhaTurn?.load(1500)) || [];
+  const relayOnly = turn.length > 0 && window.ResenhaTurn.forced();
+  return { cfg: { iceServers: [...TUN_ICE, ...turn], iceTransportPolicy: relayOnly ? 'relay' : 'all' }, turn: turn.length > 0, relayOnly };
+}
 const CHUNK = 16 * 1024;
 const HIGH = 4 * 1024 * 1024;
 
@@ -17,17 +23,23 @@ const Tun = (() => {
 
   // Não espera a coleta inteira: segue quando chega o primeiro endereço público (srflx), com 150 ms de folga
   // para os outros candidatos, ou quando completa, ou no limite. Antes esperava até 4 s por STUN lento.
-  function gatherDone(pc, ms = 1500) {
+  // Com repasse configurado, espera também o endereço do repasse (relay): é ele que salva o par de redes que não fura o NAT.
+  function gatherDone(pc, { relay = false, relayOnly = false } = {}, ms = relay ? 2000 : 1500) {
     return new Promise((r) => {
       if (pc.iceGatheringState === 'complete') return r();
-      const t0 = performance.now(); let done = false, grace = 0;
+      const t0 = performance.now(); let done = false, grace = 0, srflx = relayOnly, rel = false;
       const fin = (why) => {
         if (done) return; done = true; clearTimeout(t); clearTimeout(grace);
         pc.removeEventListener('icecandidate', onCand); pc.removeEventListener('icegatheringstatechange', onState);
         log('ice', why, Math.round(performance.now() - t0) + 'ms'); r();
       };
       const t = setTimeout(() => fin('limite'), ms);
-      const onCand = (e) => { if (!e.candidate) fin('completo'); else if (!grace && / typ srflx /.test(e.candidate.candidate)) grace = setTimeout(() => fin('srflx'), 150); };
+      const onCand = (e) => {
+        if (!e.candidate) return fin('completo');
+        const c = e.candidate.candidate; if (/ typ srflx /.test(c)) srflx = true; if (/ typ relay /.test(c)) rel = true;
+        if (!grace && srflx && (!relay || rel)) grace = setTimeout(() => fin(relay ? 'srflx+relay' : 'srflx'), 150);
+        else if (!grace && rel && !srflx) grace = setTimeout(() => fin('relay'), 400); // UDP público bloqueado: o repasse por TCP/TLS basta
+      };
       const onState = () => { if (pc.iceGatheringState === 'complete') fin('completo'); };
       pc.addEventListener('icecandidate', onCand); pc.addEventListener('icegatheringstatechange', onState);
     });
@@ -79,7 +91,8 @@ const Tun = (() => {
   async function hostAccept({ peerId, nonce, sdp }) {
     const old = hostPeers.get(peerId);
     if (old) { try { old.pc.close(); } catch {} T.closePeer(peerId + ':'); }
-    const pc = new RTCPeerConnection({ iceServers: TUN_ICE });
+    const ice = await tunConfig();
+    const pc = new RTCPeerConnection(ice.cfg);
     const p = { pc, chans: new Map() };
     pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') log('convidado conectado'); });
     hostPeers.set(peerId, p);
@@ -99,7 +112,7 @@ const Tun = (() => {
     try {
       await pc.setRemoteDescription(sdp);
       await pc.setLocalDescription(await pc.createAnswer());
-      await gatherDone(pc);
+      await gatherDone(pc, { relay: ice.turn, relayOnly: ice.relayOnly });
       T.hostAnswer({ peerId, nonce, sdp: { type: 'answer', sdp: pc.localDescription.sdp } });
     } catch (e) { log('erro aceitando', e); }
   }
@@ -108,14 +121,14 @@ const Tun = (() => {
   // Resolve com o endereço local (127.0.0.1:porta) que já leva até a sala do anfitrião
   async function guestConnect(code, onStatus = () => {}, { attempts = 3, timeoutMs = 20000 } = {}) {
     guestClose(true);
-    const port = await T.guestStart(code);
+    const [port, ice] = await Promise.all([T.guestStart(code), tunConfig()]);
     for (let attempt = 1; attempt <= attempts; attempt++) {
       onStatus(attempt === 1 ? 'Procurando a sala...' : `Tentando de novo (${attempt}/${attempts})...`);
-      const pc = new RTCPeerConnection({ iceServers: TUN_ICE });
+      const pc = new RTCPeerConnection(ice.cfg);
       const g = { pc, chans: new Map(), ctl: pc.createDataChannel('ctl') };
       guest = g;
       await pc.setLocalDescription(await pc.createOffer());
-      await gatherDone(pc);
+      await gatherDone(pc, { relay: ice.turn, relayOnly: ice.relayOnly });
       const r = await T.guestOffer({ type: 'offer', sdp: pc.localDescription.sdp }, timeoutMs);
       if (guest !== g) { pc.close(); throw new Error('cancelado'); }
       if (!r || !r.ok || !r.sdp) {
