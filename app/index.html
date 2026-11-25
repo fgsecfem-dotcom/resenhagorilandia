@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="skins/ape.css">
 <link rel="stylesheet" href="skins/caderno.css">
 <link rel="stylesheet" href="skins/mergulho.css">
+<link rel="stylesheet" href="entrada.css">
 <link rel="stylesheet" href="music.css">
 <link rel="stylesheet" href="overlay-ui.css">
 <script src="boot.js"></script>
@@ -49,9 +50,11 @@
         <details class="home-profile-d" id="home-profile-d">
           <summary>Seu perfil</summary>
           <div class="card home-profile" aria-label="Seu perfil">
+            <p class="welcome-ask" id="welcome-ask" hidden>Como a galera te chama?</p>
             <div class="avatar-edit" id="home-avatar" title="Trocar foto" role="button" tabindex="0" aria-label="Trocar foto"></div>
-            <div class="field grow"><label for="home-name">Seu nome</label><input id="home-name" maxlength="32" placeholder="Como te chamam"></div>
+            <div class="field grow"><label for="home-name">Seu nome</label><input id="home-name" maxlength="32" placeholder="Seu nome" autocomplete="off"></div>
             <div class="field home-color"><label for="home-color">Cor</label><input id="home-color" type="color"></div>
+            <button class="btn primary welcome-go" id="welcome-go" type="button" hidden>Continuar</button>
           </div>
         </details>
       </div>

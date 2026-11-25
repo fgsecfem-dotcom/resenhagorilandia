@@ -412,6 +412,23 @@ const looksLikeAddr = (s) => /[.:[]/.test(String(s || '').trim());
 // Home: "Criar sala" abre o bloco de criar (fechado por padrão, como no Hub); a senha de entrada só aparece se a sala pedir.
 function showCreate(open) { const box = $('#home-create'); if (!box) return; box.hidden = !open; $('#btn-create-toggle')?.setAttribute('aria-expanded', String(open)); if (open) $('#host-name')?.focus(); }
 function showJoinPass() { const d = $('#join-more'); if (d) d.open = true; $('#join-pass').focus(); }
+// Primeira vez: sem nome, o perfil vira um passo claro acima do código ('Como a galera te chama?'). Com nome, é só um popover.
+function setupWelcome() {
+  const d = $('#home-profile-d'); if (!d) return;
+  const first = !me.name.trim();
+  d.classList.toggle('first-run', first); d.closest('.home-top')?.classList.toggle('first-run', first);
+  $('#welcome-ask').hidden = $('#welcome-go').hidden = !first;
+  d.open = first;
+}
+function closeWelcome() {
+  const d = $('#home-profile-d'); d.classList.remove('first-run'); d.closest('.home-top')?.classList.remove('first-run');
+  $('#welcome-ask').hidden = $('#welcome-go').hidden = true; d.open = false;
+}
+function finishWelcome() {
+  if (!checkName()) return;
+  $('#home-error').textContent = '';
+  $('#join-addr').focus();
+}
 function initHome() {
   $('#home-name').value = me.name;
   $('#home-color').value = me.color;
@@ -428,7 +445,12 @@ function initHome() {
   $('#host-port').value = last.port || 7777;
   $('#btn-host').onclick = hostRoom;
   $('#btn-create-toggle').onclick = () => showCreate($('#home-create').hidden);
-  if (!me.name.trim()) $('#home-profile-d').open = true; // o nome é obrigatório para entrar
+  setupWelcome();
+  $('#welcome-go').onclick = finishWelcome;
+  $('#home-name').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); finishWelcome(); } });
+  // Popover do perfil (quando já existe nome): Esc e clique fora fecham.
+  document.addEventListener('keydown', (e) => { const d = $('#home-profile-d'); if (e.key === 'Escape' && d?.open && !d.classList.contains('first-run') && !$('#home').classList.contains('hidden')) { d.open = false; d.querySelector('summary')?.focus(); } });
+  document.addEventListener('pointerdown', (e) => { const d = $('#home-profile-d'); if (d?.open && !d.classList.contains('first-run') && !d.contains(e.target)) d.open = false; });
   $('#btn-join').onclick = () => joinRoom($('#join-addr').value, $('#join-pass').value);
   $('#join-addr').onkeydown = $('#join-pass').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-join').click(); };
   if (!native) { $('#btn-host').disabled = true; $('#btn-host').textContent = 'Criar sala só no app'; }
@@ -472,7 +494,8 @@ function pickAvatar(done) {
   inp.click();
 }
 function checkName() {
-  if (!me.name.trim()) { $('#home-error').textContent = 'Coloca seu nome primeiro.'; const pd = $('#home-profile-d'); if (pd) pd.open = true; $('#home-name').focus(); return false; }
+  if (!me.name.trim()) { setupWelcome(); $('#home-name').focus(); return false; }
+  if ($('#home-profile-d').classList.contains('first-run')) { closeWelcome(); $('#home-error').textContent = ''; }
   return true;
 }
 

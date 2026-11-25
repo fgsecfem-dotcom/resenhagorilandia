@@ -1,0 +1,16 @@
+/* ---- Primeira vez: "Como a galera te chama?" inline, acima do código ---- */
+#home .home-top.first-run { flex-direction: column; align-items: stretch; }
+#home .home-profile-d:not([open]) > .home-profile { display: none; }
+#home .home-profile-d.first-run { width: 100%; }
+#home .home-profile-d.first-run > summary { display: none; }
+#home .home-profile-d.first-run[open] > .home-profile { position: static; width: auto; margin: 4px 0 0; box-shadow: none; padding: 20px 24px; display: grid; grid-template-columns: 64px minmax(200px, 1fr) auto auto; gap: 8px 16px; align-items: end; }
+#home .welcome-ask { grid-column: 1 / -1; flex: 1 0 100%; margin: 0 0 4px; font-size: 18px; font-weight: 700; letter-spacing: -.01em; color: var(--text-hi); }
+#home .welcome-ask[hidden], #home .welcome-go[hidden] { display: none; }
+#home .welcome-go { min-height: 48px; padding: 0 22px; border-radius: 14px; font-size: 15px; font-weight: 700; flex: none; }
+#home .home-profile-d.first-run .field.grow { min-width: 0; }
+#home .home-profile-d:not(.first-run) .field.grow { min-width: min(140px, 100%); }
+@media (max-width: 560px) {
+  #home .home-profile-d.first-run[open] > .home-profile { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; padding: 16px; }
+  #home .home-profile-d.first-run .avatar-edit { width: 48px; height: 48px; }
+  #home .welcome-go { grid-column: 2 / -1; justify-self: end; }
+}
