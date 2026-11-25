@@ -2,10 +2,10 @@
 // Repasse pela Cloudflare (TURN) para quando a ligação direta entre dois PCs não fura o NAT.
 // Ele entra JUNTO com a tentativa direta, no mesmo pedido de conexão: o WebRTC testa tudo em paralelo,
 // prefere sempre o caminho direto e só usa o repasse se o direto não responder. Ninguém vê "tentando de novo".
-// As credenciais são temporárias (12 h), geradas pelo Worker de descoberta (signal-worker, rota /turn).
+// As credenciais são temporárias (12 h), geradas pelo Worker turn-worker/ (rota /turn).
 // Sem rede ou sem Worker, a lista fica vazia e tudo continua como antes (só STUN).
 window.ResenhaTurn = (() => {
-  const URL_TURN = 'https://resenha-signal.resenha-signal.workers.dev/turn';
+  const URL_TURN = 'https://resenha-turn.resenhagorilandia.workers.dev/turn'; // turn-worker/ (conta do Felipe)
   const REFRESH = 60 * 60e3, MAX_AGE = 11 * 60 * 60e3; // renova de hora em hora; nunca usa credencial perto de vencer
   let list = [], at = 0, pending = null;
   const usable = () => list.length && Date.now() - at < MAX_AGE;

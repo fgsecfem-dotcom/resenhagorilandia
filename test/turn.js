@@ -2,7 +2,7 @@
 // o app soma o repasse ao STUN no mesmo pedido (sem segunda tentativa) e espera o candidato do repasse antes de mandar a oferta.
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), { pathToFileURL } = require('node:url');
 (async () => {
-  const W = await import(pathToFileURL(path.join(__dirname, '../signal-worker/src/index.js')).href);
+  const W = await import(pathToFileURL(path.join(__dirname, '../turn-worker/src/index.js')).href);
   const get = (env, f) => W.turnServers(new Request('https://x/turn'), env, f).then(async (r) => ({ status: r.status, cors: r.headers.get('access-control-allow-origin'), body: await r.json() }));
   let r = await get({}); assert.deepEqual(r.body.iceServers, []); assert.equal(r.status, 200, 'sem chave: lista vazia, o app segue só com STUN');
   let sent;
@@ -15,6 +15,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
   assert.equal(r.cors, '*', 'o PWA do celular também busca');
   assert.deepEqual(r.body.iceServers, [{ urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turn:turn.cloudflare.com:3478?transport=tcp', 'turns:turn.cloudflare.com:5349?transport=tcp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' }]);
   r = await get({ TURN_KEY_ID: 'k', TURN_KEY_API_TOKEN: 't' }, async () => new Response('x', { status: 401 })); assert.equal(r.status, 502); assert.deepEqual(r.body.iceServers, []);
+  r = await get({ TURN_KEY_ID: 'k', TURN_KEY_API_TOKEN: 't', LIMIT: { limit: async () => ({ success: false }) } }, cf); assert.equal(r.status, 429, 'freio por IP contra abuso');
   // App: STUN + repasse no mesmo RTCPeerConnection, sem trocar a ordem de preferência; a oferta só sai com o candidato do repasse.
   const tun = fs.readFileSync(path.join(__dirname, '../app/tunnel.js'), 'utf8'), client = fs.readFileSync(path.join(__dirname, '../app/client.js'), 'utf8');
   assert.match(tun, /iceServers: \[\.\.\.TUN_ICE, \.\.\.turn\]/); assert.match(tun, /iceTransportPolicy: relayOnly \? 'relay' : 'all'/);
