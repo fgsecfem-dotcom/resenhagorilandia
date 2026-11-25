@@ -66,7 +66,7 @@ export function initMobile(R) {
   for(const u of users){const row=document.createElement('div');row.className='web-person';const title=document.createElement('strong');title.textContent=u.name+(u.deafened?' · sem áudio':u.muted?' · mutado':'');row.appendChild(title);
    row.appendChild(slider('Volume de '+u.name,settings.userVolumes[u.name]??100,v=>{settings.userVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(u.id)}));
    if(u.id!=='dj-resenha')row.appendChild(button('Mensagem privada',()=>R.openDM(u.id)));
-   if(u.sharing)row.appendChild(button(V.watching.has(u.id)?'Sair da transmissão':'Entrar na transmissão',()=>{R.setWatching(u.id,!V.watching.has(u.id));$('#main').dataset.mobilePane='call';}));
+   if(u.sharing&&!V.watching.has(u.id))row.appendChild(button('Assistir',()=>{R.setWatching(u.id,true);$('#main').dataset.mobilePane='call';}));
    root.appendChild(row);
   }
  }
@@ -150,7 +150,7 @@ export function initMobile(R) {
   panel.appendChild(slider('Volume',settings.userVolumes[u.name]??100,v=>{settings.userVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
   if(u.sharing){
    panel.appendChild(slider('Som da live',settings.streamVolumes[u.name]??100,v=>{settings.streamVolumes[u.name]=v;R.saveSettings();R.applyUserVolume(uid)}));
-   const live=button(V.watching.has(uid)?'Sair da transmissão':'Assistir à live',()=>{R.setWatching(uid,!V.watching.has(uid));closeSheet();});live.className='primary';panel.appendChild(live);
+   if(!V.watching.has(uid)){const live=button('Assistir',()=>{R.setWatching(uid,true);closeSheet();});live.className='primary';panel.appendChild(live);}
   }
   if(uid!=='dj-resenha')panel.appendChild(button('Mensagem privada',()=>{closeSheet();R.openDM(uid);}));
   panel.appendChild(button('Fechar',closeSheet));

@@ -7,3 +7,17 @@
 #away-pill .away-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #away-pill .away-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
 #away-pill.in-call .away-dot { background: var(--green); }
+
+/* O selo tem seu próprio canto. A saída do espectador só existe nos controles da live. */
+#call .tile:not(.is-screen) .tile-tools:has(.watch-chip) { top: 4px; right: 4px; opacity: 1; }
+#call .tile .watch-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: auto; height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-float); color: var(--text-hi); white-space: nowrap; font-size: 11px; font-weight: 600; }
+#call .tile button.watch-chip:hover { background: var(--active); }
+#call .tile .watch-seal { pointer-events: none; }
+#call .tile button.watch-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+#call .tile.is-screen .live-exit-label { white-space: nowrap; }
+#call .focus-strip { --strip-h: 96px; width: min(100%, var(--live-w, 100%)); align-self: center; height: var(--strip-h); gap: 8px; justify-content: safe center; overflow: auto hidden; scrollbar-width: thin; }
+#call .focus-strip > .tile { flex: 1 0 116px; max-width: 152px; }
+@media (height < 720px) {
+  #call .focus-strip { --strip-h: 80px; }
+  #call .focus-strip > .tile { flex-basis: 100px; max-width: 128px; }
+}

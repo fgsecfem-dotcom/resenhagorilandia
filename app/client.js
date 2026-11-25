@@ -1176,8 +1176,9 @@ function updateTile(key, u, isScreen) {
       if (v.srcObject !== stream) { v.srcObject = stream; v.play().catch(() => {}); }
     } else {
       if (v) { v.pause(); v.srcObject = null; }
-      body.innerHTML = `<div class="stream-invite">${icon('screen', 28)}<strong>${self ? 'Você está transmitindo' : esc(u.name) + ' está ao vivo'}</strong><span class="muted small">${self ? 'A prévia está pausada. Seus amigos continuam assistindo.' : watching ? 'Conectando à transmissão…' : 'Assista quando quiser.'}</span><button class="btn primary" data-watch>${self ? 'Mostrar prévia' : watching ? 'Cancelar' : 'Entrar na transmissão'}</button></div>`;
-      $('[data-watch]', body).onclick = (e) => { e.stopPropagation(); if (self) { V.previewHidden = false; renderCall(); } else setWatching(u.id, !watching); };
+      body.innerHTML = `<div class="stream-invite">${icon('screen', 28)}<strong>${self ? 'Você está transmitindo' : esc(u.name) + ' está ao vivo'}</strong><span class="muted small">${self ? 'A prévia está pausada. Seus amigos continuam assistindo.' : watching ? 'Conectando à transmissão…' : 'Assista quando quiser.'}</span>${watching ? '' : `<button class="btn primary" data-watch>${self ? 'Mostrar prévia' : 'Assistir'}</button>`}</div>`;
+      const watchButton = $('[data-watch]', body);
+      if (watchButton) watchButton.onclick = (e) => { e.stopPropagation(); if (self) { V.previewHidden = false; renderCall(); } else setWatching(u.id, !watching); };
     }
     const tools = t.querySelector('.tile-tools');
     const full = document.fullscreenElement === t;
@@ -1185,7 +1186,7 @@ function updateTile(key, u, isScreen) {
     const toolsSig = [watching, V.muted || V.deafened, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
     if (tools.dataset.sig !== toolsSig) {
     tools.dataset.sig = toolsSig;
-    tools.innerHTML = watching ? `<button class="live-call-control ${V.muted || V.deafened ? 'off' : ''}" title="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${V.muted || V.deafened}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(V.muted || V.deafened ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${full ? 'Sair da tela cheia' : 'Tela cheia'}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
+    tools.innerHTML = watching ? `<button class="live-call-control ${V.muted || V.deafened ? 'off' : ''}" title="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${V.muted || V.deafened}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(V.muted || V.deafened ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Parar de assistir'}" aria-label="${self ? 'Ocultar prévia' : 'Parar de assistir'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Parar de assistir'}</span></button>${stream ? `<button title="${full ? 'Sair da tela cheia' : 'Tela cheia'}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
     $('[data-stop]', tools)?.addEventListener('click', async (e) => {
       e?.stopPropagation();
       if (document.fullscreenElement === t) await document.exitFullscreen().catch(() => {});
@@ -1211,11 +1212,17 @@ function updateTile(key, u, isScreen) {
     const sig = (u.avatar || '') + u.color + u.name;
     if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
     t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
-    const tools = t.querySelector('.tile-tools');
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
     const watching = self ? !V.previewHidden : V.watching.has(u.id);
-    tools.innerHTML = live ? `<button class="live-join" title="${self ? (watching ? 'Ocultar prévia' : 'Mostrar prévia') : (watching ? 'Sair da transmissão' : 'Entrar na transmissão')}">${icon('screen', 14)}<span>${self ? (watching ? 'Ocultar prévia' : 'Mostrar prévia') : (watching ? 'Sair da transmissão' : 'Entrar na transmissão')}</span></button>` : '';
-    $('.live-join', tools)?.addEventListener('click', (e) => { e.stopPropagation(); if (self) { V.previewHidden = !V.previewHidden; V.focus = null; renderCall(); } else setWatching(u.id, !watching); });
+    const tools = t.querySelector('.tile-tools');
+    // Quem está ao vivo: "Assistir" (botão) antes de entrar; "Assistindo" (selo, sem ação) depois. Sair é só na barra da live.
+    const liveSig = [live, watching, self, u.name].join();
+    if (tools.dataset.sig !== liveSig) {
+      tools.dataset.sig = liveSig;
+      tools.innerHTML = !live ? '' : watching ? `<span class="watch-chip watch-seal">${self ? 'Ao vivo' : 'Assistindo'}</span>`
+        : `<button class="watch-chip" title="${self ? 'Mostrar prévia' : 'Assistir — ' + esc(u.name) + ' ao vivo'}"><span>${self ? 'Mostrar prévia' : 'Assistir'}</span></button>`;
+      $('button.watch-chip', tools)?.addEventListener('click', (e) => { e.stopPropagation(); if (self) { V.previewHidden = !V.previewHidden; V.focus = null; renderCall(); } else setWatching(u.id, !watching); });
+    }
   }
   return t;
 }
@@ -1234,7 +1241,24 @@ function setWatching(uid, active) {
   applyUserVolume(uid);
   renderCall();
 }
+// A fileira de pessoas debaixo da live herda a largura da live (que muda com a proporção do vídeo e com a janela).
+let focusFrame = null;
+const focusRO = new ResizeObserver(([entry]) => {
+  const wrap = entry.target.closest('.focus-wrap');
+  if (entry.target === focusFrame && wrap && entry.target.offsetWidth) wrap.style.setProperty('--live-w', entry.target.offsetWidth + 'px');
+});
+function watchFocusWidth(wrap, el) {
+  const live = el?.classList.contains('is-screen') ? el : null;
+  if (focusFrame !== live) {
+    focusRO.disconnect(); focusFrame = live;
+    if (live) focusRO.observe(live);
+  }
+  if (live?.offsetWidth) wrap.style.setProperty('--live-w', live.offsetWidth + 'px');
+  else wrap?.style.removeProperty('--live-w');
+}
+
 function detachTile(tile) {
+  if (tile === focusFrame) watchFocusWidth(null, null);
   tile.disposeOverlay?.();
   tile.disposeFrame?.();
   const video = tile.querySelector('video');
@@ -1293,6 +1317,7 @@ function renderCall() {
     const main = wrap.firstChild, strip = wrap.lastChild;
     const fEl = tileCache.get(V.focus);
     if (main.firstChild !== fEl) main.replaceChildren(fEl);
+    watchFocusWidth(wrap, fEl);
     const stripEls = pEls.filter((e) => e !== fEl);
     stripEls.forEach((e, i) => { if (strip.children[i] !== e) strip.insertBefore(e, strip.children[i] || null); });
     while (strip.children.length > stripEls.length) strip.lastChild.remove();
@@ -1300,6 +1325,7 @@ function renderCall() {
     rest.forEach((e, i) => { if (pips.children[i] !== e) pips.insertBefore(e, pips.children[i] || null); });
     while (pips.children.length > rest.length) pips.lastChild.remove();
   } else {
+    watchFocusWidth(null, null);
     let grid = stage.querySelector('.grid');
     if (!grid) { stage.innerHTML = '<div class="grid"></div>'; grid = stage.firstChild; }
     pEls.forEach((e, i) => { if (grid.children[i] !== e) grid.insertBefore(e, grid.children[i] || null); });
