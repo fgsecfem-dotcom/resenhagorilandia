@@ -3383,6 +3383,12 @@ function applyLayout() {
 function bindSplitters() {
   $$('.splitter').forEach((sp) => {
     const adjacent = [sp.dataset.left, sp.dataset.right].find(p => p !== 'call') || 'chat';
+    const syncSize = () => {
+      sp.setAttribute('aria-valuemin', adjacent === 'chat' ? '300' : '200');
+      sp.setAttribute('aria-valuemax', String(adjacent === 'chat' ? Math.max(300, Math.round(innerWidth * .6)) : 420));
+      sp.setAttribute('aria-valuenow', String(Math.round(adjacent === 'chat' ? settings.chatWidth : settings.sidebarWidth)));
+    };
+    syncSize();
     sp.tabIndex = 0; sp.setAttribute('role','separator'); sp.setAttribute('aria-orientation','vertical'); sp.setAttribute('aria-label',adjacent === 'chat' ? 'Largura do painel de conversa' : 'Largura dos canais');
     sp.onkeydown = e => {
       const step = e.shiftKey ? 40 : 16, sign = adjacent === sp.dataset.left ? 1 : -1;
@@ -3390,7 +3396,7 @@ function bindSplitters() {
       const current = adjacent === 'chat' ? settings.chatWidth : settings.sidebarWidth;
       const width = e.key === 'Home' ? (adjacent === 'chat' ? 360 : 264) : current + (e.key === 'ArrowRight' ? step : -step) * sign;
       if (adjacent === 'chat') settings.chatWidth = clamp(width,300,innerWidth*0.6); else settings.sidebarWidth = clamp(width,200,420);
-      document.documentElement.style.setProperty('--chat-w',settings.chatWidth+'px');document.documentElement.style.setProperty('--side-w',settings.sidebarWidth+'px');saveSettings();layoutGrid();
+      document.documentElement.style.setProperty('--chat-w',settings.chatWidth+'px');document.documentElement.style.setProperty('--side-w',settings.sidebarWidth+'px');saveSettings();syncSize();layoutGrid();
     };
     sp.onmousedown = (e) => {
       e.preventDefault(); sp.classList.add('drag'); document.body.classList.add('resizing');
@@ -3405,7 +3411,7 @@ function bindSplitters() {
         else settings.sidebarWidth = clamp(w, 200, 420);
         document.documentElement.style.setProperty('--chat-w', settings.chatWidth + 'px');
         document.documentElement.style.setProperty('--side-w', settings.sidebarWidth + 'px');
-        layoutGrid();
+        syncSize(); layoutGrid();
       };
       const up = () => { sp.classList.remove('drag'); document.body.classList.remove('resizing'); saveSettings(); removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
       addEventListener('mousemove', move); addEventListener('mouseup', up);

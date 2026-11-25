@@ -62,3 +62,10 @@ html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.
 
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .toast { pointer-events: auto; }
+
+/* Amplia só a área que recebe o clique, sem mudar o desenho. */
+:is(.cat-add, .nsb-ib, .icon-btn) { position: relative; }
+:is(.cat-add, .nsb-ib, .icon-btn)::after { content: ''; position: absolute; inset: var(--hit-inset, -4px); }
+.cat-add { --hit-inset: -5px; }
+.nsb-ib { --hit-inset: -1px; }
+#main > .splitter::after { inset: 0 -16px; z-index: 1; }
