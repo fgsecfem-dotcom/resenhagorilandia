@@ -102,7 +102,7 @@
             ${btn('Menu da sala (Tab)', 'cascade', 'mg-cmd mg-open-menu')}${btn('Silenciar microfone', 'mic', 'mg-cmd mg-mute')}${btn('Desativar áudio', 'headphones', 'mg-cmd mg-deafen')}${btn('Transmitir tela', 'screen', 'mg-cmd mg-share')}${btn('Abrir DJ', 'music', 'mg-cmd mg-music')}${btn('Sair da call', 'phoneOff', 'mg-cmd mg-leave')}
           </div>
           <button type="button" class="mg-strip" aria-expanded="false" aria-controls="mg-chat" title="Conversa (C)">${glyph('chat', 17)}<b></b><span></span><em hidden></em></button>
-          <div class="mg-guide" aria-label="Atalhos"><b>Guia de atalhos</b><span class="mg-shortcuts"><span><kbd>Tab</kbd> Menu</span><span><kbd>C</kbd> Conversa</span><span class="mg-live-key" hidden><kbd>F</kbd> <span>Ver grande</span></span></span></div>
+          <div class="mg-guide" aria-label="Atalhos"><b>Guia de atalhos</b><span class="mg-shortcuts"><span><kbd>M</kbd> Menu</span><span><kbd>C</kbd> Conversa</span><span class="mg-live-key" hidden><kbd>F</kbd> <span>Ver grande</span></span></span></div>
         </footer>
       </div>
       <aside class="mg-chat" id="mg-chat" aria-labelledby="mg-chat-title" hidden>
@@ -279,7 +279,7 @@
       keyed($('.mg-chat-tabs'), chatTabs, model.text, (c) => c.id, (c) => {
         const el = node('button', 'mg-text-tab'); el.type = 'button'; el.onclick = () => actions.selectText(c.id); return { el };
       }, ({ el }, c) => {
-        text(el, `#${c.name}`); attr(el, 'aria-pressed', !!c.active); attr(el, 'title', c.unread ? `#${c.name} · Não lido` : `#${c.name}`);
+        text(el, `#${c.name}`); attr(el, 'aria-current', !!c.active); label(el, `Canal de texto ${c.name}${c.unread ? ', mensagens novas' : ''}`); attr(el, 'title', c.unread ? `#${c.name} · Não lido` : `#${c.name}`);
         el.classList.toggle('is-unread', !!c.unread);
       });
       const changed = chatChannel !== id, latest = lines.at(-1)?.id;
@@ -442,7 +442,7 @@
       }
       if (e.key === 'Escape' && chatOpen) { e.preventDefault(); showChat(false); return; }
       if (target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || e.shiftKey || e.repeat) return;
-      if (e.key === 'Tab' && !chatOpen && !target.closest?.('button, a, [tabindex="0"]')) { e.preventDefault(); showMenu(true); }
+      if (e.key.toLowerCase() === 'm' && !chatOpen) { e.preventDefault(); showMenu(true); }
       else if (e.key.toLowerCase() === 'c') { e.preventDefault(); showChat(!chatOpen); }
       else if (e.key === 'Escape' && big) { e.preventDefault(); setBig(false); }
       else if (e.key.toLowerCase() === 'f' && !chatOpen && lives.get(activeLive)?.ready) { e.preventDefault(); if (big) requestFull(lives.get(activeLive)); else setBig(true); }

@@ -209,8 +209,8 @@
     const current = !!(voice ? c.here : c.active), n = voice ? c.users.length : unread(c), col = colors[i % colors.length];
     txt(r.name,c.name); txt(r.badge,!voice && c.unread === true ? '•' : String(n)); hide(r.badge,!n);
     if (r.col !== col) { r.col = col; r.el.style.setProperty('--cd-ribbon',col); }
-    r.el.classList.toggle('cd-current',current); attr(r.el,voice ? 'aria-pressed' : 'aria-current',String(current));
-    label(r.el,`${voice ? '' : '#'}${c.name}${n ? ` · ${n} ${voice ? (n === 1 ? 'pessoa' : 'pessoas') : (n === 1 ? 'não lida' : 'não lidas')}` : ''}`);
+    r.el.classList.toggle('cd-current',current); attr(r.el,'aria-current',String(current));
+    label(r.el,`Canal de ${voice ? 'voz' : 'texto'} ${c.name}${voice ? `, ${n} ${n === 1 ? 'pessoa' : 'pessoas'}` : n ? ', mensagens novas' : ''}`);
   }
   const dots = Array.from({ length:16 },(_,i) => { const a = i * Math.PI / 8; return `<circle cx="${54 + 47.5*Math.cos(a)}" cy="${54 + 47.5*Math.sin(a)}" r="1.7" fill="${GOLD}"/>`; }).join('');
   function medal(u) {

@@ -930,7 +930,7 @@
         const status = here ? `${ch.users.length} na call` : ch.users.length ? countPeople(ch.users.length) : 'Vazio';
         el.classList.toggle('ap-room-occupied', !!ch.users.length);
         setText(item.name, ch.name); setText(item.status, status);
-        setAttr(el, 'aria-label', `${here ? 'Na call em' : 'Entrar em'} ${ch.name} · ${theme.name} · ${status}`);
+        setAttr(el, 'aria-label', `Canal de voz ${ch.name}, ${countPeople(ch.users.length)}${here ? ', você está nele' : ''}`);
         if (ui.rooms.children[index] !== el) ui.rooms.insertBefore(el, ui.rooms.children[index] || null);
         index++;
       }
@@ -945,7 +945,7 @@
         }
         setText(el.children[1], ch.name); el.classList.toggle('ap-wall-active', !!ch.active);
         setAttr(el, 'aria-current', ch.active ? 'true' : 'false');
-        el.classList.toggle('ap-unread', !!ch.unread); setAttr(el, 'aria-label', `Mural ${ch.name}${ch.unread ? ', mensagens não lidas' : ''}`);
+        el.classList.toggle('ap-unread', !!ch.unread); setAttr(el, 'aria-label', `Canal de texto ${ch.name}${ch.unread ? ', mensagens novas' : ''}`);
         if (ui.walls.children[index] !== el) ui.walls.insertBefore(el, ui.walls.children[index] || null);
         index++;
       }

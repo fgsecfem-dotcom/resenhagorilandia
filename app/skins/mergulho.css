@@ -225,7 +225,7 @@
 .mg-chat-tabs { display: flex; gap: 4px; flex: none; overflow: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .mg button.mg-text-tab { padding: 5px 8px; white-space: nowrap; color: var(--mg-dim); font: italic 800 18px/1 var(--mg-display); text-transform: uppercase; }
 .mg button.mg-text-tab:hover { color: var(--mg-paper); }
-.mg button.mg-text-tab[aria-pressed="true"] { color: var(--mg-paper); box-shadow: inset 0 -3px 0 var(--mg-red); }
+.mg button.mg-text-tab[aria-current="true"] { color: var(--mg-paper); box-shadow: inset 0 -3px 0 var(--mg-red); }
 .mg-text-tab.is-unread::after { content: ''; display: inline-block; margin-left: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--mg-paper); vertical-align: middle; }
 .mg-chat-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-right: 4px; }
 .mg-messages { display: grid; gap: 12px; margin-top: auto; }

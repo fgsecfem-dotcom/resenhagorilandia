@@ -24,7 +24,7 @@ window.ResenhaSkins = (() => {
       cur = skin; curName = theme;
       try { skin.mount(root, actions); } catch (e) { console.error('[skin] mount', theme, e); stop(); return; }
     }
-    try { cur.update(model); } catch (e) { console.error('[skin] update', theme, e); }
+    try { cur.update(model); window.ResenhaA11y?.syncSkinChannels(root); } catch (e) { console.error('[skin] update', theme, e); }
   }
   function speaking(ids) { try { cur?.speaking?.(ids); } catch (e) { console.error('[skin] speaking', curName, e); } }
   return { register: (name, skin) => reg.set(name, skin), has: (name) => reg.has(name), sync, speaking, stop, get active() { return curName; } };

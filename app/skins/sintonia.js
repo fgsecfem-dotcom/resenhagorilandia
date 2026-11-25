@@ -232,6 +232,7 @@
       el.classList.toggle('is-tuned', !!here);
       el.classList.toggle('is-unread', !!c.unread);
       attr(el, 'aria-current', !!here);
+      attr(el, 'aria-label', `Canal de ${voice ? 'voz' : 'texto'} ${c.name}${voice ? ', ' + activity : c.unread ? ', mensagens novas' : ''}`);
       text(p.name, c.name);
       text(p.desc, desc);
       prop(p.desc, 'title', desc);

@@ -152,9 +152,13 @@ function confirmModal(title, text, ok = 'Confirmar', danger = true) {
 }
 
 // Menu de contexto genérico
+let ctxOrigin, ctxRevision = 0;
 function showMenu(e, html, bindFn) {
+  ctxRevision++;
+  ctxOrigin = e.origin || window.ResenhaA11y.originFor(e.target);
   e.preventDefault(); e.stopPropagation();
   const menu = $('#ctx-menu');
+  menu.inert = false;
   menu.innerHTML = html;
   menu.classList.toggle('has-card', !!menu.querySelector('.pcard')); // size the profile card before placing it
   menu.classList.remove('hidden');
@@ -163,8 +167,16 @@ function showMenu(e, html, bindFn) {
   menu.style.top = clamp(e.clientY, 4, innerHeight - r.height - 4) + 'px';
   globalThis.resenhaMotion?.popIn(menu); // nasce do nome ou avatar clicado
   bindFn && bindFn(menu);
+  window.ResenhaA11y.contextMenu(menu, hideMenu);
 }
-const hideMenu = () => { const m = $('#ctx-menu'), hide = () => m.classList.add('hidden'); if (globalThis.resenhaMotion?.popOut) globalThis.resenhaMotion.popOut(m, hide); else hide(); };
+function hideMenu(restoreFocus = false) {
+  const menu = $('#ctx-menu'); if (menu.classList.contains('hidden')) return;
+  const revision = ++ctxRevision, origin = ctxOrigin;
+  if (restoreFocus || menu.contains(document.activeElement)) window.ResenhaA11y.restore(origin);
+  menu.inert = true;
+  const hide = () => { if (revision === ctxRevision) menu.classList.add('hidden'); };
+  if (globalThis.resenhaMotion?.popOut) globalThis.resenhaMotion.popOut(menu, hide); else hide();
+}
 
 // ---------------- Sons (sintetizados) ----------------
 let sfxCtx = null;
@@ -2363,7 +2375,7 @@ async function listDevices(kind) {
 }
 async function deviceMenu(e, kind) {
   e.preventDefault();
-  const pos = { clientX: e.clientX, clientY: e.clientY, preventDefault() {}, stopPropagation() {} };
+  const pos = { clientX: e.clientX, clientY: e.clientY, origin: e.currentTarget, preventDefault() {}, stopPropagation() {} };
   const devs = await listDevices(kind);
   const cur = kind === 'audioinput' ? settings.inputDevice : settings.outputDevice;
   const item = (id, label) => `<div class="ctx-item dev ${id === cur ? 'sel' : ''}" data-dev="${esc(id)}"><span>${esc(label)}</span>${id === cur ? icon('check', 16) : ''}</div>`;
@@ -3257,7 +3269,8 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
     const i = items.indexOf(document.activeElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement?.click(); }
-    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeRoomMenu(); (anchor?.isConnected && anchor.offsetParent ? anchor : btn).focus(); }
+    else if (e.key === 'Tab') window.ResenhaA11y.cycle(menu, e, e.shiftKey ? -1 : 1, items);
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRoomMenu(); window.ResenhaA11y.restore(anchor || btn); }
   };
   items.forEach((el) => el.onmouseenter = () => el.focus());
   items.forEach((el) => el.onclick = async () => {
