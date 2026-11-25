@@ -56,7 +56,7 @@ function fixture({ state, online = false, hold = false, savedRoom = room, expect
   const ctx = vm.createContext({ window: {}, innerWidth: 800, innerHeight: 600,
     localStorage: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) },
     document: { visibilityState: 'visible', querySelector: sel => sel === '#main:not(.hidden)' ? anchor : null,
-      querySelectorAll: sel => sel.includes('[data-join]') || sel.includes('#btn-invite') ? [anchor] : [],
+      querySelectorAll: sel => ['[data-join]', '#btn-invite', 'button.live-join'].some(token => sel.includes(token)) ? [anchor] : [],
       createElement() { const parts = new Map(); return { offsetWidth: 240, offsetHeight: 120, dataset: {}, style: { setProperty() {} }, setAttribute() {}, remove() { mounted.delete(this); }, querySelector: sel => parts.get(sel) || (parts.set(sel, {}), parts.get(sel)) }; },
       body: { append(el) { mounted.add(el); } } },
     setInterval(fn) { intervals.add(fn); return fn; }, clearInterval(fn) { intervals.delete(fn); },
@@ -69,6 +69,7 @@ function fixture({ state, online = false, hold = false, savedRoom = room, expect
   const titles = [];
   for (let i = 0; i < 3; i++) {
     assert.equal(mounted.size, 1); titles.push(tip().querySelector('b').textContent);
+    if (i === 2) assert.equal(tip().dataset.side, 'right', 'a última dica aponta para o botão real da live');
     tip().querySelector('button').onclick(); tick();
   }
   assert.deepEqual(titles, ['Entre na call', 'Chame a galera', 'Assista à live']);

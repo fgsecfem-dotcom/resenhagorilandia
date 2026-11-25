@@ -4,7 +4,7 @@
   const tips = [
     { title: 'Entre na call', text: 'Abra um canal de voz para falar com a galera.', anchors: '#call [data-join] .btn, [data-ap-join], .cd-enter, .mg-voice button, [data-vch]' },
     { title: 'Chame a galera', text: 'Use Convidar para mandar o código ou o link da sala.', anchors: '#btn-invite, [data-ap-invite], .sn-invite, .cd-invite, .mg-invite' },
-    { title: 'Assista à live', text: 'Quando alguém estiver ao vivo, use Assistir para ver a tela.', anchors: '#call [data-watch], button[data-ap-watch], .sn-watch, .cd-watch, .mg-watch' },
+    { title: 'Assista à live', text: 'Escolha a transmissão de quem está ao vivo para ver a tela.', anchors: '#call button.live-join[title="Entrar na transmissão"], #call [data-watch], button[data-ap-watch], .sn-watch, .cd-watch, .mg-watch' },
   ];
   let step = null, timer = null, box = null;
   try {
@@ -46,7 +46,7 @@
     const tip = tips[step]; if (!tip) return stop();
     if (!box) show(tip, step);
     box.hidden = false;
-    const target = [...document.querySelectorAll(tip.anchors)].find(el => el.getBoundingClientRect().width > 0);
+    const target = tip.anchors.split(', ').map(sel => [...document.querySelectorAll(sel)].find(el => el.getBoundingClientRect().width > 0)).find(Boolean);
     place(target);
   }
   window.FirstTips = {
