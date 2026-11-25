@@ -3,6 +3,7 @@
 #   ping          -> pong
 #   fg            -> fg|pid|tela cheia 0/1|esq|topo|dir|base|caminho do exe|título
 #   w <vk>        -> espera a tecla ser solta e responde up
+#   key <vk>      -> consulta apenas a tecla escolhida, sem bloquear
 #   procs         -> procs|nome\x01caminho\x01título\x02...
 $ErrorActionPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -54,6 +55,10 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
     'ping' { [Console]::Out.WriteLine('pong') }
     'fg' { [Console]::Out.WriteLine('fg|' + [RW]::Fg()) }
     'procs' { [Console]::Out.WriteLine('procs|' + [RW]::Procs()) }
+    'key' {
+      $vk = [int]$p[1]
+      if (([RW]::GetAsyncKeyState($vk) -band 0x8000) -ne 0) { [Console]::Out.WriteLine('down') } else { [Console]::Out.WriteLine('up') }
+    }
     'w' {
       $vk = [int]$p[1]
       $n = 0

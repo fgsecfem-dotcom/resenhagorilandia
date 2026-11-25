@@ -21,7 +21,8 @@ const {RoomStore,makeSnapshot,roomIdFor,atomic,backup,norm}=require('./room-stat
 const { mobileTLS } = require('./mobile-tls');
 const QRCode = require('qrcode');
 const { capturePolicy } = require('./capture-policy');
-const { createOverlay } = require('./overlay/main');
+const { createOverlay, createTalkKey } = require('./overlay/main');
+const { shortcutKey, SHORTCUT_ACTIONS } = require('./overlay/detect');
 const os = require('os');
 let tunnel = null;
 
@@ -302,7 +303,7 @@ app.on('before-quit', (e) => {
   if (host && !quitStopped) { updateQuitSafe=updateQuitSafe&&!updateBusy(activeForUpdate()); e.preventDefault(); quitStopped = true; stopHost(4003).finally(() => app.quit()); return; }
   if(!updateExitHandled&&updateQuitSafe&&!updateBusy(activeForUpdate())&&updateManager.pending()){e.preventDefault();updateExitHandled=true;updateManager.launch().catch(err=>recordCapture('update-helper-error',{error:err.message})).finally(()=>app.quit());}
 });
-app.on('will-quit', () => { overlay?.dispose(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { talkKey.dispose(); overlay?.dispose(); globalShortcut.unregisterAll(); });
 
 const RELAY_RANGE = 300; // portas UDP locais dos relays TURN (não precisam abrir no roteador)
 async function stopHost(code = 4002) {
@@ -481,18 +482,33 @@ ipcMain.handle('capture:compatibility', (e, enabled) => {
   app.relaunch({ args }); quitting = true; app.quit();
 });
 
+const sendShortcut = (action) => { if (win && !win.isDestroyed()) win.webContents.send('shortcut', action); };
+const talkKey = createTalkKey(sendShortcut);
 ipcMain.handle('shortcuts:set', (e, map) => {
+  if (!win || e.sender !== win.webContents) return {};
   globalShortcut.unregisterAll();
-  const res = {};
-  for (const [action, accel] of Object.entries(map || {})) {
-    if (!accel) continue;
-    try { res[action] = globalShortcut.register(accel, () => win && win.webContents.send('shortcut', action)); } catch { res[action] = false; }
+  overlay?.syncHotkey();
+  const res = {}, reserved = new Set([overlay?.hotkey()?.toUpperCase(), 'CONTROL+I', 'CONTROL+,']);
+  for (const action of SHORTCUT_ACTIONS) {
+    const raw = map?.[action];
+    if (!raw) continue;
+    const accel = shortcutKey(raw, action === 'ptt');
+    if (!accel || reserved.has(accel.toUpperCase()) || (action === 'ptt' && process.platform !== 'win32')) { res[action] = false; continue; }
+    try {
+      res[action] = globalShortcut.register(accel, () => {
+        if (action === 'ptt') { if (updateVoice.inVoice) talkKey.press(); return; }
+        if (action === 'liveFull') {
+          // O atalho físico é um gesto do usuário; a API de tela cheia do Chromium o exige.
+          if (win && !win.isDestroyed()) win.webContents.executeJavaScript('window.__resenha?.toggleLiveFullscreen()', true).catch(() => {});
+        } else sendShortcut(action);
+      });
+    } catch { res[action] = false; }
   }
-  overlay?.syncHotkey(); // unregisterAll acima também tirou o atalho da ilha
+  talkKey.setKey(res.ptt ? map.ptt : '');
   return res;
 });
 
-ipcMain.on('voice-state', (e, st) => {updateVoice=st||{};updateTrayMenu(updateVoice);});
+ipcMain.on('voice-state', (e, st) => { if (e.sender !== win?.webContents) return; updateVoice = st || {}; if (!updateVoice.inVoice) talkKey.cancel(); updateTrayMenu(updateVoice); });
 
 ipcMain.handle('notify', (e, { title, body }) => {
   if (!win || (win.isFocused() && win.isVisible())) return;

@@ -1132,6 +1132,7 @@
         updateAudience(liveRoom ? liveRoom.users : people);
         updateChat();
       },
+      shortcut(a) { if (a === 'chat') changeChat(!chatOpen, true); if (a === 'liveFull' && video.videoWidth) actions.fullscreen(video)?.catch?.(() => {}); },
       speaking(ids) {
         for (const pool of [roomTokens, liveTokens]) for (const [id, token] of pool) token.g.classList.toggle('ap-is-speaking', ids.has(id));
       },
@@ -1147,6 +1148,7 @@
     mount(root, actions) { apartment = mount(root, actions); },
     update(model) { apartment?.update(model); },
     speaking(ids) { apartment?.speaking(ids); },
+    shortcut(a) { apartment?.shortcut(a); },
     unmount() { apartment?.stop(); apartment = null; },
   });
 })();

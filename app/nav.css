@@ -169,3 +169,68 @@ html[data-tk] #sidebar #sidebar-toggle:hover { background: var(--hover); color: 
 #room-banner { flex: none; height: 84px; margin: 0 0 8px; border-radius: 12px; background: center / cover no-repeat var(--bg-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent); }
 #main[data-sidebar-compact=true] #room-banner { height: 40px; border-radius: 10px; }
 .nmenu .n-cover { height: 76px; margin-bottom: 2px; border-radius: 8px 8px 4px 4px; background: center / cover no-repeat var(--bg-panel); }
+
+
+/* Configurações: cabeçalho e rodapé fixos no fluxo; só o corpo rola. */
+#modal-root .settings-dialog { --settings-inset: 24px; flex-direction: column; overflow: hidden; }
+#modal-root .settings-dialog > header { align-items: center; padding: 16px var(--settings-inset) 8px; flex: none; }
+#modal-root .settings-dialog > .tabs { align-self: stretch; flex: none; width: auto; max-width: none; margin: 0 var(--settings-inset) 8px; padding: 0; flex-wrap: wrap; }
+#modal-root .settings-dialog > .tabs button { border: 0; min-height: 32px; padding: 4px 8px; }
+#modal-root .settings-dialog > .tabs button:first-child { margin-left: -8px; }
+#modal-root .settings-dialog > footer { flex: none; }
+#modal-root .settings-dialog .settings-switches { display: grid; margin-top: 12px; }
+#modal-root .settings-dialog .check { min-height: 40px; gap: 12px; align-items: center; text-align: left; }
+#modal-root .settings-dialog label.check > input[type="checkbox"] { background: color-mix(in srgb, var(--text-hi) 28%, var(--bg-main)); }
+#modal-root .settings-dialog label.check > input[type="checkbox"]:checked { background: #326851; }
+#modal-root .settings-dialog label.check > input[type="checkbox"]::before { background: #fff; box-shadow: none; }
+#modal-root .settings-dialog .settings-switch-note { margin: -4px 0 8px 52px; }
+#modal-root .settings-dialog :is(#st-sens-box, .ns-box) { margin-block: 8px; }
+#modal-root .settings-dialog [data-p="ilha"] > .settings-grid { grid-template-columns: minmax(0, 1fr); }
+#modal-root .settings-dialog [data-p="ilha"] .check + p { margin: -4px 0 0 52px; }
+#modal-root .settings-dialog :is(button, summary, input, select, textarea):focus-visible { outline: 2px solid var(--text-hi); outline-offset: 2px; }
+
+
+/* Aparência: o fundo continua visível durante a seleção. */
+#modal-root .overlay:has(> .settings-dialog) { background: #0006; transition: background 250ms var(--ease-out, ease-out); }
+#modal-root .overlay.with-appearance:has(> .settings-dialog) { background: transparent; backdrop-filter: none; }
+#modal-root .settings-dialog {
+  position: absolute; top: 50%; left: 50%; border-radius: 24px;
+  translate: -50% -50%;
+  transition: width 250ms var(--ease-out, ease-out), left 250ms var(--ease-out, ease-out), translate 250ms var(--ease-out, ease-out);
+}
+#modal-root .with-appearance > .settings-dialog { --settings-inset: 16px; left: calc(100% - 12px); translate: -100% -50%; width: min(392px, calc(100% - 24px)); height: min(760px, calc(100vh - 48px)); }
+#modal-root .with-appearance > .settings-dialog > :is(.body, footer) { padding-inline: var(--settings-inset); }
+#modal-root .settings-dialog .settings-theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.modal .theme-card .settings-theme-thumb { display: block; width: 100%; height: auto; aspect-ratio: 19 / 6; object-fit: cover; object-position: center; border-radius: 7px; background: var(--bg-main); }
+#modal-root .settings-dialog .theme-card { padding: 4px 4px 6px; }
+#modal-root .settings-dialog .theme-card .tc-name { margin: 2px 4px 0; }
+.settings-theme-grid + .section-title, .settings-dialog .pal-block, .settings-more { margin-top: 12px; }
+.settings-palettes { display: flex; gap: 2px; overflow-x: auto; padding: 4px; margin-inline: -4px; }
+.settings-palette { flex: none; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--bg-panel); color: var(--text-hi); cursor: pointer; }
+.settings-palette[aria-pressed="true"] { outline: 2px solid var(--text-hi); outline-offset: 1px; }
+.settings-swatch { display: block; width: 100%; height: 100%; border-radius: inherit; background: conic-gradient(var(--p60) 0 60%, var(--p30) 60% 90%, var(--p10) 90%); }
+.settings-auto { display: flex; justify-content: center; align-items: center; gap: 1px; font-size: 12px; }
+.settings-more { padding: 8px; border-top: 1px solid var(--line); }
+.settings-more > summary { padding-block: 8px; cursor: pointer; font-weight: 700; }
+#modal-root .settings-dialog .settings-more .settings-grid { grid-template-columns: minmax(0, 1fr); }
+.settings-undo { flex: none; align-self: center; margin: 4px 8px 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-panel); color: var(--text-hi); font-size: 13px; }
+.settings-undo button { border: 0; padding: 6px 2px; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.settings-dialog [hidden] { display: none; }
+html.settings-crossfade::view-transition-group(root),
+html.settings-crossfade::view-transition-old(root), html.settings-crossfade::view-transition-new(root) { animation-duration: 150ms; animation-timing-function: var(--ease-out, ease-out); }
+html.settings-crossfade::view-transition { pointer-events: none; }
+html.reduce-motion #modal-root :is(.settings-dialog, .overlay:has(> .settings-dialog)) { transition: none; }
+html.reduce-motion #modal-root .settings-dialog .tp { animation: none; }
+
+
+.modal.invite-dialog .invite-primary { display: inline-flex; align-items: center; background: #ff8a3d; color: #20140c; }
+.modal.invite-dialog .invite-primary:hover { background: #ff9c60; }
+.modal.invite-dialog .invite-primary svg { margin-right: 4px; }
+.invite-dialog .invite-phone { display: flex; align-items: center; gap: 16px; padding: 12px; }
+.invite-phone img { flex: none; background: #fff; border-radius: 8px; }
+
+
+.settings-shortcuts { display: grid; gap: 4px; }
+.settings-key-row { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-key-row button { min-width: 112px; color: var(--text-hi); }
+.settings-key-note { margin-block: 8px; min-height: 20px; color: var(--text-hi); }

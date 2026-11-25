@@ -29,19 +29,29 @@ const LS = {
 };
 const COLORS = ['#5865f2', '#eb459e', '#57f287', '#fee75c', '#ed4245', '#f47b67', '#3ba55c', '#faa61a', '#9b59b6', '#1abc9c'];
 const me = LS.get('profile', { name: '', color: COLORS[Math.floor(Math.random() * COLORS.length)], avatar: null });
+const SHORTCUTS = {
+  mute: ['keyMute', 'Mutar/desmutar microfone'], deafen: ['keyDeafen', 'Mutar som e microfone'],
+  ptt: ['keyPtt', 'Apertar para falar'], share: ['keyShare', 'Compartilhar/parar tela'], leave: ['keyLeave', 'Sair da call'],
+  chat: ['keyChat', 'Abrir/fechar chat'], liveFull: ['keyLiveFull', 'Tela cheia da live'],
+};
 const settings = Object.assign({
   mutedRooms: {},
   inputDevice: 'default', outputDevice: 'default', micGain: 100, autoSens: true, threshold: -55,
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
-  keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
+  ...Object.fromEntries(Object.values(SHORTCUTS).map(([k]) => [k, ''])), pttRelease: 0, chatWidth: 360, sidebarWidth: 264,
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
-// 3.0: quem nunca escolheu "Reduzir animações" passa a seguir o Windows ("auto"); quem ligou continua ligado.
+// Migração do antigo padrão desligado; o desligado explícito da nova opção é preservado.
 if (!LS.get('motionAuto', false)) { if (settings.reduceMotion === false) settings.reduceMotion = 'auto'; LS.set('settings', settings); LS.set('motionAuto', true); }
-const applyReduceMotion = () => window.resenhaMotion?.setPreference(settings.reduceMotion);
+const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const applyReduceMotion = () => {
+  if (window.resenhaMotion?.setPreference) return window.resenhaMotion.setPreference(settings.reduceMotion);
+  document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion === 'auto' ? systemReducedMotion.matches : settings.reduceMotion === true);
+};
 applyReduceMotion();
+if (!window.resenhaMotion?.setPreference) systemReducedMotion.addEventListener('change', applyReduceMotion);
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
 const saveSettings = () => LS.set('settings', settings);
@@ -84,6 +94,9 @@ const V = {
   windowVisible: true, focus: null, monitor: null,
   djAudio: null, djGain: null, djAnalyser: null, djTrack: null,
 };
+let pttPressed = false, pttTimer;
+const heldMicBlocked = () => !!settings.keyPtt && !pttPressed;
+const micMuted = () => V.muted || V.deafened || heldMicBlocked();
 const semisToRatio = (s) => Math.pow(2, s / 12);
 
 // ---------------- Utilidades de UI ----------------
@@ -125,18 +138,44 @@ function fmtDur(ms) { const s = Math.max(0, Math.floor(ms / 1000)); const h = Ma
 const serverNow = () => Date.now() + S.serverOffset;
 function copy(text) { navigator.clipboard.writeText(text).then(() => toast('Copiado!', 'ok', 1500)); }
 
-function openModal(html, { wide = false, onClose, cls = '' } = {}) {
+function openModal(html, { wide = false, onClose, cls = '', label = '', opener = document.activeElement } = {}) {
   if (roomUI && cls === 'dm-panel') return roomUI.dmModal(html, {onClose});
   if (roomUI && cls === 'dj-modal') return roomUI.floatingModal(html, {onClose});
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="modal ${wide ? 'wide' : ''} ${cls}">${html}</div>`;
-  const close = () => { if (globalThis.resenhaMotion?.closeOverlay) globalThis.resenhaMotion.closeOverlay(ov); else ov.remove(); document.removeEventListener('keydown', onKey, true); onClose && onClose(); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  const root = $('#modal-root'), modal = ov.firstElementChild;
+  let closed = false;
+  const top = () => [...root.children].filter((x) => !x.inert).at(-1) === ov;
+  const focusables = () => $$('button, [href], input, select, textarea, summary, [tabindex]', modal)
+    .filter((x) => x.tabIndex >= 0 && !x.matches(':disabled') && x.getClientRects().length && getComputedStyle(x).visibility === 'visible');
+  const initial = () => ($('[data-close]', modal) || focusables()[0] || modal).focus({ preventScroll: true });
+  const onFocus = (e) => { if (top() && !ov.contains(e.target)) initial(); };
+  const close = () => {
+    if (closed) return;
+    closed = true; ov.inert = true;
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('focusin', onFocus);
+    if (globalThis.resenhaMotion?.closeOverlay) globalThis.resenhaMotion.closeOverlay(ov); else ov.remove();
+    onClose?.();
+    if (label || opener?.closest('.settings-dialog')) opener?.focus({ preventScroll: true });
+  };
+  const onKey = (e) => {
+    if (!top()) return;
+    if (e.key === 'Escape' && !e.target.closest?.('.kbd.rec')) { e.preventDefault(); e.stopPropagation(); close(); }
+    if (!label || e.key !== 'Tab') return;
+    const items = focusables(), i = items.indexOf(document.activeElement);
+    if (i === -1 || i === (e.shiftKey ? 0 : items.length - 1)) {
+      e.preventDefault(); (items[e.shiftKey ? items.length - 1 : 0] || modal).focus();
+    }
+  };
+  if (label) { modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', label); modal.tabIndex = -1; }
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) { if (label) e.preventDefault(); close(); } });
   document.addEventListener('keydown', onKey, true);
-  $('#modal-root').appendChild(ov);
+  root.appendChild(ov);
   $$('[data-close]', ov).forEach((b) => (b.onclick = close));
+  if (label) document.addEventListener('focusin', onFocus);
+  if (label || opener?.closest('.settings-dialog')) initial();
   return { el: ov, close };
 }
 function promptModal(title, { value = '', placeholder = '', ok = 'Salvar', extra = '', inputType='text', maxLength=32 } = {}) {
@@ -282,7 +321,7 @@ async function refreshStoredRooms(){
   try{storedRooms=await native.rooms.list();}catch{}
 }
 async function goHome(focus){
-  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e do servidor. Continuar?','Sair',false))return;
+  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e da sala. Continuar?','Sair',false))return;
   forgetLastRoom();
   await leaveRoom();
   if(focus)setTimeout(()=>$(focus)?.focus(),50);
@@ -290,7 +329,7 @@ async function goHome(focus){
 async function switchServer(code){
   const room=storedRooms.find(r=>normCode(r.code)===code);
   if(!room||code===normCode(S.code))return;
-  if(V.joined&&!await confirmModal('Trocar de servidor',`Você vai sair da call e entrar em ${esc(room.name)}.`,'Trocar',false))return;
+  if(V.joined&&!await confirmModal('Trocar de sala',`Você vai sair da call e entrar em ${esc(room.name)}.`,'Trocar',false))return;
   await leaveRoom();
   await openStoredRoom(room,{auto:true});
 }
@@ -759,16 +798,19 @@ function sendProfile(extra = {}) { wsSend({ t: 'profile', name: me.name, color: 
 const BANNER_COLORS = ['#d6402b', '#0369a1', '#047857', '#b45309', '#6a4bb3', '#be185d', '#26282f'];
 const NAME_COLORS = ['', '#fbbf24', '#f5b1d4', '#80e1bc', '#a4d9ff', '#fca5a5'];
 const MAX_BANNER = 8 * 1024 * 1024;
-const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: me.nameFx || '', bannerColor: me.bannerColor || '' });
 // Nome com cor e efeito do perfil (2.1.5): aparece na lista da esquerda, na call, no chat e no cartão.
-const NAME_FX = { '': 'Nenhum', holo: 'Holográfico', rainbow: 'Arco-íris', neon: 'Neon', ouro: 'Ouro', fogo: 'Fogo', gelo: 'Gelo', glitch: 'Glitch' };
+// 3.0: só dois efeitos sutis. Holográfico, Arco-íris, Neon, Fogo e Glitch saíram: quem usava volta para Nenhum.
+const NAME_FX = { '': 'Nenhum', ouro: 'Ouro', gelo: 'Gelo' };
+const cleanNameFx = (v) => (typeof v === 'string' && v && Object.hasOwn(NAME_FX, v) ? v : ''); // valor antigo (nosso ou de outra pessoa) vira Nenhum
+if (me.nameFx && cleanNameFx(me.nameFx) !== me.nameFx) { me.nameFx = ''; LS.set('profile', me); }
+const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: cleanNameFx(me.nameFx), bannerColor: me.bannerColor || '' });
 function personInk(color, surface = '') {
   if (!/^#[0-9a-f]{6}$/i.test(color || '')) return '';
   return `data-person-color="${color}"${surface ? ` data-person-surface="${surface}"` : ''} style="color:${window.readableColor(color, surface)}"`;
 }
 const listName = (u) => `<span ${personInk(u.nameColor || u.color, 'sidebar')}>${esc(u.name)}</span>`;
 function nameHTML(u, text = u?.name) {
-  const fx = u?.nameFx && NAME_FX[u.nameFx] ? u.nameFx : '', c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
+  const fx = cleanNameFx(u?.nameFx), c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
   if (!fx && !c) return esc(text);
   return `<span class="uname${fx ? ' fx-' + fx : ''}"${c ? ` style="--nc:${c}"` : ''} data-text="${esc(text)}">${esc(text)}</span>`;
 }
@@ -875,7 +917,7 @@ function handle(m) {
       if (V.joined) { // reconectou (troca de anfitrião): a voz continuou, só avisa o novo servidor
         if (!chanById(V.channel)) V.channel = voiceChannels()[0]?.id;
         const kept = S.users.get(S.myId)?.voiceChannel === V.channel; // o servidor segurou meu lugar na call?
-        wsSend({ t: 'state', voiceChannel: V.channel, muted: V.muted, deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
+        wsSend({ t: 'state', voiceChannel: V.channel, muted: micMuted(), deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
         if (S.softResume && !kept) { // demorou demais (ou anfitrião antigo): os outros fecharam a voz comigo, então refaço
           for (const uid of [...V.peers.keys()]) resetPeer(uid, false);
           for (const u of usersIn(V.channel)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
@@ -1076,7 +1118,7 @@ function tickTimers() {
   $$('#voice-channels .timer').forEach((t) => { const s = +t.dataset.since; t.textContent = s ? fmtDur(serverNow() - s) : ''; });
 }
 function isSpeaking(id) {
-  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
+  if (id === S.myId) return V.joined && !micMuted() && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
   return V.speaking.has(id);
 }
 
@@ -1158,10 +1200,10 @@ function updateTile(key, u, isScreen) {
     const tools = t.querySelector('.tile-tools');
     const full = document.fullscreenElement === t;
     // Rebuild only when the controls change, so a volume drag or keyboard focus survives other people's updates.
-    const toolsSig = [watching, V.muted || V.deafened, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
+    const toolsSig = [watching, micMuted(), settings.keyLiveFull, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
     if (tools.dataset.sig !== toolsSig) {
     tools.dataset.sig = toolsSig;
-    tools.innerHTML = watching ? `<button class="live-call-control ${V.muted || V.deafened ? 'off' : ''}" title="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${V.muted || V.deafened}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(V.muted || V.deafened ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${full ? 'Sair da tela cheia' : 'Tela cheia'}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
+    tools.innerHTML = watching ? `<button class="live-call-control ${micMuted() ? 'off' : ''}" title="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${micMuted()}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(micMuted() ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${esc(shortcutTip(full ? 'Sair da tela cheia' : 'Tela cheia', 'liveFull'))}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
     $('[data-stop]', tools)?.addEventListener('click', async (e) => {
       e?.stopPropagation();
       if (document.fullscreenElement === t) await document.exitFullscreen().catch(() => {});
@@ -1286,16 +1328,16 @@ function renderCall() {
   }
   flip?.play();
 
-  $('#cc-mute').innerHTML = icon(V.muted || V.deafened ? 'micOff' : 'mic', 24);
-  $('#cc-mute').classList.toggle('off', V.muted || V.deafened);
-  $('#cc-mute').setAttribute('aria-pressed', String(V.muted || V.deafened));
+  $('#cc-mute').innerHTML = icon(micMuted() ? 'micOff' : 'mic', 24);
+  $('#cc-mute').classList.toggle('off', micMuted());
+  $('#cc-mute').setAttribute('aria-pressed', String(micMuted()));
   $('#cc-deafen').innerHTML = icon(V.deafened ? 'headphonesOff' : 'headphones', 24);
   $('#cc-deafen').classList.toggle('off', V.deafened);
   $('#cc-deafen').setAttribute('aria-pressed', String(V.deafened));
   // On the desktop app the button edits a running live (change or stop); the browser can only stop it.
   $('#cc-share').innerHTML = icon(V.screen && !native ? 'screenOff' : 'screen', 24);
   $('#cc-share').classList.toggle('on', !!V.screen);
-  $('#cc-share').title = !V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar';
+  applyShortcutTips();
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
 function layoutGrid() {
@@ -1337,7 +1379,7 @@ function skinModel() {
     voice: voiceChannels().map((c) => ({ id: c.id, name: c.name, here: V.joined && V.channel === c.id, users: usersIn(c.id).map(skinUser) })),
     text: textChannels().map((c) => ({ id: c.id, name: c.name, active: c.id === S.textChannel, unread: S.unread.has(c.id) && c.id !== S.textChannel })),
     lobby: [...S.users.values()].filter((u) => !u.voiceChannel).map(skinUser),
-    call: { joined: V.joined, channel: V.channel, muted: V.muted || V.deafened, deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
+    call: { joined: V.joined, channel: V.channel, muted: micMuted(), deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
       messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, nameColor: S.users.get(m.userId)?.nameColor || m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
@@ -1357,8 +1399,9 @@ const skinActions = {
 let skinSpeakSig = '', skinReady = false, skinQueued = false; // skinReady: só depois que o módulo inteiro rodou (curMessages, input… já existem)
 function syncSkin() {
   const skins = window.ResenhaSkins; if (!skinReady || !skins) return;
-  if (!skins.active && !skins.has(settings.theme)) return; // tema sem sala própria: nem monta o retrato
-  skins.sync(settings.theme, skinModel(), skinActions); skinSpeakSig = '';
+  const theme = document.documentElement.dataset.tk || settings.theme;
+  if (!skins.active && !skins.has(theme)) return; // tema sem sala própria: nem monta o retrato
+  skins.sync(theme, skinModel(), skinActions); skinSpeakSig = '';
 }
 // Várias mudanças seguidas (trilha da live chegando, gente entrando) viram um retrato só, no fim da tarefa atual.
 function syncSkinSoon() { if (skinQueued) return; skinQueued = true; queueMicrotask(() => { skinQueued = false; syncSkin(); }); }
@@ -1374,7 +1417,7 @@ addEventListener('resenha-reduce-motion', () => syncSkinSoon());
 addEventListener('resenha-theme', () => {
   for (const el of $$('[data-person-color]')) el.style.color = window.readableColor(el.dataset.personColor, el.dataset.personSurface);
 });
-function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
+function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: micMuted(), deafened: V.deafened }); }
 
 function refreshSpeaking() {
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
@@ -1577,7 +1620,8 @@ async function joinVoice(channelId) {
   if (attempt !== V.voiceAttempt || S.closing) return;
   V.joined = true; V.channel = channelId; watchDevices();
   if (V.deafened) V.muted = true;
-  wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
+  updatePttTrack();
+  wsSend({ t: 'state', voiceChannel: channelId, muted: micMuted(), deafened: V.deafened });
   sfx('join');
   globalThis.ResenhaA11y?.announce(`Você entrou em ${chanById(channelId)?.name || 'um canal de voz'}.`);
   for (const u of usersIn(channelId)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
@@ -1596,6 +1640,7 @@ function leaveVoice(silentSwitch) {
 }
 function teardownVoice() {
   if (perf.timer) perfStop();
+  clearTimeout(pttTimer); pttPressed = false; updatePttTrack();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -1611,23 +1656,23 @@ function setMuted(m, silent) {
   if (WEB_VIEWER && !WEB_VOICE) return;
   if (V.deafened && !m) { setDeafened(false); return; }
   if (m !== V.muted) globalThis.ResenhaA11y?.announce(m ? 'Microfone silenciado.' : 'Microfone ativado.');
-  V.muted = m; LS.set('muted', m);
+  V.muted = m; LS.set('muted', m); updatePttTrack();
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
-  wsSend({ t: 'state', muted: V.muted, deafened: V.deafened });
+  wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
 }
 function setDeafened(d) {
   if (d) { V.mutedBeforeDeafen = V.muted; V.muted = true; }
   else { V.muted = V.mutedBeforeDeafen; }
   if (d !== V.deafened) globalThis.ResenhaA11y?.announce(d ? 'Áudio e microfone silenciados.' : V.muted ? 'Áudio ativado. Microfone silenciado.' : 'Áudio e microfone ativados.');
-  V.deafened = d;
+  V.deafened = d; updatePttTrack();
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
   if (V.master) V.master.gain.value = d ? 0 : 1;
   if (V.screenMaster) V.screenMaster.gain.value = d ? 0 : 1;
   sfx(d ? 'mute' : 'unmute');
-  wsSend({ t: 'state', muted: V.muted, deafened: V.deafened });
+  wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
 }
 
@@ -2961,70 +3006,104 @@ function openPerformance() {
 
 // ---------------- Convite ----------------
 async function openInvite() {
-  const m = openModal(`<header><div><h2>Convidar amigos para ${esc(S.roomName)}</h2><p>Mande o código pro seu amigo.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
-    <div class="body"><div class="addr-list" id="inv-list"><div class="muted">Verificando sua rede...</div></div></div>
-    <footer><button class="btn primary" data-close>Pronto</button></footer>`, { wide: true });
-  const codeHTML = S.code ? `<div class="code-box"><div class="muted small" style="font-weight:700;text-transform:uppercase;margin-bottom:6px">Código da sala</div><div class="code">${esc(S.code)}</div><button class="btn primary" data-copy="${esc(S.code)}">Copiar código</button><div class="note">Seu amigo abre o Resenha, cola esse código em <b>Entrar numa sala</b> e pronto. Funciona pela internet sem abrir porta e sem Radmin. O código é o mesmo sempre que você abrir a sala com esse nome.</div></div><div id="inv-pwa"></div>` : '';
-  // Celular ou tablet em qualquer rede: o PWA abre já com o código da sala.
-  if (S.code && native?.pwaInvite) native.pwaInvite(S.code).then((p) => { const box = $('#inv-pwa', m.el); if (!p || !box) return; box.innerHTML = `<div class="addr pwa-invite"><h3>Celular ou tablet · qualquer rede</h3><img width="180" height="180" src="${p.qr}" alt="QR code para entrar pelo celular"><p>Aponte a câmera do celular ou mande o link. Abre no navegador, já com o código; dá para adicionar à tela inicial. Dá para falar e assistir às lives.</p><code>${esc(p.url)}</code><button class="btn" data-copy="${esc(p.url)}">Copiar link</button></div>`; bindCopy(box); });
-  if (!S.isHost) {
-    $('#inv-list', m.el).innerHTML = codeHTML || addrBlock('Endereço da sala', S.addr.text, 'É o mesmo endereço que você usou. Só funciona enquanto o anfitrião estiver com a sala aberta.');
-    bindCopy(m.el); return;
-  }
-  $('#inv-list', m.el).innerHTML = codeHTML + '<div id="inv-web"></div><details class="more"><summary>Outras formas de entrar (IP)</summary><div class="addr-list" id="inv-ip"><div class="muted">Verificando sua rede...</div></div></details>';
-  bindCopy(m.el);
-  const mobile = await native.mobileAccess();
-  if (document.body.contains(m.el)) {
-    $('#inv-web',m.el).innerHTML = mobile?.error ? `<p>${esc(mobile.error)}</p>` : (mobile?.links||[]).map(x=>`<div class="addr"><h3>Celular · mesmo Wi-Fi</h3><img width="200" height="200" src="${x.qr}" alt="QR code para configurar o Resenha no celular"><p>Escaneie para configurar o certificado local e entrar. O anfitrião precisa continuar com a sala aberta.</p><code>${esc(x.setup)}</code><button class="btn" data-copy="${esc(x.setup)}">Copiar acesso</button><details><summary>Identidade do certificado</summary><code>${esc(mobile.fingerprint)}</code><p>Confie somente no certificado deste anfitrião. A instalação permite confiar em certificados assinados por ele; remova a confiança quando não usar mais.</p></details></div>`).join('');
-    bindCopy($('#inv-web',m.el));
-  }
-  const n = await native.hostNetwork();
-  if (!n || !document.body.contains(m.el)) return;
-  const port = n.port;
-  let h = '';
-  if (n.publicV4) {
-    let note, cls;
-    if (n.cgnat) { cls = 'bad'; note = 'Sua internet usa CGNAT (IP compartilhado da operadora), então por IP não dá. Use o código.'; }
-    else if (n.upnp.ok) { cls = 'ok'; note = 'Porta aberta automaticamente no roteador (UPnP). Deve funcionar direto.'; }
-    else { cls = 'warn'; note = `Não consegui abrir a porta sozinho (${esc(n.upnp.error || 'UPnP indisponível')}). Entre no roteador e redirecione <b>TCP e UDP ${port}</b> para <b>${esc(n.lan[0] || 'este PC')}</b>.`; }
-    h += addrBlock('Pela internet (IPv4)', `${n.publicV4}:${port}`, note, cls);
-  }
-  if (n.publicV6) h += addrBlock('Pela internet (IPv6)', `[${n.publicV6}]:${port}`, 'Funciona se o amigo também tiver IPv6. Alguns roteadores bloqueiam entrada IPv6 no firewall.', '');
-  for (const ip of n.lan) h += addrBlock('Mesma rede / mesmo Wi-Fi', `${ip}:${port}`, 'Pra quem está na sua casa.', '');
-  for (const v of n.vpn) h += addrBlock('Rede virtual (Radmin, ZeroTier, Hamachi...)', `${v.split(' ')[0]}:${port}`, `Se vocês ainda usam essa rede: ${esc(v)}.`, '');
-  h += '<p class="muted small" style="margin:4px 0 0">Entrar por IP só é necessário se o código não funcionar.</p>';
-  $('#inv-ip', m.el).innerHTML = h;
-  bindCopy($('#inv-ip', m.el));
+  const code = S.code;
+  const m = openModal(`<header><div><h2>Convidar pessoas para ${esc(S.roomName)}</h2><p>Mande o código ou o link. Quem receber abre o Resenha, cola o código em Código da sala e entra.</p></div><button class="icon-btn" data-close aria-label="Fechar convite">${icon('x')}</button></header>
+    <div class="body">${code ? `<div class="code-box"><div class="muted small">Código da sala</div><div class="code">${esc(code)}</div><button class="btn primary invite-primary" id="inv-copy">${icon('copy', 16)} Copiar código</button></div><div id="inv-pwa"></div>` : '<p>Esta sala não tem código. Peça um convite a quem abriu a sala.</p>'}</div>`, { cls: 'invite-dialog' });
+  if (!code) return;
+  $('#inv-copy', m.el).onclick = () => copy(code);
+  if (!native?.pwaInvite) return;
+  try {
+    const p = await native.pwaInvite(code);
+    if (!p?.url || !m.el.isConnected || m.el.inert) return;
+    const box = $('#inv-pwa', m.el);
+    box.innerHTML = `<div class="invite-phone">${p.qr ? `<img width="104" height="104" src="${esc(p.qr)}" alt="QR code para entrar pelo celular">` : ''}<div><b>Pelo celular</b><p class="muted small">Escaneie o código ou mande o link.</p><button class="btn" id="inv-link">Copiar link</button></div></div>`;
+    $('#inv-link', m.el).onclick = () => copy(p.url);
+  } catch { /* O código continua disponível se o link não puder ser gerado. */ }
 }
-function addrBlock(title, value, note, cls = '') {
-  return `<div class="addr"><div class="t">${esc(title)}</div><div class="v"><code>${esc(value)}</code><button class="btn primary" data-copy="${esc(value)}">Copiar</button></div>${note ? `<div class="note ${cls}">${note}</div>` : ''}</div>`;
-}
-function bindCopy(root) { $$('[data-copy]', root).forEach((b) => b.onclick = () => { copy(b.dataset.copy); b.textContent = 'Copiado'; setTimeout(() => (b.textContent = 'Copiar'), 1500); }); }
 
 // ---------------- Configurações ----------------
-// Aparência (2.6): seis temas em cartões e, no Resenha, as paletas 60/30/10 (faixas na proporção real de cada cor).
+// A prévia muda o tema efetivo, sem tocar na preferência salva.
 function themeCardHTML(k, attr = 'data-theme') {
-  const t = THEMES[k], v = themePreview(k, k === 'resenha' ? settings.themeColor : undefined);
-  return `<button class="theme-card tc-${k} ${settings.theme === k ? 'sel' : ''}" ${attr}="${k}" aria-pressed="${settings.theme === k}"><div class="tc-prev" style="--p60:${v.c60 || v['bg-main']};--p30:${v.c30 || v.text};--p10:${v.accent}"><i></i><i></i><b></b></div><span class="tc-name">${esc(t.name)}</span><span class="tc-hint">${esc(t.hint)}</span></button>`;
+  const t = THEMES[k], on = settings.theme === k;
+  return `<button type="button" class="theme-card tc-${k} ${on ? 'sel' : ''}" ${attr}="${k}" aria-pressed="${on}" title="${esc(t.hint)}"><img class="settings-theme-thumb" src="skins/thumb-${k}.webp" alt="" width="288" height="150"><span class="tc-name">${esc(t.name)}</span></button>`;
 }
 function paletteRowHTML() {
-  const auto = `<button class="pal ${settings.themeColor === 'auto' ? 'sel' : ''}" data-palette="auto" title="Segue o Windows: Pipoca no escuro, Lona no claro"><span class="pal-sw auto"><i style="--c:${RESENHA_PALETTES.pipoca.c[0]}"></i><i style="--c:${RESENHA_PALETTES.lona.c[0]}"></i></span><span>Automático</span></button>`;
-  return auto + Object.entries(RESENHA_PALETTES).map(([k, p]) => `<button class="pal ${settings.themeColor === k ? 'sel' : ''}" data-palette="${k}" title="${esc(p.n.join(' · '))}"><span class="pal-sw">${p.c.map((x, i) => `<i style="--c:${x};flex:${[6, 3, 1][i]}"></i>`).join('')}</span><span>${esc(p.name)}</span></button>`).join('');
+  const swatch = (k, name, inside, title = name) => `<button type="button" class="settings-palette" data-palette="${k}" aria-label="${esc(name)}" aria-pressed="${settings.themeColor === k}" title="${esc(title)}">${inside}</button>`;
+  return swatch('auto', 'Automático', `<span class="settings-auto" aria-hidden="true">${icon('sun', 13)}${icon('moon', 10)}</span>`, 'Automático · segue o Windows')
+    + Object.entries(RESENHA_PALETTES).map(([k, p]) => swatch(k, p.name, `<span class="settings-swatch" style="--p60:${p.c[0]};--p30:${p.c[1]};--p10:${p.c[2]}"></span>`)).join('');
 }
 function appearanceHTML(attr = 'data-theme') {
-  return `<div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${VISIBLE_THEMES.map((k) => themeCardHTML(k, attr)).join('')}</div>
-    <div class="pal-block ${settings.theme === 'resenha' ? '' : 'hidden'}"><div class="section-title">Cores do Resenha</div><p class="muted small pal-note">Fundo, texto e destaque na proporção 60 · 30 · 10. O contraste é ajustado sozinho.</p><div class="pal-grid">${paletteRowHTML()}</div></div>`;
+  const group = (name, keys) => `<div class="section-title">${name}</div><div class="theme-grid settings-theme-grid">${keys.map((k) => themeCardHTML(k, attr)).join('')}</div>`;
+  return `${group('Só visual', VISIBLE_THEMES.filter((k) => !THEMES[k].skin))}${group('Sala inteira', VISIBLE_THEMES.filter((k) => THEMES[k].skin))}
+    <div class="pal-block" ${settings.theme === 'resenha' ? '' : 'hidden'}><div class="section-title" id="st-palette-title">Cores do Resenha</div><p class="muted small pal-note">As cores se ajustam para o texto ficar legível</p><div class="settings-palettes" role="group" aria-labelledby="st-palette-title">${paletteRowHTML()}</div></div>`;
+}
+let appearanceTransition, appearanceRevision = 0;
+function displayAppearance(theme, color) {
+  const root = document.documentElement, revision = ++appearanceRevision;
+  appearanceTransition?.skipTransition();
+  const change = () => { if (revision === appearanceRevision) applyTheme(theme, color); };
+  if (root.classList.contains('reduce-motion') || !document.startViewTransition || document.hidden) { change(); return; }
+  root.classList.add('settings-crossfade');
+  const transition = appearanceTransition = document.startViewTransition(change);
+  transition.finished.finally(() => {
+    if (appearanceTransition === transition) { appearanceTransition = null; root.classList.remove('settings-crossfade'); }
+  }).catch(() => {});
 }
 function bindAppearance(el, attr = 'data-theme') {
-  const key = attr.replace(/^data-/, '').replace(/-(\w)/g, (_, x) => x.toUpperCase());
-  const refresh = () => { $$(`[${attr}]`, el).forEach((x) => { const on = x.dataset[key] === settings.theme; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); }); $('.pal-block', el)?.classList.toggle('hidden', settings.theme !== 'resenha'); };
-  $$(`[${attr}]`, el).forEach((b) => b.onclick = () => { settings.theme = b.dataset[key]; saveSettings(); applyTheme(settings.theme, settings.themeColor); refresh(); });
-  $$('[data-palette]', el).forEach((b) => b.onclick = () => {
-    settings.themeColor = b.dataset.palette; saveSettings(); applyTheme(settings.theme, settings.themeColor);
-    $$('[data-palette]', el).forEach((x) => x.classList.toggle('sel', x === b));
-    const card = $(`[${attr}="resenha"] .tc-prev`, el), v = themePreview('resenha', settings.themeColor);
-    if (card) { card.style.setProperty('--p60', v.c60); card.style.setProperty('--p30', v.c30); card.style.setProperty('--p10', v.accent); }
-  });
+  const themes = $$(`[${attr}]`, el), palettes = $$('[data-palette]', el), block = $('.pal-block', el);
+  let preview = null, hoverTimer, hovered, undoTimer;
+  const refresh = () => {
+    for (const x of themes) { const on = x.getAttribute(attr) === settings.theme; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); }
+    for (const x of palettes) x.setAttribute('aria-pressed', String(x.dataset.palette === settings.themeColor));
+    if (block) block.hidden = settings.theme !== 'resenha';
+  };
+  const stopHover = () => { clearTimeout(hoverTimer); hovered = null; };
+  const cancel = () => {
+    stopHover();
+    if (!preview) return;
+    preview = null; displayAppearance(settings.theme, settings.themeColor);
+  };
+  const assign = (theme, color) => {
+    const alreadyShowing = preview?.theme === theme && preview?.color === color;
+    stopHover(); preview = null; settings.theme = theme; settings.themeColor = color;
+    saveSettings(); if (!alreadyShowing) displayAppearance(theme, color); refresh();
+  };
+  const choice = (b) => ({ theme: b.getAttribute(attr) || 'resenha', color: b.dataset.palette || settings.themeColor });
+  const updatePreview = (e) => {
+    if (e.pointerType !== 'mouse' || el.inert || !el.classList.contains('with-appearance')) return;
+    // View Transitions retarget synthetic enter/leave while snapshotting; real motion keeps the preview stable.
+    const b = e.target.closest?.(`[${attr}], [data-palette]`);
+    if (!b || !el.contains(b)) { cancel(); return; }
+    const next = choice(b);
+    if (next.theme === settings.theme && next.color === settings.themeColor) { cancel(); return; }
+    if (hovered === b) return;
+    stopHover(); hovered = b;
+    // Dá ao clique direto prioridade sobre a captura da prévia.
+    hoverTimer = setTimeout(() => { preview = next; displayAppearance(next.theme, next.color); }, 70);
+  };
+  const outside = (e) => {
+    if (e.clientX < 0 || e.clientY < 0 || e.clientX >= innerWidth || e.clientY >= innerHeight) cancel();
+  };
+  el.addEventListener('pointermove', updatePreview);
+  el.addEventListener('pointerout', outside);
+  el.addEventListener('pointerdown', () => { stopHover(); appearanceTransition?.skipTransition(); });
+  for (const b of [...themes, ...palettes]) {
+    b.onclick = () => {
+      const { theme, color } = choice(b), before = { theme: settings.theme, color: settings.themeColor };
+      if (theme === before.theme && color === before.color) return;
+      assign(theme, color);
+      const area = $('.settings-undo', el);
+      const message = b.dataset.palette ? `Paleta ${b.getAttribute('aria-label')} aplicada` : `Tema ${THEMES[theme].name} aplicado`;
+      if (!area) { toast(message, 'ok'); return; }
+      const undo = $('button', area);
+      $('span', area).textContent = message + ' · ';
+      area.hidden = false;
+      const dismiss = () => { if (document.activeElement === undo) $('[data-close]', el).focus(); area.hidden = true; };
+      undo.onclick = () => { assign(before.theme, before.color); dismiss(); };
+      clearTimeout(undoTimer); undoTimer = setTimeout(dismiss, 6500);
+    };
+  }
+  return () => { cancel(); if (el.inert) clearTimeout(undoTimer); };
 }
 function openViewerSettings() {
   const m = openModal(`<header><div><h2>Seu Resenha</h2><p>Aparência e perfil</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body"><div class="field"><label>Seu nome</label><input id="web-name" maxlength="32" value="${esc(me.name)}"></div><div class="field"><label>Cor</label><input id="web-color" type="color" value="${esc(me.color)}"></div>${appearanceHTML('data-web-theme')}</div><footer><button class="btn primary" data-close>Pronto</button></footer>`);
@@ -3035,15 +3114,24 @@ function openViewerSettings() {
 }
 async function openSettings(tab = 'voz') {
   if (WEB_VIEWER) return openViewerSettings();
+  const opener = document.activeElement;
+  if ($('.overlay:not([inert]) > .settings-dialog')) return;
+  clearTimeout(pttTimer); setPttPressed(false);
   const inDevs = await listDevices('audioinput');
   const outDevs = await listDevices('audiooutput');
   const opt = (list, cur) => `<option value="default">Padrão do Windows</option>` + list.map((d) => `<option value="${esc(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || 'Dispositivo')}</option>`).join('');
   const fxBtns = Object.entries(FX).map(([k, f]) => `<button class="fx-btn ${settings.voiceFx === k ? 'sel' : ''}" data-fx="${k}">${esc(f.name)}${f.semis ? `<span>${f.semis > 0 ? '+' : ''}${f.semis}</span>` : ''}</button>`).join('');
-  const m = openModal(`<header><div><h2>Configurações</h2></div><button class="icon-btn" data-close>${icon('x')}</button></header>
+  if ($('.overlay:not([inert]) > .settings-dialog')) return;
+  const tabButton = ([id, name]) => `<button type="button" class="tab" data-t="${id}" id="st-tab-${id}" role="tab" aria-controls="st-panel-${id}" tabindex="-1">${name}</button>`;
+  const tabs = [['voz', 'Voz'], ['filtros', 'Filtros de voz'], ['aparencia', 'Aparência'], ['perfil', 'Perfil'], ...(native ? [['atalhos', 'Atalhos']] : [])];
+  let cancelAppearance, cancelShortcutRecording;
+  const closeSettingsMic = () => { if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } };
+  const m = openModal(`<header><h2 id="st-title">Configurações</h2><button class="icon-btn" data-close aria-label="Fechar configurações">${icon('x')}</button></header>
+    <div class="tabs" role="tablist" aria-label="Seções de configurações">${tabs.map(tabButton).join('')}${overlayClient ? overlayClient.tabHTML() : ''}</div>
     <div class="body">
-      <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}${overlayClient ? overlayClient.tabHTML() : ''}</div>
       <div class="tp" data-p="aparencia">
         ${appearanceHTML()}
+        <details class="settings-more"><summary>Mais opções</summary>
         <div class="section-title">Ícone do app</div>
         <div class="icon-grid">${globalThis.PIPOCA ? Object.entries(PIPOCA.VARIANTS).map(([k, v]) => `<button class="icon-card ${settings.appIcon === k ? 'sel' : ''}" data-app-icon="${k}"><img src="${PIPOCA.dataURL(k, 64)}" alt=""><span>${esc(v.name)}</span></button>`).join('') : ''}</div>
         <div class="section-title">Layout</div>
@@ -3052,22 +3140,23 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
-          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${document.documentElement.classList.contains('reduce-motion') ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
+          <div class="field"><label for="st-motion">Reduzir animações</label><select id="st-motion">${[['auto','Seguir o Windows'], ['true','Ligado'], ['false','Desligado']].map(([v, name]) => `<option value="${v}" ${String(settings.reduceMotion) === v ? 'selected' : ''}>${name}</option>`).join('')}</select></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
-        <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button>
+        <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button></details>
       </div>
       <div class="tp" data-p="perfil">
         <div class="home-profile" style="margin:0">
-          <div class="avatar avatar-edit" id="st-av"></div>
+          <div class="avatar" id="st-av" aria-hidden="true"></div>
           <div class="field grow"><label>Nome</label><input id="st-name" maxlength="32" value="${esc(me.name)}"></div>
           <div class="field"><label>Cor</label><input type="color" id="st-color" value="${esc(me.color)}"></div>
         </div>
         <div class="profile-editor">
           <div class="profile-fields">
+            <div class="row profile-image-actions"><button class="btn" id="st-photo" aria-label="Escolher foto de perfil">Foto</button><button class="btn" id="st-banner" aria-label="Escolher banner">Banner</button></div>
             <div class="field"><label>Banner</label>
               <div class="swatches" id="st-bcolors">${BANNER_COLORS.map((c) => `<button class="swatch ${me.bannerColor === c ? 'sel' : ''}" data-c="${c}" style="background:${c}" aria-label="Cor do banner ${c}"></button>`).join('')}</div>
-              <div class="row" style="gap:8px;margin-top:8px"><button class="btn" id="st-banner">Escolher foto ou GIF</button><button class="btn" id="st-banner-x">Remover imagem</button></div>
+              <button class="btn" id="st-banner-x">Remover banner</button>
               <p class="muted small" style="margin:6px 0 0">Até 8 MB. GIFs ficam animados.</p></div>
             <div class="field"><label>Cor do nome</label>
               <div class="swatches" id="st-ncolors">${NAME_COLORS.map((c) => `<button class="swatch ${(me.nameColor || '') === c ? 'sel' : ''} ${c ? '' : 'none'}" data-c="${c}" style="background:${c || 'transparent'}" aria-label="${c ? 'Cor do nome ' + c : 'Cor padrão'}">${c ? '' : 'Aa'}</button>`).join('')}</div></div>
@@ -3095,11 +3184,11 @@ async function openSettings(tab = 'voz') {
             <input type="range" id="st-thr" min="-80" max="-10" value="${settings.threshold}" ${settings.autoSens ? 'disabled' : ''}>
           </div>
         </div>
-        <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px">
+        <div class="settings-switches">
           <label class="check"><input type="checkbox" id="st-ec" ${settings.echoCancellation ? 'checked' : ''}> Cancelamento de eco</label>
           <label class="check"><input type="checkbox" id="st-ag" ${settings.autoGain ? 'checked' : ''}> Ganho automático</label>
           <label class="check"><input type="checkbox" id="st-snd" ${settings.sounds ? 'checked' : ''}> Sons de entrar/sair</label>
-          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small" style="margin:2px 0 0 26px">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
+          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" aria-describedby="st-perf-note" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small settings-switch-note" id="st-perf-note">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
         </div>
       </div>
       <div class="tp" data-p="filtros">
@@ -3109,29 +3198,53 @@ async function openSettings(tab = 'voz') {
         <button class="btn" id="st-monitor">${icon('headphones', 16)} Testar: ouvir minha voz</button>
       </div>
       <div class="tp" data-p="atalhos">
-        <div class="settings-grid">
-          <div class="field"><label>Mutar/desmutar microfone</label><div class="kbd" data-key="keyMute">${esc(settings.keyMute || 'Nenhum')}</div></div>
-          <div class="field"><label>Mutar som e microfone</label><div class="kbd" data-key="keyDeafen">${esc(settings.keyDeafen || 'Nenhum')}</div></div>
-        </div><p class="muted small" style="margin:0">Funcionam até dentro do jogo. Clique e aperte a combinação. Esc limpa.</p>
+        <p class="muted small">Escolha uma combinação para usar mesmo com o jogo aberto. Esc limpa a tecla.</p>
+        <div class="settings-shortcuts">${Object.entries(SHORTCUTS).map(([a, [k, title]]) => `<div class="settings-key-row"><label for="st-key-${a}">${title}</label><button type="button" class="kbd" id="st-key-${a}" data-key="${a}">${esc(settings[k] || 'Nenhum')}</button></div>`).join('')}</div>
+        <p class="settings-key-note muted small" id="st-key-note" role="status"></p>
+        <div class="field"><label for="st-ptt-release">Atraso ao soltar <output id="st-ptt-ms">${pttDelay()} ms</output></label><input id="st-ptt-release" type="range" min="0" max="500" step="10" value="${pttDelay()}"></div>
+        <p class="muted small">No Windows, escolha uma tecla só para falar. Com o atalho definido, mantenha o microfone ligado e segure a tecla para transmitir.</p>
       </div>
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { onClose: () => { V.testing = false; setMonitor(false); if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } } });
+    <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
-  const showTab = (t) => { $$('.tab', el).forEach((x) => x.classList.toggle('active', x.dataset.t === t)); $$('.tp', el).forEach((x) => x.classList.toggle('hidden', x.dataset.p !== t)); };
-  $$('.tab', el).forEach((x) => x.onclick = () => showTab(x.dataset.t));
-  showTab(tab);
+  const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
+  for (const panel of panels) {
+    panel.id = 'st-panel-' + panel.dataset.p; panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'st-tab-' + panel.dataset.p);
+  }
+  const showTab = (t) => {
+    if (t !== 'aparencia') cancelAppearance?.();
+    el.classList.toggle('with-appearance', t === 'aparencia');
+    for (const x of tabEls) {
+      const on = x.dataset.t === t;
+      x.classList.toggle('active', on); x.tabIndex = on ? 0 : -1; x.setAttribute('aria-selected', String(on));
+    }
+    for (const x of panels) { x.hidden = x.dataset.p !== t; x.classList.toggle('hidden', x.hidden); }
+    $('.body', el).scrollTop = 0;
+  };
+  tabEls.forEach((x) => x.onclick = () => showTab(x.dataset.t));
+  $('[role="tablist"]', el).onkeydown = (e) => {
+    const i = tabEls.indexOf(e.target), count = tabEls.length;
+    if (i < 0) return;
+    const next = { ArrowLeft: (i + count - 1) % count, ArrowRight: (i + 1) % count, Home: 0, End: count - 1 }[e.key];
+    if (next == null) return;
+    e.preventDefault(); e.stopPropagation(); showTab(tabEls[next].dataset.t); tabEls[next].focus();
+  };
+  $$('label.check input[type="checkbox"]', el).forEach((input) => input.setAttribute('role', 'switch'));
+  showTab(tabEls.some((x) => x.dataset.t === tab) ? tab : 'voz');
   if(native){native.version().then(v=>$('#st-ver',el).textContent='Resenha v'+v);$('#st-updates',el).onclick=openUpdateSettings;}
   setAvatarEl($('#st-av', el), me);
-  $('#st-av', el).onclick = () => pickAvatar(() => { setAvatarEl($('#st-av', el), me); renderAll(); });
+  $('#st-photo', el).onclick = () => pickAvatar(() => { setAvatarEl($('#st-av', el), me); renderAll(); previewCard(); });
   $('#st-name', el).onchange = () => { const v = $('#st-name', el).value.trim(); if (v) { me.name = v; LS.set('profile', me); $('#home-name').value = v; sendProfile(); renderAll(); } };
   $('#st-color', el).oninput = () => { me.color = $('#st-color', el).value; LS.set('profile', me); sendProfile(); setAvatarEl($('#st-av', el), me); renderSidebar(); previewCard(); };
   // Profile card preview: the server copy once connected (it knows the banner), otherwise a local one.
   let localBanner = '';
   const previewCard = async () => {
     const live = S.users.get(S.myId);
-    const u = { ...(live || { id: 'me', name: me.name, color: me.color, avatar: me.avatar }), ...profileExtras(), name: me.name || 'Você' };
+    const u = { id: 'me', ...live, ...profileExtras(), name: me.name || 'Você', color: me.color, avatar: me.avatar };
     $('#st-card', el).innerHTML = profileCardHTML({ ...u, banner: live?.banner || '' });
     const blob = !live?.banner && await bannerStore();
     if (blob) { if (localBanner) URL.revokeObjectURL(localBanner); localBanner = URL.createObjectURL(blob); $('#st-card .pcard-banner', el).innerHTML = `<img src="${localBanner}" alt="">`; }
@@ -3167,10 +3280,8 @@ async function openSettings(tab = 'voz') {
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
-  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); applyReduceMotion(); };
-  // Aparência
-  
-  bindAppearance(el);
+  $('#st-motion', el).onchange = (e) => { const v = e.target.value; settings.reduceMotion = v === 'auto' ? v : v === 'true'; saveSettings(); applyReduceMotion(); syncSkinSoon(); };
+  cancelAppearance = bindAppearance(el);
   $('#st-fs', el).onchange = (e) => { settings.fontScale = +e.target.value; saveSettings(); applyLayout(); };
   $('#st-fs', el).oninput = (e) => { $('#st-fs-v', el).textContent = e.target.value + '%'; };
   $('#st-compact', el).onchange = (e) => { settings.compact = e.target.checked; saveSettings(); applyLayout(); };
@@ -3181,35 +3292,18 @@ async function openSettings(tab = 'voz') {
   $$('.fx-btn', el).forEach((b) => b.onclick = () => { settings.voiceFx = b.dataset.fx; saveSettings(); applyVoiceFx(); fxUI(); });
   $('#st-semis', el).oninput = (e) => { settings.pitchSemis = +e.target.value; $('#st-semis-v', el).textContent = (settings.pitchSemis > 0 ? '+' : '') + settings.pitchSemis; saveSettings(); applyVoiceFx(); };
   $('#st-monitor', el).onclick = () => { setMonitor(!V.monitor); $('#st-monitor', el).classList.toggle('primary', !!V.monitor); $('#st-monitor', el).innerHTML = `${icon('headphones', 16)} ${V.monitor ? 'Parar teste' : 'Testar: ouvir minha voz'}`; };
-  // Atalhos
-  $$('.kbd', el).forEach((k) => k.onclick = () => {
-    $$('.kbd', el).forEach((x) => x.classList.remove('rec'));
-    k.classList.add('rec'); k.textContent = 'Aperte as teclas...';
-    const onKey = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
-      const parts = []; if (e.ctrlKey) parts.push('Control'); if (e.altKey) parts.push('Alt'); if (e.shiftKey) parts.push('Shift');
-      let key = e.code.replace(/^Key/, '').replace(/^Digit/, '');
-      if (!/^F\d+$/.test(key) && key.length > 1 && !/^(Numpad\d|Space|Insert|Home|End|PageUp|PageDown|Pause)$/.test(key)) key = e.key.length === 1 ? e.key.toUpperCase() : key;
-      if (key.startsWith('Numpad') && /\d/.test(key)) key = 'num' + key.slice(6);
-      const accel = e.key === 'Escape' ? '' : [...parts, key].join('+');
-      settings[k.dataset.key] = accel; saveSettings();
-      k.textContent = accel || 'Nenhum'; k.classList.remove('rec');
-      document.removeEventListener('keydown', onKey, true);
-      if (WEB_VIEWER) { import('./mobile.js').then(m=>m.initMobile(window.__resenha)); }
-registerShortcuts();
-    };
-    document.addEventListener('keydown', onKey, true);
-  });
+  cancelShortcutRecording = bindShortcuts(el);
   // Medidor
   try {
     await ensureAudio();
+    if (el.inert) return;
     if (!V.src) await openMic();
+    if (el.inert) { if (!V.joined) closeSettingsMic(); return; }
     V.testing = true;
     const lvl = $('.lvl', el), thr = $('.thr', el), st = $('#st-state', el);
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
-      if (!document.body.contains(el)) return;
+      if (el.inert || !el.isConnected) return;
       const ai = settings.aiNoise && (V.rnReady || V.dfnReady);
       const open = ai ? V.vadOpen : V.gateOpen;
       lvl.style.width = pos(V.selfLevel);
@@ -3227,15 +3321,111 @@ function setMonitor(on) {
   if (on && !V.monitor) { V.monitor = V.ctx.createGain(); V.monitor.gain.value = 1; V.post.connect(V.monitor); V.monitor.connect(V.ctx.destination); }
   if (!on && V.monitor) { try { V.post.disconnect(V.monitor); V.monitor.disconnect(); } catch {} V.monitor = null; }
 }
+const pttDelay = () => clamp(Math.round(Number(settings.pttRelease) || 0), 0, 500);
+function updatePttTrack() {
+  const track = V.dest?.stream.getAudioTracks()[0];
+  if (track) track.enabled = !micMuted(); // trava a própria trilha enviada; nunca altera o mute escolhido.
+}
+function setPttPressed(on) {
+  if (pttPressed === on) return;
+  pttPressed = on; updatePttTrack();
+  if (V.joined) { wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened }); renderAll(); }
+}
+function shortcutTip(label, ...actions) {
+  const keys = actions.map((a) => settings[SHORTCUTS[a][0]]).filter(Boolean);
+  return keys.length ? `${label} · ${keys.join(' / ')}` : label;
+}
+function applyShortcutTips() {
+  $('#cc-mute').title = shortcutTip('Mutar/desmutar microfone', 'mute', 'ptt');
+  $('#cc-deafen').title = shortcutTip('Mutar/ativar som e microfone', 'deafen');
+  $('#cc-share').title = shortcutTip(!V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar', 'share');
+  $('#cc-leave').title = shortcutTip('Sair da call', 'leave');
+  $('#btn-chat-toggle').title = shortcutTip('Mostrar ou esconder a conversa', 'chat');
+}
+function accelerator(e) {
+  const parts = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Command'].filter(Boolean);
+  const special = { ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down', Backquote: '`', Quote: "'", Comma: ',', Period: '.', Minus: '-', Equal: '=', Semicolon: ';', Slash: '/', BracketLeft: '[', BracketRight: ']', Backslash: '\\' };
+  const physical = /^(?:Key|Digit)([A-Z0-9])$/.exec(e.code);
+  const num = /^Numpad([0-9])$/.exec(e.code);
+  const k = num ? `num${num[1]}` : physical?.[1] || special[e.code] || e.code;
+  return k ? [...parts, k].join('+') : null;
+}
+function shortcutMap() { return Object.fromEntries(Object.entries(SHORTCUTS).map(([a, [k]]) => [a, settings[k]])); }
 async function registerShortcuts() {
   if (!native) return;
-  const r = await native.setShortcuts({ mute: settings.keyMute, deafen: settings.keyDeafen });
-  for (const [k, ok] of Object.entries(r || {})) if (!ok) toast(`Não consegui registrar o atalho ${k === 'mute' ? settings.keyMute : settings.keyDeafen} (outro programa usa?)`, 'err');
+  const r = await native.setShortcuts(shortcutMap());
+  for (const [a, ok] of Object.entries(r || {})) if (!ok) toast(`Atalho indisponível: ${SHORTCUTS[a][1]} (${settings[SHORTCUTS[a][0]]})`, 'err');
+  applyShortcutTips();
+}
+function bindShortcuts(el) {
+  if (!native) return;
+  const note = $('#st-key-note', el);
+  let pending = false, armed;
+  const restore = () => native.setShortcuts(shortcutMap()).catch(() => { note.textContent = 'Não foi possível restaurar os atalhos.'; });
+  for (const btn of $$('[data-key]', el)) {
+    const a = btn.dataset.key, [k, title] = SHORTCUTS[a];
+    const reset = () => { btn.onkeydown = null; btn.classList.remove('rec'); btn.textContent = settings[k] || 'Nenhum'; };
+    btn.disabled = a === 'ptt' && !document.documentElement.classList.contains('os-win32');
+    btn.onblur = () => { if (armed === btn) { armed = null; reset(); restore(); } };
+    btn.onclick = () => {
+      if (pending || armed) return;
+      armed = btn;
+      // Devolve as teclas ao app durante a gravação, inclusive as já usadas em outro atalho.
+      native.setShortcuts({}).catch(() => { if (armed === btn) { armed = null; reset(); note.textContent = 'Não foi possível iniciar a gravação.'; } });
+      note.textContent = ''; btn.classList.add('rec'); btn.textContent = 'Aperte as teclas…';
+      btn.onkeydown = async (e) => {
+        if (e.key === 'Tab') return;
+        e.preventDefault(); e.stopPropagation();
+        if (e.repeat || ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+        armed = null; reset();
+        const key = e.key === 'Escape' ? '' : accelerator(e);
+        if (key == null || key === settings[k]) { restore(); return; }
+        if (a === 'ptt' && key.includes('+')) { restore(); note.textContent = 'Para falar, escolha uma tecla sem modificadores.'; return; }
+        const duplicate = Object.entries(SHORTCUTS).find(([action, [field]]) => action !== a && key && String(settings[field]).toLowerCase() === key.toLowerCase());
+        if (duplicate) { restore(); note.textContent = `${key} já está em uso: ${duplicate[1][1]}.`; return; }
+        pending = true;
+        try {
+          const r = await native.setShortcuts({ ...shortcutMap(), [a]: key });
+          if (key && !r?.[a]) {
+            await native.setShortcuts(shortcutMap());
+            note.textContent = `${key} não está disponível para ${title.toLowerCase()}. Tente outra tecla.`; return;
+          }
+          if (a === 'ptt') { clearTimeout(pttTimer); pttPressed = false; }
+          settings[k] = key; saveSettings(); reset(); updatePttTrack();
+          if (V.joined) { wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened }); renderAll(); } else applyShortcutTips();
+        } catch { restore(); note.textContent = 'Não foi possível registrar o atalho. Tente novamente.'; }
+        finally { pending = false; }
+      };
+    };
+  }
+  $('#st-ptt-release', el).oninput = (e) => { settings.pttRelease = +e.target.value; saveSettings(); $('#st-ptt-ms', el).textContent = `${pttDelay()} ms`; };
+  return () => { if (armed) { armed = null; restore(); } };
+}
+function shortcutBlocked() { return !!$('#modal-root > .overlay:not([inert])'); }
+async function toggleLiveFullscreen() {
+  if (shortcutBlocked()) return;
+  if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
+  if (window.ResenhaSkins?.active) { window.ResenhaSkins.shortcut('liveFull'); return; }
+  const live = $('.focus-main [data-full]') || $('#call [data-full]');
+  live?.click();
 }
 if (native) native.onShortcut((a) => {
+  if (a.startsWith('ptt-')) {
+    clearTimeout(pttTimer);
+    if (a === 'ptt-down') { if (V.joined && settings.keyPtt && !shortcutBlocked()) setPttPressed(true); }
+    else if (a === 'ptt-up' && pttPressed && pttDelay()) pttTimer = setTimeout(() => setPttPressed(false), pttDelay());
+    else setPttPressed(false);
+    return;
+  }
+  if (shortcutBlocked()) return;
   if (a === 'mute') setMuted(!(V.muted || V.deafened));
   if (a === 'deafen') setDeafened(!V.deafened);
   if (a === 'leave') leaveVoice();
+  if (a === 'share' && V.joined) { if (V.screen) stopShare(); else toggleShare(); }
+  if (a === 'chat' && !$('#main').classList.contains('hidden')) {
+    if (window.ResenhaSkins?.active) window.ResenhaSkins.shortcut('chat');
+    else $('#btn-chat-toggle').click();
+  }
 });
 
 // ---------------- Menu da sala ----------------
@@ -3569,7 +3759,7 @@ function watchDevices() {
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 
-window.__resenha = { showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
+window.__resenha = { toggleLiveFullscreen, showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
 // 2.6: seis temas. Quem usava um tema antigo vai para o mais parecido; no Resenha, a paleta também vem dele.
 { const now = window.savedTheme(settings.theme, settings.themeColor);
   if (now.theme !== settings.theme || now.color !== settings.themeColor) { settings.theme = now.theme; settings.themeColor = now.color; saveSettings(); } }
@@ -3597,7 +3787,7 @@ const WHATS_NEW = {
   '2.1.6': {
     items: [
       ['screen', 'Janela arredondada', 'No Windows, os cantos da janela acompanham os painéis. Maximizada, fica reta.'],
-      ['hash', 'Menu do servidor e chat mais limpos', 'Menu sem misturar com os canais, seletor e campo de mensagem com um contorno só.'],
+      ['hash', 'Menu da sala e chat mais limpos', 'Menu sem misturar com os canais, seletor e campo de mensagem com um contorno só.'],
       ['edit', 'Efeito do nome no chat', 'Quando alguém troca o efeito, o chat atualiza na hora.'],
       ['image', 'Ícone da sala', 'O ícone da sala aparece ao lado do nome dela.'],
     ],
@@ -3607,9 +3797,9 @@ const WHATS_NEW = {
       ['sparkles', 'Identidade nova', 'Grafite fosco, vidro esfumaçado e um laranja só nos detalhes.'],
       ['image', 'Temas caprichados', 'Âmbar, Noturno, Ametista, Fúcsia, Horizonte e Titânio: cada um com fundo, movimento e cores próprios.'],
       ['screen', 'Janela de vidro', 'No Windows 11 com transparência ligada, o papel de parede aparece desfocado atrás do Resenha.'],
-      ['hash', 'Menu do servidor e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
-      ['edit', 'Nome com efeito', 'Holográfico, neon, ouro, fogo… em Configurações > Perfil.'],
-      ['download', 'Atualização mais leve', 'O atualizador não usa mais PowerShell e não deixa pasta para trás.'],
+      ['hash', 'Menu da sala e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
+      ['edit', 'Nome com efeito', 'Escolha um efeito discreto em Configurações > Perfil.'],
+      ['download', 'Atualização mais leve', 'A atualização não deixa mais arquivos para trás.'],
     ],
   },
 };
