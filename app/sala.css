@@ -114,3 +114,9 @@ html #call #call-stage .mute-tag { order: 2; flex: none; padding: 1px 6px; borde
 body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu .nm, .vu .st, .ou .nm, .ou .st-text, .channel .cn, .channel .timer) { display: none; }
 body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu, .ou) .avatar { width: 24px; height: 24px; min-width: 24px; }
 body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-who { margin: 0; }
+
+/* Sem fundo de vídeo, o nome usa a cor do texto do tema (nada de etiqueta escura sobre fundo claro). */
+html #call #call-stage .tile.is-voice .label { background: transparent !important; backdrop-filter: none !important; color: var(--text-hi) !important; box-shadow: none; }
+html #call #call-stage .tile.is-voice .label .ic { color: var(--muted); }
+html #call #call-stage .tile.is-voice .mute-tag { color: #b91c1c; }
+html:not(.light) #call #call-stage .tile.is-voice .mute-tag { color: #fca5a5; }
