@@ -85,6 +85,8 @@ function paletteTokens([c60, c30, c10], dark) {
   v['on-primary'] = inkOn(v.blurple);
   v['on-primary-hover'] = inkOn(v['blurple-h']);
   v['accent-soft'] = rgba(c10, 0.16);
+  v['bot-ink'] = readableHue(c10, [c60, v.hover, v.active].map(bg => tint(bg, c10, .16)));
+  v['side-bot-ink'] = readableHue(c10, (dark ? [v['bg-side'], v.hover, v.active] : [c30, v['side-hover'], v['side-active']]).map(bg => tint(bg, c10, .16)));
   // foco do teclado (opaco, >= 3:1): destaque nas paletas escuras; tinta escura (cor 30) nas claras. 'focus-inv' vale sobre superfície escura de paleta clara (barra lateral, quadros).
   { const fb = [c60, v['bg-panel'], v['bg-input'], v['bg-float']];
     v.focus = dark ? readable(c10, fb, 3, '#ffffff') : c30; v['focus-inv'] = dark ? v.focus : c60;
@@ -106,7 +108,7 @@ const VIDRO = { 'bg-rail': '#0a0a0b', 'bg-side': '#0e0e10', 'bg-main': '#0e0e10'
   text: '#ededee', 'text-hi': '#ffffff', muted: '#a1a1a6', muted2: '#a1a1a6', icon: '#c6c6cb', link: '#ff9a57', accent: '#ffffff', 'on-accent': '#111111',
   c60: '#0e0e10', c30: '#ededee', ink30: '#0e0e10',
   blurple: '#3d3d41', 'blurple-h': '#4a4a4f', 'on-primary': inkOn('#3d3d41'), 'on-primary-hover': inkOn('#4a4a4f'), 'accent-soft': 'rgba(255,255,255,.08)', btn: '#151517', 'btn-h': '#232326',
-  focus: '#ff9a57', 'focus-inv': '#ff9a57', speak: '#ffffff', 'side-speak': '#ffffff', green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
+  focus: '#ff9a57', 'focus-inv': '#ff9a57', 'bot-ink': '#ffbb8c', 'side-bot-ink': '#ffbb8c', speak: '#ffffff', 'side-speak': '#ffffff', green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
   'g-fill': 'rgba(255,255,255,.045)', 'g-fill-2': 'rgba(255,255,255,.065)', 'g-fill-h': 'rgba(255,255,255,.10)', 'g-edge': 'rgba(255,255,255,.09)' };
 
 // Os temas alternativos usam o mesmo gerador para o que continua comum (menus, Configurações, avisos);

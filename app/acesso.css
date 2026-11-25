@@ -19,3 +19,16 @@ html.glass #chat .msg.mine .text, html.glass #chat .msg.mine .text a { color: va
 .sn .sn-seat-name { background: var(--sn-blue-deep); border-radius: 3px; padding-inline: 4px; }
 .mg .mg-person-name { color: var(--mg-name, inherit); }
 .mg .mg-bar.is-speaking .mg-person-name { color: var(--mg-name-speaking, inherit); }
+
+/* Selos com o mesmo desenho no chat e na barra lateral. */
+:root { --live-red: #d92d27; }
+html[data-tk] #chat .msg .tag.bot, html[data-tk] #sidebar .tag.bot {
+  background: var(--accent-soft); color: var(--bot-ink, var(--text-hi)); font-size: 11px; font-weight: 800;
+  letter-spacing: .04em; border-radius: 5px; padding: 1px 5px; opacity: 1;
+}
+html[data-tk] :is(#sidebar .live, #call .live, #call .live-badge) { background: var(--live-red); color: #fff; font-size: 11px; }
+html[data-skin="caderno"] #win-controls button:not(:hover) { color: #fff; background: #352420; }
+html[data-skin="caderno"] #win-controls button:not([data-win="close"]):hover { color: #fff; background: #57392e; }
+#call .tile:not(.is-screen) .avatar { font-size: clamp(11px, 15cqh, 32px); }
+
+#sidebar { --bot-ink: var(--side-bot-ink, var(--text-hi)); }

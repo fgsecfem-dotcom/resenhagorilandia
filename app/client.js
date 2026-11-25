@@ -1669,7 +1669,7 @@ function setConnStatus(kind, text) {
 }
 function updatePing() {
   if (!V.joined) return;
-  $('#up-sub').title = `Ping até o anfitrião: ${S.lastPing} ms`;
+  $('#up-sub').title = Number.isFinite(S.lastPing) ? `Latência até o anfitrião: ${S.lastPing} ms` : '';
   if (S.ws && S.ws.readyState === 1) setConnStatus(S.lastPing > 250 ? 'warn' : 'good', `Na call · ${chanById(V.channel)?.name || ''}`);
 }
 

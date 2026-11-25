@@ -15,7 +15,7 @@
 .ap :is(button, [tabindex], input):focus-visible { outline: 2px solid #ffcc91; outline-offset: 2px; }
 .ap button > .ic { flex: none; }
 .ap button:active:not(:disabled) { transform: scale(.97); }
-.ap-label { margin: 0; color: var(--ap-note); font-size: 10.5px; font-weight: 640; letter-spacing: .13em; text-transform: uppercase; }
+.ap-label { margin: 0; color: var(--ap-note); font-size: 11px; font-weight: 640; letter-spacing: .13em; text-transform: uppercase; }
 .ap-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; min-height: 36px; border: 1px solid var(--ap-edge); border-radius: 11px; background: var(--ap-panel); color: var(--ap-cream); font-size: 12px; font-weight: 570; }
 .ap-button:hover:not(:disabled), .ap-button[aria-expanded="true"] { background-color: var(--ap-high); border-color: #5d4b81; }
 .ap-square { width: 36px; padding: 0; }
@@ -34,7 +34,7 @@
 .ap-room-mark .ap-avatar { --ap-avatar-size: 35px; border-radius: 0; clip-path: var(--ap-hex); font-size: 12px; }
 .ap-room-label, .ap-profile-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .ap-room-label strong, .ap-profile-copy strong { font-size: 13px; font-weight: 650; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-room-label small, .ap-profile-copy small { color: var(--ap-note); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-room-label small, .ap-profile-copy small { color: var(--ap-note); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-room-label strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.12; }
 .ap-room-label small { font-variant-numeric: tabular-nums; letter-spacing: .035em; }
 .ap-rail-head .ap-square, .ap-account .ap-square { background: transparent; border-color: transparent; color: var(--ap-note); flex: none; width: 31px; }
@@ -47,7 +47,7 @@
 .ap-room-tile.ap-room-active { background: var(--ap-high); border-color: #625083; }
 .ap-room-tile strong, .ap-room-tile small { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .ap-room-tile strong { font-weight: 590; font-size: 11.5px; }
-.ap-room-tile small { color: var(--ap-note); font-size: 10.5px; }
+.ap-room-tile small { color: var(--ap-note); font-size: 11px; }
 .ap-room-tile.ap-room-occupied small { color: #f4ba91; }
 .ap-mini { display: block; width: min(100%, 76px); height: 57px; overflow: hidden; opacity: .81; }
 .ap-mini-outline { stroke: #796ba6; }
@@ -135,7 +135,7 @@
 .ap-live-info { min-width: 0; width: min(100% - 12px, 450px); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ap-live-line { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .ap-live-line strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 640; }
-.ap-live-flag { flex: none; color: #ffe7dc; background: #922d40; padding: 4px 7px; border-radius: 6px; font-size: 10px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+.ap-live-flag { flex: none; color: #fff; background: var(--live-red); padding: 4px 7px; border-radius: 6px; font-size: 11px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
 .ap-live-controls { display: flex; gap: 4px; }
 .ap-live-controls .ap-button { min-height: 30px; width: 31px; }
 .ap-live-controls .ic { width: 15px; height: 15px; }
@@ -150,7 +150,7 @@
 .ap-messages { overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 7px; }
 .ap-messages > :first-child { margin-top: auto; }
 .ap-message { align-self: start; min-width: 0; max-width: 91%; padding: 6px 10px 7px; border-radius: 11px 11px 11px 4px; background: #282053; }
-.ap-message strong { color: #dfccfb; font-size: 10.5px; font-weight: 650; display: block; margin-bottom: 2px; }
+.ap-message strong { color: #dfccfb; font-size: 11px; font-weight: 650; display: block; margin-bottom: 2px; }
 .ap-message-text { font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ap-mine { align-self: end; border-radius: 11px 11px 4px 11px; color: #241335; background: var(--ap-cream); }
 .ap-mine strong { color: #6d4167; }

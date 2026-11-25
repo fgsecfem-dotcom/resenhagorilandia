@@ -145,8 +145,8 @@
       const status = user.sharing ? 'Ao vivo' : user.deafened ? 'Sem áudio' : user.muted ? 'Mudo' : user.me ? 'Você' : user.bot ? 'DJ' : user.host ? 'Anfitrião' : user.voice ? 'Na call' : 'Na sala';
       const hasPing = Number.isFinite(user.ping) && user.ping >= 0;
       avatar(av, user.name, user.color, user.avatar);
-      label(el, `${user.name} · ${status}${face ? '' : hasPing ? ` · ${Math.round(user.ping)} ms` : ' · Latência indisponível'}`);
-      if (!face) { text(seal, status); text(name, user.name); text(ping, hasPing ? `${Math.round(user.ping)} ms` : '—'); }
+      label(el, `${user.name} · ${status}${!face && hasPing ? ` · ${Math.round(user.ping)} ms` : ''}`);
+      if (!face) { text(seal, status); text(name, user.name); show(ping.parentElement, hasPing); text(ping, hasPing ? `${Math.round(user.ping)} ms` : ''); }
       el.classList.toggle('is-live', !!user.sharing);
       el.classList.toggle('is-muted', !!(user.muted || user.deafened));
       if (name) {

@@ -69,7 +69,7 @@ html #chat .right-music .mu-searchbox .mu-search, html #chat .right-music .mu-se
 /* Fila: arrastar pela alça, deslizar para remover, clicar para tocar */
 .mu-queue { border-top: 1px solid var(--g-edge, var(--line)); padding-top: 10px; }
 .mu-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
-.mu-count:not(:empty) { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--g-fill, var(--hover)); letter-spacing: 0; }
+.mu-count:not(:empty) { font-size: 11px; padding: 1px 6px; border-radius: 99px; background: var(--g-fill, var(--hover)); letter-spacing: 0; }
 .mu-list { display: flex; flex-direction: column; gap: 2px; }
 .mu-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 10px; min-width: 0; transition: background .15s, transform .25s var(--mu-spring), opacity .2s; }
 .mu-item:hover { background: var(--g-fill, var(--hover)); }

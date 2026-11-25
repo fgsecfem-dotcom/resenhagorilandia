@@ -545,7 +545,7 @@ html.glass #chat #chat-title { display: inline-flex; align-items: center; height
   background: var(--g-fill-2, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
 #chat-online { display: flex; align-items: center; gap: 8px; min-width: 0; }
 #chat-online .co-stack { display: flex; }
-#chat-online .co-stack .avatar, #chat-online .co-more { width: 26px !important; height: 26px !important; font-size: 10px !important; border-radius: 50%; margin-left: -8px; box-shadow: 0 0 0 2px var(--bg-side); flex: none; }
+#chat-online .co-stack .avatar, #chat-online .co-more { width: 26px !important; height: 26px !important; font-size: 11px !important; border-radius: 50%; margin-left: -8px; box-shadow: 0 0 0 2px var(--bg-side); flex: none; }
 #chat-online .co-stack > :first-child { margin-left: 0; }
 #chat-online .co-more { display: grid; place-items: center; font-style: normal; font-weight: 700; color: var(--text-hi); background: var(--blurple); }
 #chat-online .co-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
@@ -682,7 +682,7 @@ html.glass #win-controls button { border-radius: 999px !important; }            
   background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
 .whats-new .wn-chips span:nth-child(1) { animation-delay: .5s; } .whats-new .wn-chips span:nth-child(2) { animation-delay: .56s; } .whats-new .wn-chips span:nth-child(3) { animation-delay: .62s; }
 .whats-new .wn-chips svg { color: #1ed760; }
-.whats-new-modal .wn-legal { margin: 0; padding: 0 22px 12px; text-align: center; font-size: 10px; line-height: 1.3; color: var(--muted2, var(--muted)); opacity: .7; }
+.whats-new-modal .wn-legal { margin: 0; padding: 0 22px 12px; text-align: center; font-size: 11px; line-height: 1.3; color: var(--muted2, var(--muted)); opacity: .7; }
 html.light .whats-new .wn-chips span { background: rgba(0,0,0,.05); }
 .whats-new-modal .wn-spotify-btn { background: #1ed760 !important; color: #04140a !important; border-color: transparent !important; font-weight: 700; }
 @keyframes wn-from-left { from { opacity: 0; transform: translateX(-24px) scale(.94); } }
