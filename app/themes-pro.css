@@ -47,7 +47,6 @@ html[data-tk="resenha"] {
   & #chat .msg.mine .text a { color: var(--link) !important; }
   & :is(.dd-item, .ctx-item):hover { background: var(--hover) !important; }
   & #call #call-controls .cc-btn.on::after { background: var(--accent) !important; }
-  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent) !important; outline-offset: 2px; }
   & #update-bar .up-progress i, & .up-progress i { background: var(--accent); }
   & ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
   & ::-webkit-scrollbar-thumb { background: var(--scroll) !important; border-radius: 99px; }

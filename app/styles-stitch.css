@@ -4,8 +4,7 @@ html, body { font-family: Figtree, 'Segoe UI', system-ui, sans-serif; font-size:
 body { background: var(--bg-rail); }
 button, input, select, textarea { font-family: inherit; }
 button, a, input, select, textarea, [tabindex] { -webkit-tap-highlight-color: transparent; }
-:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
-button { transition: background-color 140ms ease, border-color 140ms ease; }
+button { transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out); }
 #titlebar { height: 38px; background: var(--bg-rail); color: var(--muted); font-size: 11px; letter-spacing: .02em; }
 .screen { top: 38px; }
 #main { padding: 10px 16px 16px; gap: 10px; background: var(--bg-rail); }

@@ -61,3 +61,8 @@ for (const [key, v] of [...all, ['vidro', W.themePreview('vidro')]]) {
   }
   for (const bg of side) assert.ok(C(v['side-speak'], bg) >= 3, `${key}: anel na lista`);
 }
+
+for (const [key, v] of all) {
+  for (const bg of ['bg-main', 'bg-panel', 'bg-input', 'bg-float']) assert.ok(C(v.focus, v[bg]) >= 3, `${key}: foco em ${bg}`);
+  if (v['side-text']) assert.ok(C(v['focus-inv'], v.c30) >= 3, `${key}: foco na lateral escura`);
+}

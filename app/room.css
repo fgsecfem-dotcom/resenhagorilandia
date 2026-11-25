@@ -5,7 +5,7 @@
 #main { padding: 0; gap: 0; background: var(--bg-rail); }
 #main > .splitter { width: 1px; margin: 0; background: var(--line); cursor: col-resize; position: relative; }
 #main > .splitter::after { content: ''; position: absolute; inset: 0 -4px; }
-#main > .splitter:hover, #main > .splitter.drag, #main > .splitter:focus-visible { background: var(--link); outline: none; }
+#main > .splitter:hover, #main > .splitter.drag, #main > .splitter:focus-visible { background: var(--link); }
 
 /* ---------- Sidebar ---------- */
 #sidebar, #sidebar.first-pane { width: var(--side-w, 264px); border-radius: 0; border: 0; background: var(--bg-side); }
@@ -33,7 +33,7 @@
 #sidebar .side-room { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 #sidebar #room-header { height: auto; margin: 0; padding: 2px 4px; border: 0; border-radius: 8px; background: transparent; display: flex; align-items: center; gap: 6px; cursor: pointer; }
 #sidebar #room-header:hover { background: var(--hover); }
-#sidebar #room-header:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+#sidebar #room-header:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 #sidebar #room-name { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #sidebar #room-header .chev { font-size: 11px; color: var(--muted); }
 #sidebar #room-sub { padding: 0 4px; font-size: 12px; color: var(--muted); }

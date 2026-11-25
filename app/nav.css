@@ -7,7 +7,7 @@ html[data-tk] html[data-tk] #sidebar { display: flex; flex-direction: column; pa
 html[data-tk] #sidebar .nsb-top { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; position: relative; }
 html[data-tk] #sidebar #room-header { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 36px; margin: 0; padding: 0 8px 0 4px; border: 0; border-radius: 8px; background: transparent; color: var(--text-hi); font: inherit; cursor: pointer; text-align: left; }
 html[data-tk] #sidebar #room-header:hover, html[data-tk] #sidebar #room-header.open { background: var(--hover); }
-html[data-tk] #sidebar #room-header:focus-visible, html[data-tk] #sidebar .nsb-ib:focus-visible, html[data-tk] #sidebar #btn-invite.nsb-row:focus-visible, html[data-tk] #sidebar .up-user:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+html[data-tk] #sidebar #room-header:focus-visible, html[data-tk] #sidebar .nsb-ib:focus-visible, html[data-tk] #sidebar #btn-invite.nsb-row:focus-visible, html[data-tk] #sidebar .up-user:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 html[data-tk] #sidebar #room-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; color: var(--text-hi); }
 html[data-tk] #sidebar .nsb-chev { color: var(--muted); display: grid; transition: transform 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 html[data-tk] #sidebar #room-header.open .nsb-chev { transform: rotate(180deg); }

@@ -32,3 +32,30 @@ html[data-skin="caderno"] #win-controls button:not([data-win="close"]):hover { c
 #call .tile:not(.is-screen) .avatar { font-size: clamp(11px, 15cqh, 32px); }
 
 #sidebar { --bot-ink: var(--side-bot-ink, var(--text-hi)); }
+
+/* Um anel sólido. O mesmo token ganha tinta clara nas superfícies escuras. */
+:root { --focus: #ff9a57; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+html.light #sidebar { --focus: var(--focus-inv); }
+#call .tile.is-screen :is(.live-meta, .tile-tools) { --focus: #fff; }
+#skin-root .sn { --focus: #18141c; }
+#skin-root .sn :is(.sn-stage, .sn-chat .sn-msgs) { --focus: #fff; }
+#skin-root .sn :is(.sn-tune-button, .sn-stage button.sn-btn) { --focus: #18141c; }
+#skin-root .cd :is(.cd-live, .cd-rib) { --focus: #fff; }
+#skin-root .mg { --focus: #e3f5ff; }
+#skin-root .mg :is(.mg-voice-row:disabled, .mg-cmd[aria-pressed="true"], .mg-composer textarea, .mg-composer button, .mg-watch, .mg-live-tab[aria-pressed="true"], .mg-bar.is-speaking) { --focus: #103179; }
+/* Linhas encostadas em bordas de rolagem: o mesmo anel é pintado por dentro. */
+:is(#channels, #room-menu, #ctx-menu, #skin-root) :focus-visible { outline: 2px solid var(--focus) !important; outline-offset: -2px !important; }
+html.glass :is(#main, #home, #ctx-menu) :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--focus) !important; outline-offset: 2px !important;
+}
+html.glass #composer #input:focus-visible { outline: none !important; }
+html.glass #composer .composer-row:focus-within, :is(.sn-compose, .ap-composer, .cd-comp, .mg-composer, .mu-searchbox):focus-within {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+html.glass #composer .composer-row:focus-within { box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.nsb-row, #sidebar .up-user, #sidebar .server-dot, #call .live-back, #home .btn, #home .home-profile .avatar-edit, #home .home-profile-d summary, .floating-dj > header):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+#sidebar .server-dot:focus-visible { box-shadow: none; }
+#home :is(.saved-room-hide, .shelf-arrow):focus-visible { opacity: 1; }
