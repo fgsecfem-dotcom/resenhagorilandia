@@ -672,7 +672,7 @@
       const s = parseInt(k, 16) / 255;
       return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.177 ? '#170c2d' : '#ffffff';
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.192 ? '#170c2d' : '#ffffff';
   };
   const image = (v) => typeof v === 'string' && /^(?:data:image\/(?:png|jpe?g|gif|webp|avif);base64,|blob:)/i.test(v) ? v : '';
   const first = (s, n) => Array.from(s || '').slice(0, n).join('');
