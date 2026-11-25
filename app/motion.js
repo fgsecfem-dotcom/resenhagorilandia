@@ -269,7 +269,8 @@
   // ---------- Live em miniatura: o quadro segue a proporção da tela transmitida (sem barras pretas) ----------
   function liveRatio(e) {
     const v = e.target; if (v?.tagName !== 'VIDEO' || !v.videoWidth || !v.videoHeight) return;
-    v.closest('.tile.is-screen')?.style.setProperty('--live-ar', `${v.videoWidth} / ${v.videoHeight}`);
+    const t = v.closest('.tile.is-screen'); if (!t) return;
+    t.style.setProperty('--live-ar', `${v.videoWidth} / ${v.videoHeight}`); t.style.setProperty('--live-arn', String(v.videoWidth / v.videoHeight)); // a forma numérica entra em calc()
   }
   document.addEventListener('loadedmetadata', liveRatio, true); document.addEventListener('resize', liveRatio, true);
 

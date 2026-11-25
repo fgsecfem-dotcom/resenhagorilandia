@@ -1,4 +1,4 @@
-/* 2.6: barra lateral e menu da sala. Referências: HIG Sidebars/Menus e a barra lateral do Linear.
+/* 2.6: barra lateral, menu da sala, Aparência e live em destaque. Referências: HIG Sidebars/Menus e a barra lateral do Linear.
    Linhas de 30px, um nível de recuo para quem está na call, cor de destaque só no que pede ação.
    Movimento: o padrão único do motion.js (ease-out, menu 150ms). Nada aqui anima sem "Reduzir animações" respeitado. */
 
@@ -159,3 +159,8 @@ html[data-tk] #sidebar #sidebar-toggle:hover { background: var(--hover); color: 
 .pal-sw i { flex: 1; background: var(--c); }
 .pal.sel .pal-sw { box-shadow: 0 0 0 2px var(--bg-float, var(--bg-main)), 0 0 0 4px var(--text-hi); }
 .pal-block.hidden { display: none; }
+
+/* ---------- Live em destaque: o quadro assume a proporção real do vídeo (--live-ar/--live-arn, motion.js), sem barras e sem corte ---------- */
+#call .focus-main { container-type: size; display: flex; align-items: center; justify-content: center; }
+#call .focus-main > .tile.is-screen:not(:fullscreen) { flex: none; width: min(100cqw, 100cqh * var(--live-arn, 1.7778)) !important; height: auto !important; max-height: 100cqh; aspect-ratio: var(--live-ar, 16 / 9) !important; }
+#call .focus-main > .tile.is-screen video { object-fit: contain; }

@@ -36,10 +36,12 @@ Leia antes de mexer em qualquer coisa visual (label `visual`, CSS, temas, anima�
 
 ## Temas
 - **Poucos e caprichados.** Cada tema muda material, movimento, arranjo e detalhes (`app/themes.js` e `app/themes-pro.css` via `html[data-tk]`), e não só a cor.
-- **Atuais (2.2):**
-  - Líquido (padrão, com versão preta e translúcida);
-  - Holofoil (cristal holográfico, borda fina com brilhos em quem fala);
-  - Vision, Vision · noite, Cosmos, Neon, Brasa, Bento e Cinema.
+- **Atuais (2.6), seis:**
+  - **Resenha** (padrão): sóbrio e denso, com cores escolhidas pela pessoa. Cada paleta tem 3 cores na regra 60/30/10 (fundo, texto/barra, destaque) e o resto sai do gerador OKLCH de `app/themes.js`, que garante contraste de 4,5:1 nos textos. São nove paletas (Pipoca, Musgo, Petróleo, Vinho, Marinho, Cacau, Lona, Mármore e Gelo) e o Automático, que segue o Windows. No claro, a barra lateral fica na cor 30.
+  - **Vidro**: vidro claro do visionOS sobre o fundo vivo (`app/ambient.js`).
+  - **Sintonia** (guia de TV, Blippo+), **Apê** (cômodos em maquete isométrica, com a Pipoca e a Amora), **Caderno** (livro manuscrito, Pentiment) e **Mergulho** (menus do Persona 3 Reload). Esses quatro desenham a sala inteira em `app/skins/<tema>.js`, ligados pelo hospedeiro `app/skins/skins.js`. O client entrega só o retrato da sala (`skinModel`) e as ações (`skinActions`); o tema nunca mexe no estado nem no DOM do app.
+- **Live**: sempre na proporção real do vídeo (`--live-ar`/`--live-arn`, motion.js), sem barras e sem corte, em todos os temas.
+- **Chat não rouba a live**: em tema com sala própria, o chat é secundário (bilhete, faixa, cantinho). A área da live fora da tela cheia não diminui por causa dele.
 - **Temas retirados** migram sozinhos para um dos atuais (`window.RETIRED_THEMES`). Nunca quebre a escolha salva de quem usa um tema retirado.
 
 ## Como entregar mudança visual
