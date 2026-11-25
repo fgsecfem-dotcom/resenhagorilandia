@@ -41,3 +41,12 @@ console.log('PASS: seis temas, migração dos antigos, Automático ao vivo e con
  assert.ok(!/html\.bg-paused[^{]*\{[^}]*animation:/.test(pro + glass), 'bg-paused só pausa, não troca a animação');
 }
 console.log('PASS: animações decorativas pausam com a janela escondida');
+
+// O botão pode escurecer ou clarear no hover; cada superfície tem a própria tinta.
+for (const [key, v] of [...all, ['vidro', W.themePreview('vidro')]]) {
+  for (const [fg, bg] of [['on-accent', 'accent'], ['on-primary', 'blurple'], ['on-primary-hover', 'blurple-h']])
+    assert.ok(C(v[fg] || '#ffffff', v[bg]) >= 4.5 && v[fg], `${key}: ${fg} em ${bg}`);
+}
+for (const c of ['#67b9a0', '#fee75c', '#ff6420', '#a535f5', '#00868a', '#0e0e10']) {
+  assert.ok(C(W.avatarInk(c), c) >= 4.5, `Inicial em ${c}`);
+}

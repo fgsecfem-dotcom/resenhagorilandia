@@ -94,12 +94,13 @@ function toast(msg, type = '', ms = 3500) {
 function initials(name) { return (name || '?').trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?'; }
 function avatarHTML(u, cls = '') {
   if (u.bot || u.id === DJ_ID) return `<div class="avatar dj-av ${cls}">${icon('music', 18)}</div>`;
-  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'}`;
+  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'};color:${window.avatarInk?.(u.color || '#5865f2') || '#fff'}`; // inicial escura em fundo claro (amarelo, menta)
   return `<div class="avatar ${cls}" style="${esc(bg)}">${u.avatar ? '' : esc(initials(u.name))}</div>`;
 }
 function setAvatarEl(el, u) {
   el.style.backgroundImage = u.avatar ? `url(${u.avatar})` : '';
   el.style.backgroundColor = u.avatar ? '' : (u.color || '#5865f2');
+  el.style.color = u.avatar ? '' : (window.avatarInk?.(u.color || '#5865f2') || '');
   el.textContent = u.avatar ? '' : initials(u.name);
 }
 function fmtSize(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB'; return (b / 1073741824).toFixed(2) + ' GB'; }
