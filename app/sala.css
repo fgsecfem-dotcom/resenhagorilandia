@@ -110,3 +110,7 @@ html #call #call-stage .mute-tag { order: 2; flex: none; padding: 1px 6px; borde
 .modal .capture-help .link-btn { border: 0; padding: 0; background: transparent; color: var(--link); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .modal .sources button.src { font: inherit; text-align: left; }
 .modal .sources .src .th { display: block; }
+
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu .nm, .vu .st, .ou .nm, .ou .st-text, .channel .cn, .channel .timer) { display: none; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu, .ou) .avatar { width: 24px; height: 24px; min-width: 24px; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-who { margin: 0; }
