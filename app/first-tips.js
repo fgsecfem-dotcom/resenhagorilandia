@@ -2,9 +2,9 @@
 (() => {
   const KEY = 'resenha.firstRoomTips';
   const tips = [
-    { title: 'Entre na call', text: 'Abra um canal de voz para falar com a galera.', anchors: '#call [data-join] .btn, [data-ap-join], .cd-enter, .mg-voice button, [data-vch]' },
+    { title: 'Entre na call', text: 'Abra um canal de voz para falar com a galera.', anchors: '#call [data-join] .btn, [data-ap-join], .cd-enter, .mg-voice button, [data-vch]', done: () => !!window.__resenha?.V?.joined },
     { title: 'Chame a galera', text: 'Use Convidar para mandar o código ou o link da sala.', anchors: '#btn-invite, [data-ap-invite], .sn-invite, .cd-invite, .mg-invite' },
-    { title: 'Assista à live', text: 'Escolha a transmissão de quem está ao vivo para ver a tela.', anchors: '#call button.live-join[title="Entrar na transmissão"], #call [data-watch], button[data-ap-watch], .sn-watch, .cd-watch, .mg-watch' },
+    { title: 'Assista à live', text: 'Escolha a transmissão de quem está ao vivo para ver a tela.', anchors: '#call button.live-join, #call [data-watch], button[data-ap-watch], .sn-watch, .cd-watch, .mg-watch', done: () => (window.__resenha?.V?.watching?.size || 0) > 0 },
   ];
   let step = null, timer = null, box = null;
   try {
@@ -24,6 +24,9 @@
       else if (r.bottom + 12 + h <= innerHeight - 8) { side = 'bottom'; left = cx - w / 2; top = r.bottom + 12; }
     }
     left = Math.max(8, Math.min(innerWidth - w - 8, left)); top = Math.max(8, Math.min(innerHeight - h - 8, top));
+    // Nunca em cima de uma live ou de um vídeo: nesse caso vai para o canto, acima do dock.
+    const hit = [...document.querySelectorAll('#call video, #call .tile.screen')].some((v) => { const q = v.getBoundingClientRect(); return q.width && left < q.right && left + w > q.left && top < q.bottom && top + h > q.top; });
+    if (hit) { left = innerWidth - w - 16; top = innerHeight - h - 96; side = ''; }
     box.style.left = left + 'px'; box.style.top = top + 'px'; box.dataset.side = side;
     if (r && side) {
       box.style.setProperty('--ft-x', Math.max(16, Math.min(w - 16, (r.left + r.right) / 2 - left)) + 'px');
@@ -43,7 +46,10 @@
       if (box) box.hidden = true;
       return;
     }
-    const tip = tips[step]; if (!tip) return stop();
+    let tip = tips[step]; if (!tip) return stop();
+    // A dica some sozinha quando a pessoa já fez o que ela ensina (entrou na call, abriu a live).
+    while (tip && tip.done?.()) { save(step + 1); detach(); tip = tips[step]; }
+    if (!tip) return stop();
     if (!box) show(tip, step);
     box.hidden = false;
     const target = tip.anchors.split(', ').map(sel => [...document.querySelectorAll(sel)].find(el => el.getBoundingClientRect().width > 0)).find(Boolean);

@@ -116,7 +116,7 @@ function toast(msg, type = '', ms = 3500) {
 function initials(name) { return (name || '?').trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?'; }
 function avatarHTML(u, cls = '') {
   if (u.bot || u.id === DJ_ID) return `<div class="avatar dj-av ${cls}">${icon('music', 18)}</div>`;
-  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'};color:${window.avatarInk?.(u.color || '#5865f2') || '#fff'}`; // inicial escura em fundo claro (amarelo, menta)
+  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'};color:${window.avatarInk?.(u.color || '#5865f2', /\btile-av\b/.test(cls) ? 3 : 4.5) || '#fff'}`; // no avatar grande da call a letra é grande: 3:1 basta // inicial escura em fundo claro (amarelo, menta)
   return `<div class="avatar ${cls}" style="${esc(bg)}">${u.avatar ? '' : esc(initials(u.name))}</div>`;
 }
 function setAvatarEl(el, u) {
@@ -1481,7 +1481,7 @@ function updateTile(key, u, isScreen) {
     t.querySelector('.label').innerHTML = `<span>${DJ_NAME}</span>`;
   } else {
     const sig = (u.avatar || '') + u.color + u.name;
-    if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
+    if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u, 'tile-av'); }
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
     const muted = self ? V.muted || V.deafened : u.muted || u.deafened;
     t.querySelector('.label').innerHTML = (self && muted ? '<span class="mute-tag">mudo</span>' : u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
@@ -1639,7 +1639,7 @@ function layoutGrid() {
 // o flex centraliza a última fileira sem forçar um lugar vazio.
 function avatarGrid(n, w, h) {
   if (!n || !w || !h) return null;
-  const gap = 8, trim = 56, max = 224;
+  const gap = 8, trim = 56, max = 152; // "menor e mais calmo": sem câmera, o avatar não passa de 152 px
   let best = null;
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);

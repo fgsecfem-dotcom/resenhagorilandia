@@ -174,7 +174,8 @@ window.readableColor = (hex, bg) => {
   return nameCache.get(k);
 };
 // Cor da inicial dentro de um avatar de cor `hex`: branca ou escura, a que tiver mais contraste.
-window.avatarInk = (hex) => (/^#[0-9a-f]{6}$/i.test(hex || '') ? inkOn(hex.toLowerCase()) : '#ffffff');
+// Inicial do avatar: branca sempre que alcança `min` (4,5:1 nos avatares pequenos; 3:1 nos grandes da call, letra grande e em negrito, WCAG 1.4.3).
+window.avatarInk = (hex, min = 4.5) => { if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return '#ffffff'; hex = hex.toLowerCase(); return contrast('#ffffff', hex) >= min ? '#ffffff' : inkOn(hex); };
 window.themeLight = (key, palette) => !!themeFor(key, palette).light;
 window.themeKey = resolveKey; // tema salvo (inclusive os retirados) -> tema atual
 // Preferência salva -> { theme, color } atual. Tema retirado leva junto a paleta mais parecida; paleta que não existe vira Automático.
