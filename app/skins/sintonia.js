@@ -142,7 +142,7 @@
       <aside class="sn-chat" id="sn-chat" aria-label="Chat da sala" hidden>
         <header><h2 class="sn-ellipsis"></h2><button type="button" data-sn="chat-channels" title="Escolher canal no guia" aria-label="Escolher canal no guia">${guideIcon}</button>
           <button type="button" data-sn="chat-close" title="Fechar chat" aria-label="Fechar chat">${I('x', 18)}</button></header>
-        <div class="sn-msgs" tabindex="0" role="log" aria-label="Mensagens recentes"><div class="sn-msg-list"></div><p class="sn-chat-empty">Nenhuma mensagem neste canal.</p></div>
+        <div class="sn-msgs" tabindex="0" role="log" aria-live="polite" aria-label="Mensagens recentes"><div class="sn-msg-list"></div><p class="sn-chat-empty">Nenhuma mensagem neste canal.</p></div>
         <form class="sn-compose"><input type="text" autocomplete="off" aria-label="Mensagem"><button type="submit" title="Enviar mensagem" aria-label="Enviar mensagem">${I('send', 19)}</button></form>
       </aside>
     </div>`;

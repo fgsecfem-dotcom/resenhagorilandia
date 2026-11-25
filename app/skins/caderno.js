@@ -121,7 +121,7 @@
       </div></div><aside class="cd-slip" aria-label="Bilhete da conversa">
         <button class="cd-slip-tab" type="button" aria-controls="cd-note" aria-expanded="false"><span class="cd-fold" aria-hidden="true"></span><span class="cd-slip-title"></span><span class="cd-ln"><span class="cd-preview-hand" hidden>${hand(22)}</span><b></b><span class="cd-preview"></span></span><span class="cd-wax" hidden></span></button>
         <section class="cd-note-p" id="cd-note" aria-label="Conversa da sala" hidden inert><header class="cd-note-head"><span>Conversa da sala</span>${button('close','Dobrar bilhete (Esc)','×')}<nav class="cd-tabs" aria-label="Canais de texto no bilhete"></nav></header>
-        <div class="cd-msgs" role="log" aria-label="Mensagens" tabindex="0"><div class="cd-entries"></div></div><form class="cd-comp">${quill}<textarea rows="1" maxlength="4000" aria-label="Mensagem"></textarea>${button('send','Enviar mensagem',I('send',17),'disabled','submit')}</form></section>
+        <div class="cd-msgs" role="log" aria-live="polite" aria-label="Mensagens" tabindex="0"><div class="cd-entries"></div></div><form class="cd-comp">${quill}<textarea rows="1" maxlength="4000" aria-label="Mensagem"></textarea>${button('send','Enviar mensagem',I('send',17),'disabled','submit')}</form></section>
       </aside></div>`;
     s = { ui: root.firstElementChild, actions, model: null, open: false, enlarged: false, animations: new Map(), seatsById: new Map(), voices: new Map(), texts: new Map(), tabsById: new Map(), opts: new Map(), messages: new Map(), channels: new Map() };
     s.$ = (q) => s.ui.querySelector(q);

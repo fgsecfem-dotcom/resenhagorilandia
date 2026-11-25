@@ -87,9 +87,15 @@ const semisToRatio = (s) => Math.pow(2, s / 12);
 function toast(msg, type = '', ms = 3500) {
   for (const old of $$('#toasts .toast')) if (old.textContent === msg) old.remove();
   const t = document.createElement('div');
-  t.className = 'toast ' + type; t.textContent = msg;
+  t.className = 'toast ' + type; t.setAttribute('role', 'status');
   $('#toasts').appendChild(t);
-  setTimeout(() => t.remove(), ms);
+  t.textContent = msg;
+  globalThis.ResenhaA11y?.announce(msg);
+  let remaining = ms, started = 0, timer;
+  const resume = () => { started = performance.now(); timer = setTimeout(() => t.remove(), remaining); };
+  t.addEventListener('pointerenter', () => { clearTimeout(timer); remaining = Math.max(0, remaining - (performance.now() - started)); });
+  t.addEventListener('pointerleave', resume);
+  resume();
 }
 function initials(name) { return (name || '?').trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?'; }
 function avatarHTML(u, cls = '') {
@@ -886,7 +892,7 @@ function handle(m) {
     case 'command-result': finishCommand(m); break;
     case 'dm': receiveDM(m.msg); break;
     case 'error': toast(m.msg, 'err', 5000); break;
-    case 'user-join': S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
+    case 'user-join': if (m.user.id !== DJ_ID && m.user.id !== S.myId) globalThis.ResenhaA11y?.announce(`${m.user.name} entrou na sala.`); S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
     case 'user-leave': {
       music?.userLeft(m.id);
       const u = S.users.get(m.id);
@@ -904,7 +910,8 @@ function handle(m) {
         if (!wasHere && isHere && !quiet) { sfx('join'); if (m.user.id !== DJ_ID) { toast(m.user.name + ' entrou na call', '', 2600); if (!roomMuted() && (document.hidden || !document.hasFocus())) native?.notify?.({ title: m.user.name + ' entrou na call', body: (chanById(V.channel)?.name || 'Call') + ' · ' + (S.roomName || 'Resenha') }); } }
         if (wasHere && !isHere) { if (!quiet) sfx('leave'); closePeer(m.user.id); }
         // Som quando um amigo da call começa (sobe) ou encerra (desce) uma live.
-        if (wasHere && isHere && !quiet && !prev.sharing && m.user.sharing) sfx('share');
+        if (wasHere && isHere && !quiet && !prev.sharing && m.user.sharing) { sfx('share'); globalThis.ResenhaA11y?.announce(`${m.user.name} começou a transmitir.`); }
+        if (wasHere && isHere && !quiet && !(prev.muted || prev.deafened) && (m.user.muted || m.user.deafened)) globalThis.ResenhaA11y?.announce(`${m.user.name} silenciou o microfone.`);
         if (wasHere && isHere && !quiet && prev.sharing && !m.user.sharing) sfx('shareEnd');
         if (prev.screenStreamId !== m.user.screenStreamId || !m.user.sharing) {
           V.watching.delete(m.user.id); V.relayVia.delete(m.user.id);
@@ -1278,8 +1285,10 @@ function renderCall() {
 
   $('#cc-mute').innerHTML = icon(V.muted || V.deafened ? 'micOff' : 'mic', 24);
   $('#cc-mute').classList.toggle('off', V.muted || V.deafened);
+  $('#cc-mute').setAttribute('aria-pressed', String(V.muted || V.deafened));
   $('#cc-deafen').innerHTML = icon(V.deafened ? 'headphonesOff' : 'headphones', 24);
   $('#cc-deafen').classList.toggle('off', V.deafened);
+  $('#cc-deafen').setAttribute('aria-pressed', String(V.deafened));
   // On the desktop app the button edits a running live (change or stop); the browser can only stop it.
   $('#cc-share').innerHTML = icon(V.screen && !native ? 'screenOff' : 'screen', 24);
   $('#cc-share').classList.toggle('on', !!V.screen);
@@ -1566,6 +1575,7 @@ async function joinVoice(channelId) {
   if (V.deafened) V.muted = true;
   wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
   sfx('join');
+  globalThis.ResenhaA11y?.announce(`Você entrou em ${chanById(channelId)?.name || 'um canal de voz'}.`);
   for (const u of usersIn(channelId)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
   setConnStatus('good', 'Voz conectada');
   syncDJ();
@@ -1596,6 +1606,7 @@ function teardownVoice() {
 function setMuted(m, silent) {
   if (WEB_VIEWER && !WEB_VOICE) return;
   if (V.deafened && !m) { setDeafened(false); return; }
+  if (m !== V.muted) globalThis.ResenhaA11y?.announce(m ? 'Microfone silenciado.' : 'Microfone ativado.');
   V.muted = m; LS.set('muted', m);
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
@@ -1605,6 +1616,7 @@ function setMuted(m, silent) {
 function setDeafened(d) {
   if (d) { V.mutedBeforeDeafen = V.muted; V.muted = true; }
   else { V.muted = V.mutedBeforeDeafen; }
+  if (d !== V.deafened) globalThis.ResenhaA11y?.announce(d ? 'Áudio e microfone silenciados.' : V.muted ? 'Áudio ativado. Microfone silenciado.' : 'Áudio e microfone ativados.');
   V.deafened = d;
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
@@ -2018,6 +2030,7 @@ function startShareWithStream(stream, q, startupEnabled = true) {
   if (vt) { vt.contentHint = 'motion'; vt.onended = () => stopShare(); }
   wsSend({ t: 'state', sharing: true, screenStreamId: stream.id });
   // Tracks are sent only after a viewer explicitly subscribes.
+  globalThis.ResenhaA11y?.announce('Você começou a transmitir.');
   sfx('share');
   renderAll();
 }
@@ -2341,8 +2354,8 @@ function userMenu(e, uid) {
   const vol = settings.userVolumes[u.name] ?? 100, svol = settings.streamVolumes[u.name] ?? 100;
   showMenu(e, `${isDJ ? `<div class="ctx-head">${avatarHTML(u)}<span>${esc(u.name)}</span></div>` : profileCardHTML(u)}
     <div class="ctx-label"><span>${isDJ ? 'Volume do DJ' : 'Volume do usuário'}</span><span id="cv-v">${vol}%</span></div>
-    <div class="ctx-row"><input type="range" min="0" max="200" step="1" value="${vol}" id="cv"></div>
-    ${u.sharing ? `<div class="ctx-label"><span>Volume da transmissão</span><span id="cs-v">${svol}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${svol}" id="cs"></div>` : ''}
+    <div class="ctx-row"><input type="range" min="0" max="200" step="1" value="${vol}" id="cv" aria-label="Volume da pessoa"></div>
+    ${u.sharing ? `<div class="ctx-label"><span>Volume da transmissão</span><span id="cs-v">${svol}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${svol}" id="cs" aria-label="Volume da transmissão"></div>` : ''}
     <label class="ctx-item check"><span>Silenciar pra mim</span><input type="checkbox" id="cm" ${settings.userMuted[u.name] ? 'checked' : ''}></label>
     <div class="ctx-item" id="cr"><span>Voltar volume pra 100%</span></div>
     ${!isDJ ? `${S.isHost && S.code && u.canHost && uid !== S.myId ? `<div class="ctx-item" id="chost"><span>Tornar anfitrião</span>${icon('crown', 16)}</div>` : ''}<div class="ctx-item" id="cdm"><span>Mensagem privada</span>${icon('chat', 16)}</div><div class="ctx-item" id="cfriend"><span>${friends[uid] ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></div><div class="ctx-item" id="cmention"><span>Mencionar</span>${icon('at', 16)}</div>` : `<div class="ctx-item" id="cdj"><span>Abrir painel do DJ</span>${icon('music', 16)}</div>`}`, (menu) => {
@@ -2380,7 +2393,7 @@ async function deviceMenu(e, kind) {
   const cur = kind === 'audioinput' ? settings.inputDevice : settings.outputDevice;
   const item = (id, label) => `<div class="ctx-item dev ${id === cur ? 'sel' : ''}" data-dev="${esc(id)}"><span>${esc(label)}</span>${id === cur ? icon('check', 16) : ''}</div>`;
   const extra = kind === 'audioinput'
-    ? `<div class="ctx-sep"></div><div class="ctx-label"><span>Volume do microfone</span><span id="dm-v">${settings.micGain}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${settings.micGain}" id="dm-g"></div>`
+    ? `<div class="ctx-sep"></div><div class="ctx-label"><span>Volume do microfone</span><span id="dm-v">${settings.micGain}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${settings.micGain}" id="dm-g" aria-label="Volume do microfone"></div>`
     : '';
   showMenu(pos, `<div class="ctx-title">${kind === 'audioinput' ? 'Microfone' : 'Saída de áudio'}</div>
     ${item('default', 'Padrão do Windows')}${devs.map((d) => item(d.deviceId, d.label || 'Dispositivo')).join('')}${extra}
@@ -2509,7 +2522,8 @@ function renderMessages(keepScroll) {
   const list = curMessages();
   let h = `<div class="welcome"><div class="big-hash">${icon('hash', 40)}</div><h1>Bem-vindo(a) a #${esc(c ? c.name : '')}!</h1><div class="muted">Início do canal #${esc(c ? c.name : '')}.</div></div>`;
   list.forEach((m, i) => { h += msgHTML(m, list[i - 1]); });
-  $('#msg-list').innerHTML = h;
+  const log = $('#msg-list');
+  if (globalThis.ResenhaA11y) globalThis.ResenhaA11y.replaceLog(log, () => { log.innerHTML = h; }); else log.innerHTML = h;
   if (!keepScroll || atBottom) scrollBottom(true); else box.scrollTop = prevTop;
   syncSkinSoon();
 }
@@ -2552,7 +2566,7 @@ async function deleteMsg(m) {
 }
 function startReply(m) {
   S.replyTo = m;
-  $('#reply-bar').innerHTML = `<span>Respondendo a <b ${personInk(m.color)}>${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x">${icon('x', 16)}</button>`;
+  $('#reply-bar').innerHTML = `<span>Respondendo a <b ${personInk(m.color)}>${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x" aria-label="Cancelar resposta">${icon('x', 16)}</button>`;
   $('#reply-bar').classList.remove('hidden');
   $('#reply-x').onclick = cancelReply;
   $('#input').focus();

@@ -108,7 +108,7 @@
       <aside class="mg-chat" id="mg-chat" aria-labelledby="mg-chat-title" hidden>
         <div class="mg-chat-head"><div><small>CANAIS DE TEXTO</small><h2 id="mg-chat-title">Conversa</h2></div>${btn('Fechar conversa (Esc)', 'x', 'mg-chat-close')}</div>
         <div class="mg-chat-tabs" role="group" aria-label="Canais de texto"></div>
-        <div class="mg-chat-scroll" role="log" aria-label="Mensagens" tabindex="0"><div class="mg-messages"></div><p class="mg-empty mg-empty-chat"></p></div>
+        <div class="mg-chat-scroll" role="log" aria-live="polite" aria-label="Mensagens" tabindex="0"><div class="mg-messages"></div><p class="mg-empty mg-empty-chat"></p></div>
         <form class="mg-composer"><textarea rows="1" aria-label="Mensagem" maxlength="8000"></textarea><button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem">${glyph('send', 19)}</button></form>
         <small class="mg-chat-error" role="status" hidden>Não foi possível enviar a mensagem.</small>
       </aside>

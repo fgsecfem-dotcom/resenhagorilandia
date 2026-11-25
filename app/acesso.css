@@ -59,3 +59,6 @@ html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.
 }
 #sidebar .server-dot:focus-visible { box-shadow: none; }
 #home :is(.saved-room-hide, .shelf-arrow):focus-visible { opacity: 1; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.toast { pointer-events: auto; }

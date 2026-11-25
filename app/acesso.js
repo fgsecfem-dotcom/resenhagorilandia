@@ -110,7 +110,36 @@
     };
   }
 
+  let pending = [], announcementTimer;
+  function announce(text) {
+    if (!text) return;
+    pending.push(text); clearTimeout(announcementTimer);
+    announcementTimer = setTimeout(() => {
+      const status = $('#sr-live'), text = pending.join(' '); pending = [];
+      status.textContent = '';
+      requestAnimationFrame(() => { status.textContent = text; });
+    }, 60);
+  }
+  function replaceLog(log, update) {
+    log.setAttribute('aria-live', 'off');
+    update();
+    requestAnimationFrame(() => requestAnimationFrame(() => log.setAttribute('aria-live', 'polite')));
+  }
+  function iconLabels(root) {
+    const selector = 'button, [role="button"]';
+    for (const button of [...(root.matches(selector) ? [root] : []), ...$$(selector, root)]) {
+      if (button.closest('.modal:has(#st-ver)') || button.hasAttribute('aria-label') || button.hasAttribute('aria-labelledby') || button.textContent.trim()) continue;
+      const label = button.title || button.dataset.tip || (button.hasAttribute('data-close') ? 'Fechar' : '');
+      if (label) button.setAttribute('aria-label', label);
+    }
+  }
+
   function init() {
+    iconLabels(document.body);
+    const labels = new MutationObserver(records => {
+      for (const m of records) for (const el of m.addedNodes) if (el.nodeType === 1) iconLabels(el);
+    });
+    labels.observe(document.body, { childList: true, subtree: true });
     const observer = new MutationObserver(decorateSoon);
     for (const list of $$('#voice-channels, #text-channels, #online-users')) observer.observe(list, { childList: true });
     decorate();
@@ -119,6 +148,6 @@
     document.addEventListener('focusin', (e) => { focusKey = e.target.matches?.(ITEMS) ? keyOf(e.target) : ''; if (focusKey) setCurrent(e.target); });
     document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.(ITEMS)) focusKey = ''; }, true);
   }
-  window.ResenhaA11y = { syncSkinChannels, controls, cycle, originFor, restore, contextMenu };
+  window.ResenhaA11y = { syncSkinChannels, controls, cycle, originFor, restore, contextMenu, announce, replaceLog };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
