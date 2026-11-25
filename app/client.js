@@ -553,6 +553,7 @@ function setupWelcome() {
   d.classList.toggle('first-run', first); d.closest('.home-top')?.classList.toggle('first-run', first);
   $('#welcome-ask').hidden = $('#welcome-go').hidden = !first;
   d.open = first;
+  if (first) window.FirstTips?.prepare();
 }
 function closeWelcome() {
   const d = $('#home-profile-d'); d.classList.remove('first-run'); d.closest('.home-top')?.classList.remove('first-run');
@@ -1140,10 +1141,12 @@ function showMain() {
   endBoot();
   $('#home').classList.add('hidden');
   $('#main').classList.remove('hidden');
+  window.FirstTips?.arm();
   $('#home-error').textContent = '';
 }
 
 async function leaveRoom(endForAll) {
+  window.FirstTips?.finish();
   S.closing = true;
   if (dmPanel) dmPanel.close();
   dmUnread.clear();

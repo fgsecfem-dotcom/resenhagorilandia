@@ -44,5 +44,29 @@ function fixture({ state, online = false, hold = false } = {}) {
   cancel.status().actions.find(a => a.label === 'Cancelar').fn(); await opening;
   cancel.resolve('won'); await Promise.resolve(); assert.equal(cancel.count.host, 0);
   assert.equal(cancel.status().text, '');
+  const firstTips = fs.readFileSync(require.resolve('../app/first-tips.js'), 'utf8');
+  const saved = new Map(), intervals = new Set(), mounted = new Set();
+  const rect = { left: 80, top: 180, bottom: 220, right: 120, width: 40, height: 40 };
+  const anchor = { getBoundingClientRect: () => rect };
+  const ctx = vm.createContext({ window: {}, innerWidth: 800, innerHeight: 600,
+    localStorage: { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) },
+    document: { visibilityState: 'visible', querySelector: sel => sel === '#main:not(.hidden)' ? anchor : null,
+      querySelectorAll: sel => sel.includes('[data-join]') || sel.includes('#btn-invite') ? [anchor] : [],
+      createElement() { const parts = new Map(); return { offsetWidth: 240, offsetHeight: 120, dataset: {}, style: { setProperty() {} }, setAttribute() {}, remove() { mounted.delete(this); }, querySelector: sel => parts.get(sel) || (parts.set(sel, {}), parts.get(sel)) }; },
+      body: { append(el) { mounted.add(el); } } },
+    setInterval(fn) { intervals.add(fn); return fn; }, clearInterval(fn) { intervals.delete(fn); },
+  });
+  vm.runInContext(firstTips, ctx);
+  const guide = ctx.window.FirstTips, tick = () => { for (const next of intervals) next(); };
+  const tip = () => [...mounted][0];
+  guide.arm(); tick(); assert.equal(mounted.size, 0, 'não repete para perfis antigos');
+  guide.prepare(); guide.arm(); tick(); assert.equal(mounted.size, 1);
+  const titles = [];
+  for (let i = 0; i < 3; i++) {
+    assert.equal(mounted.size, 1); titles.push(tip().querySelector('b').textContent);
+    tip().querySelector('button').onclick(); tick();
+  }
+  assert.deepEqual(titles, ['Entre na call', 'Chame a galera', 'Assista à live']);
+  guide.prepare(); guide.arm(); tick(); assert.equal(mounted.size, 0); assert.equal(intervals.size, 0);
   console.log('PASS: abertura rápida, retomada, incerteza, falha confirmada, limite, nova tentativa e cancelamento sem abrir tarde');
 })().catch(e => { console.error(e); process.exitCode = 1; });
