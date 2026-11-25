@@ -32,7 +32,7 @@
 }
 /* Call dock: same handlers, SVG family, compact capsule and clear destructive action. */
 #call-controls{align-self:center;flex:none;margin:6px auto 14px;padding:7px 13px;gap:8px;border:1px solid var(--line);border-radius:34px;background:var(--bg-panel);box-shadow:0 10px 28px #0002;max-width:calc(100% - 16px)}
-#call-controls .cc-btn{width:42px;height:42px;min-width:42px;padding:10px;border-radius:50%;background:var(--bg-input);border:1px solid var(--line);color:var(--text);transition:transform 180ms cubic-bezier(.16,1,.3,1),background-color 160ms,border-color 160ms}
+#call-controls .cc-btn{width:42px;height:42px;min-width:42px;padding:10px;border-radius:50%;background:var(--bg-input);border:1px solid var(--line);color:var(--text);transition:transform 180ms var(--ease-out),background-color 160ms,border-color 160ms}
 #call-controls .cc-btn svg{width:17px;height:17px}#call-controls .cc-btn:hover{transform:translateY(-1px);background:var(--hover)}#call-controls .cc-btn:active{transform:scale(.95)}#call-controls .cc-btn.off{color:var(--red);background:color-mix(in srgb,var(--red) 15%,var(--bg-main))}
 #call-controls #cc-leave{width:auto;padding:0 14px;margin-left:8px;gap:7px;border-radius:24px;background:color-mix(in srgb,var(--red) 12%,var(--bg-main));border-color:color-mix(in srgb,var(--red) 32%,transparent);color:var(--red);font-size:11px;font-weight:600;display:flex;align-items:center}
 /* Media fits source proportions, including fullscreen. No cover or distorted video. */

@@ -47,7 +47,7 @@ html.glass #call .tile::after, html.glass #call .vc-card::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3;
   background: rgba(0,0,0,.16);
   box-shadow: inset .5px .5px rgba(255,255,255,.22), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.14);
-  opacity: 0; transition: opacity .2s ease;
+  opacity: 0; transition: opacity .2s var(--ease-out);
 }
 html.glass #call .vc-card { position: relative; }
 html.glass #call .grid > .tile:hover::after, html.glass #call .focus-strip > .tile:hover::after, html.glass #call .vc-card:hover::after { opacity: 1; }
@@ -64,9 +64,9 @@ html.glass #call #call-controls {
 html.glass #call #call-controls { padding: 6px 10px; gap: 2px; }
 html.glass #call #call-controls .cc-btn, html.glass #call #call-controls #cc-leave {
   width: 50px; height: 46px; min-width: 50px; border-radius: 14px; background: transparent; color: rgba(255,255,255,.72); position: relative;
-  transition: color 90ms ease-out;
+  transition: color 90ms var(--ease-out);
 }
-html.glass #call #call-controls .cc-btn svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call #call-controls .cc-btn svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 html.glass #call #call-controls .cc-btn:hover { background: transparent; color: #fff; transform: none; }
 html.glass #call #call-controls .cc-btn:active svg { scale: .97; } /* passar o mouse só acende a cor; clicar afunda de leve */
 html.glass #call #call-controls .cc-btn.off { background: transparent; color: #f87171; }
@@ -98,7 +98,7 @@ html.glass #ctx-menu { box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 18px 5
 .has-slider { position: relative; }
 .has-slider > :not(.m-slider) { position: relative; z-index: 1; }
 .m-slider { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0;
-  transition: transform var(--spring-move-dur, .35s) var(--spring-move, ease-out), width var(--spring-move-dur, .35s) var(--spring-move, ease-out), height var(--spring-move-dur, .35s) var(--spring-move, ease-out), opacity .18s ease; }
+  transition: transform var(--spring-move-dur, .35s) var(--spring-move, var(--ease-out)), width var(--spring-move-dur, .35s) var(--spring-move, var(--ease-out)), height var(--spring-move-dur, .35s) var(--spring-move, var(--ease-out)), opacity .18s var(--ease-out); }
 .m-slider-tabs { border-radius: 10px; background: var(--active); }
 html.glass .m-slider-tabs { background: rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
 .tabs.has-slider > .tab.active, .tabs.has-slider > .tab:hover { background: transparent; }
@@ -136,9 +136,9 @@ html.glass #home .recent-item:hover { background: var(--g-fill-2); border-color:
 html.glass #home .saved-room { background: var(--g-fill-2); border-color: var(--g-edge); box-shadow: var(--g-shine); }
 /* Passar o mouse: igual aos cards da call (escurece de leve e mostra o contorno, 0,2 s). */
 #home .saved-room::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: rgba(0,0,0,.14);
-  box-shadow: inset .5px .5px rgba(255,255,255,.24), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.16); opacity: 0; transition: opacity .2s ease; }
+  box-shadow: inset .5px .5px rgba(255,255,255,.24), inset -.5px -.5px rgba(255,255,255,.10), inset 0 0 0 .5px rgba(255,255,255,.16); opacity: 0; transition: opacity .2s var(--ease-out); }
 #home .saved-room:hover::after { opacity: 1; }
-#home .saved-room:active { scale: .985; transition: scale 90ms ease-out; }
+#home .saved-room:active { scale: .985; transition: scale 90ms var(--ease-out); }
 
 /* Card que vira a sala (motion.js): camada com a cor da sala crescendo do card até a janela. */
 .m-expand { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 90; pointer-events: none; transform-origin: 0 0; border-radius: 20px; }
@@ -146,17 +146,16 @@ html.glass #home .saved-room { background: var(--g-fill-2); border-color: var(--
 #home .home-main > .home-top { order: 0; } #home .home-main > .home-join { order: 1; } #home .home-main > .home-rooms { order: 4; }
 #home .home-main > #home-error { order: 2; } #home .home-main > .home-create { order: 3; } #home .home-main > .home-tip { order: 5; } #home .home-main > #home-version { order: 6; }
 /* Sala abrindo: a arte do card pulsa devagar (só opacidade) até a sala aparecer. */
-#home .saved-room.opening .saved-room-art > * { animation: m-breathe 1.1s ease-in-out infinite; }
+#home .saved-room.opening .saved-room-art > * { opacity: .6; } /* abrindo a sala: sem pulsar em loop */
 #home .saved-room.opening .btn { opacity: .6; pointer-events: none; }
-@keyframes m-breathe { 50% { opacity: .45; } }
 
 /* ---------- Lote 7: live em tela cheia ---------- */
 /* Barras de controle unificadas, como o dock (sem bolinha por botão). Sem desfoque: o vídeo atrás muda a cada quadro. */
 html.glass #call .tile.is-screen:fullscreen .tile-tools { background: rgba(20,22,28,.74); border-color: rgba(255,255,255,.10); border-radius: 999px; padding: 6px 10px; gap: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 36px rgba(0,0,0,.45); }
-html.glass #call .tile.is-screen:fullscreen .tile-tools button { background: transparent !important; color: rgba(255,255,255,.78); border-radius: 14px; transition: color 90ms ease-out; }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button { background: transparent !important; color: rgba(255,255,255,.78); border-radius: 14px; transition: color 90ms var(--ease-out); }
 html.glass #call .tile.is-screen:fullscreen .tile-tools button:hover { color: #fff; }
-html.glass #call .tile.is-screen:fullscreen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen:fullscreen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 
 html.glass #call .tile.is-screen:fullscreen .tile-tools button:active svg { scale: .86; transition-duration: 90ms; }
 html.glass #call .tile.is-screen:fullscreen .tile-tools .off { color: #f87171 !important; }
@@ -164,7 +163,7 @@ html.glass #call .tile.is-screen:fullscreen .live-volume { background: transpare
 html.glass #call .tile.is-screen:fullscreen .live-identity, html.glass #call .tile.is-screen:fullscreen .live-back { background: rgba(20,22,28,.74); box-shadow: inset 0 1px 0 rgba(255,255,255,.10); }
 /* Controles entram e saem deslizando (mola), não só piscando. */
 html.glass #call .tile.is-screen:fullscreen .tile-tools, html.glass #call .tile.is-screen:fullscreen .live-meta {
-  transition: opacity .2s ease, translate var(--spring-move-dur, .4s) var(--spring-move, ease-out); }
+  transition: opacity .2s var(--ease-out), translate var(--spring-move-dur, .4s) var(--spring-move, var(--ease-out)); }
 html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .tile-tools { translate: 0 18px; }
 html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .live-meta { translate: 0 -14px; }
 
@@ -172,7 +171,7 @@ html.glass #call .tile.is-screen:fullscreen:not(.controls-visible) .live-meta { 
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
   transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 @media (prefers-reduced-motion: reduce) { /* "Reduzir animações" do Windows/macOS vale igual à opção do app */
-  *, *::before, *::after { transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+  html:not(.motion-full) *, html:not(.motion-full) *::before, html:not(.motion-full) *::after { transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 
 /* ---------- Lote 9: vidro no tema claro ---------- */
 html.glass.light {
@@ -231,12 +230,12 @@ html.glass.light #main, html.glass.light #home, html.glass.light #boot {
 #home .home-rooms .room-shelf.more-r { --fade-r: 56px; }
 #home .home-rooms .room-shelf.more-l { --fade-l: 56px; }
 #home .shelf-arrow { position: absolute; top: 50%; translate: 0 -50%; z-index: 2; width: 36px; height: 56px; border: 0; border-radius: 12px; display: grid; place-items: center;
-  background: var(--g-fill-h, rgba(255,255,255,.12)); color: var(--text-hi); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s ease; box-shadow: var(--g-shine); }
+  background: var(--g-fill-h, rgba(255,255,255,.12)); color: var(--text-hi); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s var(--ease-out); box-shadow: var(--g-shine); }
 #home .shelf-arrow.prev { left: -6px; }
 #home .shelf-arrow.next { right: -6px; }
 #home .shelf-wrap:hover .shelf-arrow.on { opacity: 1; pointer-events: auto; }
 #home .saved-room-hide { position: absolute; top: 10px; left: 10px; z-index: 4; width: 26px; height: 26px; border: 0; border-radius: 50%; display: grid; place-items: center;
-  background: rgba(0,0,0,.38); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s ease; }
+  background: rgba(0,0,0,.38); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out); }
 #home .saved-room:hover .saved-room-hide { opacity: 1; }
 #home .rooms-old { align-self: flex-start; border: 0; background: none; padding: 2px 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 #home .rooms-old:hover { color: var(--text-hi); text-decoration: underline; }
@@ -245,14 +244,14 @@ html.glass.light #main, html.glass.light #home, html.glass.light #boot {
 #boot img { width: 84px; height: 84px; border-radius: 22px; box-shadow: var(--g-shine, none), 0 18px 40px rgba(0,0,0,.35); margin-bottom: 12px; }
 #boot h2 { font-size: 22px; letter-spacing: -.02em; }
 #boot .boot-dots { width: 140px; height: 3px; gap: 0; margin-top: 14px; border-radius: 2px; overflow: hidden; background: var(--g-edge, rgba(255,255,255,.1)); }
-#boot .boot-dots i { width: 40%; height: 100%; border-radius: 2px; background: var(--link); opacity: 1; animation: boot-run 1.15s cubic-bezier(.45,0,.2,1) infinite; }
+#boot .boot-dots i { width: 100%; height: 100%; border-radius: 2px; background: var(--link); opacity: 1; transform-origin: 0 50%; animation: boot-run var(--dur-window) var(--ease-out) both; } /* enche uma vez e para: nada corre em loop */
 #boot .boot-dots i:nth-child(n+2) { display: none; }
-@keyframes boot-run { from { translate: -110% 0; } to { translate: 260% 0; } }
+@keyframes boot-run { from { scale: .96 1; opacity: .55; } to { scale: 1 1; opacity: 1; } }
 html.glass.light #boot img { box-shadow: 0 14px 34px rgba(30,30,60,.18); }
 
 /* Cor do perfil: bolinha de cor de verdade (sem quadrado dentro do círculo). */
 input[type=color] { -webkit-appearance: none; appearance: none; width: 40px !important; height: 40px !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important;
-  background: none !important; cursor: pointer; box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--g-edge, var(--line)); transition: box-shadow .15s ease; }
+  background: none !important; cursor: pointer; box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--g-edge, var(--line)); transition: box-shadow .15s var(--ease-out); }
 input[type=color]:hover { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--muted); }
 input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
 input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
@@ -261,7 +260,7 @@ input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 #call #pips .tile.is-screen { width: 300px !important; height: auto !important; aspect-ratio: var(--live-ar, 16 / 9) !important; min-height: 0 !important; max-height: 240px; border-radius: 14px; }
 #call #pips .tile.is-screen video { object-fit: cover; }
 #call #pips .tile.is-screen .tile-tools { top: auto !important; bottom: 8px !important; right: 8px !important; left: auto !important; padding: 3px 4px !important; gap: 0 !important; border-radius: 999px !important;
-  background: rgba(10,11,15,.7) !important; opacity: 0; transition: opacity .15s ease; }
+  background: rgba(10,11,15,.7) !important; opacity: 0; transition: opacity .15s var(--ease-out); }
 #call #pips .tile.is-screen:hover .tile-tools { opacity: 1; }
 #call #pips .tile.is-screen .tile-tools > :not([data-full]) { display: none !important; }
 #call #pips .tile.is-screen .tile-tools button { width: 28px !important; height: 28px !important; min-width: 28px !important; min-height: 28px !important; padding: 0 !important; background: transparent !important; color: #fff; }
@@ -301,18 +300,18 @@ input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 /* Configurações (janela com abas): altura fixa, então trocar de aba não faz a janela pular; o conteúdo aparece suave. */
 #modal-root .overlay .modal:has(.tp) { height: min(720px, calc(100vh - 48px)); }
 #modal-root .overlay .modal:has(.tp) > .body { flex: 1; min-height: 0; overflow-y: auto; }
-#modal-root .overlay .modal .tp:not(.hidden) { animation: m-tab-in .22s ease-out; }
+#modal-root .overlay .modal .tp:not(.hidden) { animation: m-tab-in .22s var(--ease-out); }
 @keyframes m-tab-in { from { opacity: 0; translate: 0 6px; } }
 
 /* Telas carregando na janela de transmitir: espaços reservados que pulsam. */
 .sources .src.loading { pointer-events: none; }
-.sources .src.loading .th { background: var(--g-fill-2, var(--bg-panel)); animation: m-breathe 1.1s ease-in-out infinite; }
+.sources .src.loading .th { background: var(--g-fill-2, var(--bg-panel)); opacity: .6; }
 /* Temas completos já têm cor de destaque própria: as paletas ficam apagadas. */
 html.theme-fixed .palette-grid { opacity: .35; pointer-events: none; }
 /* Escolha do ícone do app (Configurações > Aparência). */
 .icon-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
-.icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; padding: 10px 6px 8px; border-radius: 14px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .15s ease; }
-.icon-card img { width: 46px; height: 46px; border-radius: 11px; transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+.icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; padding: 10px 6px 8px; border-radius: 14px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .15s var(--ease-out); }
+.icon-card img { width: 46px; height: 46px; border-radius: 11px; transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 .icon-card:hover { background: var(--g-fill-h, var(--hover)); }
 
 .icon-card.sel { border-color: var(--link); box-shadow: 0 0 0 2px var(--accent-soft); color: var(--text-hi); }
@@ -328,12 +327,11 @@ html.glass #call .tile:not(.is-screen):has(.live-join).speaking { box-shadow: va
   padding: 0 0 max(14px, 13cqh) !important; background: none !important; pointer-events: none; opacity: 1 !important; }
 #call .tile:not(.is-screen) .tile-tools .live-join { pointer-events: auto; max-width: none !important; min-height: 38px !important; padding: 0 16px 0 12px !important; gap: 8px !important;
   border-radius: 999px !important; border: 1px solid rgba(255,255,255,.16) !important; background: rgba(18,19,24,.62) !important; color: #fff !important; font-size: 13px !important; font-weight: 700;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 22px rgba(0,0,0,.35); transition: background-color .15s ease, scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
-#call .tile:not(.is-screen) .tile-tools .live-join::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; box-shadow: 0 0 0 0 rgba(255,74,74,.6); animation: m-live-dot 1.6s ease-out infinite; flex: none; }
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 22px rgba(0,0,0,.35); transition: background-color .15s var(--ease-out), scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
+#call .tile:not(.is-screen) .tile-tools .live-join::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4a4a; flex: none; } /* ponto fixo: AO VIVO não pulsa */
 #call .tile:not(.is-screen) .tile-tools .live-join svg { display: none; }
 #call .tile:not(.is-screen) .tile-tools .live-join:hover { background: rgba(30,32,40,.78) !important; }
 #call .tile:not(.is-screen) .tile-tools .live-join:active { scale: .95; transition-duration: 90ms; }
-@keyframes m-live-dot { 0% { box-shadow: 0 0 0 0 rgba(255,74,74,.6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(255,74,74,0); } }
 /* Na fileira de baixo (quadros pequenos) o botão encolhe para uma pílula "ao vivo". */
 #call .focus-strip .tile:not(.is-screen) .tile-tools:has(.live-join) { padding-bottom: 8px !important; }
 #call .focus-strip .tile:not(.is-screen) .tile-tools .live-join { min-height: 26px !important; padding: 0 10px 0 8px !important; font-size: 11px !important; gap: 6px !important; }
@@ -341,7 +339,7 @@ html.glass #call .tile:not(.is-screen):has(.live-join).speaking { box-shadow: va
 html.glass.light #call .tile:not(.is-screen) .tile-tools .live-join { background: rgba(255,255,255,.9) !important; color: var(--text-hi) !important; border-color: rgba(30,30,60,.12) !important; box-shadow: 0 6px 18px rgba(30,30,60,.14); }
 /* PWA: aviso de versão nova. */
 #pwa-update { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); translate: -50% 0; z-index: 300; border: 0; border-radius: 999px; padding: 12px 18px;
-  background: var(--blurple); color: #fff; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,.4); cursor: pointer; animation: m-tab-in .3s ease-out; }
+  background: var(--blurple); color: #fff; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,.4); cursor: pointer; animation: m-tab-in .3s var(--ease-out); }
 
 /* ---------- Celular / PWA: barra de ajuda compacta, em vidro ---------- */
 .web-viewer #mobile-tools { margin: 6px 12px 8px; padding: 8px 10px; border-radius: 16px; background: var(--g-fill, var(--bg-side)); border: 1px solid var(--g-edge, var(--line)); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
@@ -382,7 +380,7 @@ html.theme-fixed.glass #call #call-controls { background: color-mix(in srgb, var
 .room-look .rl-id b { display: block; font-size: 16px; color: var(--text-hi); margin-top: 22px; }
 .room-look .rl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .room-look .rl-colors { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.room-look .rl-color { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; box-shadow: 0 0 0 2px var(--bg-main); transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+.room-look .rl-color { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; box-shadow: 0 0 0 2px var(--bg-main); transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 .room-look .rl-color:hover { box-shadow: 0 0 0 2px var(--bg-main), 0 0 0 3px var(--g-edge, var(--line)); }
 .room-look .rl-color.sel { box-shadow: 0 0 0 2px var(--bg-main), 0 0 0 4px var(--text-hi); }
 .room-look .rl-colors input#rl-custom { width: 30px !important; height: 30px !important; min-width: 30px; flex: none; aspect-ratio: 1; }
@@ -392,7 +390,7 @@ html.theme-fixed.glass #call #call-controls { background: color-mix(in srgb, var
 #boot.with-card { gap: 0; }
 #boot .boot-card { width: min(360px, calc(100vw - 48px)); border-radius: var(--r-tile, 22px); overflow: hidden; text-align: left;
   background: var(--g-fill-2, rgba(255,255,255,.07)); border: 1px solid var(--g-edge, rgba(255,255,255,.1)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 24px 60px rgba(0,0,0,.45);
-  animation: boot-card-in .5s cubic-bezier(.2,.8,.2,1) both; }
+  animation: boot-card-in .5s var(--ease-out) both; }
 #boot .boot-art { height: 190px; display: grid; place-items: center;
   background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--room-color) 100%, #fff 18%), var(--room-color) 55%, color-mix(in srgb, var(--room-color) 65%, #000) 100%); }
 #boot .boot-card.has-cover .boot-art { background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.35)), var(--room-cover) center/cover no-repeat; }
@@ -411,12 +409,12 @@ html.theme-fixed.glass #call #call-controls { background: color-mix(in srgb, var
 /* Uma cápsula só, igual ao dock da call: botões sem fundo próprio, volume integrado, divisória fina. */
 html.glass #call .tile.is-screen:not(:fullscreen) .tile-tools { background: rgba(18,20,26,.74); border: 1px solid rgba(255,255,255,.10); border-radius: 999px !important; padding: 4px 5px; gap: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 32px rgba(0,0,0,.42);
-  transition: opacity .2s ease, translate var(--spring-move-dur, .4s) var(--spring-move, ease-out); }
+  transition: opacity .2s var(--ease-out), translate var(--spring-move-dur, .4s) var(--spring-move, var(--ease-out)); }
 html.glass #call .tile.is-screen:not(:fullscreen):not(.controls-visible) .tile-tools:not(:focus-within) { translate: 0 10px; }
-html.glass #call .tile.is-screen .tile-tools button { background: transparent !important; border: 0 !important; border-radius: 999px !important; color: rgba(255,255,255,.80); transition: color 90ms ease-out, background-color 120ms ease-out; }
+html.glass #call .tile.is-screen .tile-tools button { background: transparent !important; border: 0 !important; border-radius: 999px !important; color: rgba(255,255,255,.80); transition: color 90ms var(--ease-out), background-color 120ms var(--ease-out); }
 html.glass #call .tile.is-screen:not(:fullscreen) .tile-tools button { height: 34px; min-width: 34px; padding: 0 9px; }
 html.glass #call .tile.is-screen .tile-tools button:hover { background: rgba(255,255,255,.10) !important; color: #fff; }
-html.glass #call .tile.is-screen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+html.glass #call .tile.is-screen .tile-tools button svg { transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 html.glass #call .tile.is-screen .tile-tools button:active svg { scale: .86; transition-duration: 90ms; }
 html.glass #call .tile.is-screen .tile-tools [data-stop] { padding: 0 14px 0 10px !important; gap: 6px; font-size: 13px; font-weight: 600; }
 html.glass #call .tile.is-screen .tile-tools [data-stop]:hover { background: rgba(248,113,113,.16) !important; color: #fecaca; }
@@ -427,7 +425,7 @@ html.glass #call .tile.is-screen .live-volume { background: transparent !importa
 html.glass #call .tile.is-screen .live-volume input { -webkit-appearance: none; appearance: none; width: 92px; height: 4px; min-height: 0; border-radius: 4px; cursor: pointer;
   background: linear-gradient(90deg, #fff var(--p, 50%), rgba(255,255,255,.22) var(--p, 50%)); }
 html.glass #call .tile.is-screen .live-volume input::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45);
-  transition: scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+  transition: scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 html.glass #call .tile.is-screen .live-volume input:hover::-webkit-slider-thumb { scale: 1.2; }
 html.glass #call .tile.is-screen .live-volume input:active::-webkit-slider-thumb { scale: .92; }
 html.glass #call .tile.is-screen .live-volume output { font-size: 12px; min-width: 34px; color: rgba(255,255,255,.66); font-variant-numeric: tabular-nums; }
@@ -436,7 +434,7 @@ html.glass #call .tile.is-screen:fullscreen .live-volume input { width: 130px; }
 @container (max-width: 420px) { html.glass #call .tile.is-screen .live-volume input { width: 60px; } }
 
 /* ---------- 2.1.3: ocultar/mostrar participantes com animação ---------- */
-html.glass #call .focus-strip { transition: height var(--spring-move-dur, .42s) var(--spring-move, ease-out), margin var(--spring-move-dur, .42s) var(--spring-move, ease-out), opacity .22s ease, translate var(--spring-move-dur, .42s) var(--spring-move, ease-out); }
+html.glass #call .focus-strip { transition: height var(--spring-move-dur, .42s) var(--spring-move, var(--ease-out)), margin var(--spring-move-dur, .42s) var(--spring-move, var(--ease-out)), opacity .22s var(--ease-out), translate var(--spring-move-dur, .42s) var(--spring-move, var(--ease-out)); }
 html.glass #main[data-people-hidden=true] #call .focus-strip { display: flex !important; height: 0 !important; margin-top: -10px; opacity: 0; translate: 0 26px; overflow: hidden; pointer-events: none; }
 
 /* ---------- 2.1.3: ícone do servidor usa a capa quando não há ícone ---------- */
@@ -455,16 +453,16 @@ html.glass #update-bar .up-text { display: flex; flex-direction: column; gap: 2p
 html.glass #update-bar .up-text b { font-size: 14px; font-weight: 700; }
 html.glass #update-bar .up-text span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
 html.glass #update-bar .up-progress { grid-column: 1 / -1; height: 5px; border-radius: 5px; overflow: hidden; background: color-mix(in srgb, var(--text) 12%, transparent); }
-html.glass #update-bar .up-progress i { display: block; height: 100%; border-radius: inherit; background: var(--link); transition: width .35s var(--spring-move, ease-out); }
-html.glass #update-bar .up-progress i.indeterminate { width: 40% !important; animation: up-indet 1.1s ease-in-out infinite; }
+html.glass #update-bar .up-progress i { display: block; height: 100%; border-radius: inherit; background: var(--link); transition: width .35s var(--spring-move, var(--ease-out)); }
+html.glass #update-bar .up-progress i.indeterminate { width: 40% !important; animation: up-indet 1.1s var(--ease-out) infinite; }
 @keyframes up-indet { from { translate: -100% 0; } to { translate: 260% 0; } }
 html.glass #update-bar .up-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
 html.glass #update-bar .small-btn { min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill-2, transparent); color: var(--text-hi); font-size: 13px; }
 html.glass #update-bar .small-btn:hover { background: var(--g-fill-h, var(--hover)); }
 html.glass #update-bar .small-btn.primary { background: var(--blurple); border-color: transparent; color: #fff; }
 html.glass #update-bar #up-notes { margin-right: auto; }
-html.glass #update-bar.up-enter { animation: up-in var(--dur-modal, 250ms) var(--ease-out, ease-out) both; }
-html.glass #update-bar.up-leave { animation: up-out .2s cubic-bezier(.23,1,.32,1) both; pointer-events: none; }
+html.glass #update-bar.up-enter { animation: up-in var(--dur-modal, 250ms) var(--ease-out) both; }
+html.glass #update-bar.up-leave { animation: up-out .2s var(--ease-out) both; pointer-events: none; }
 @keyframes up-in { from { opacity: 0; translate: 0 -22px; scale: .96; } }
 @keyframes up-out { to { opacity: 0; translate: 0 -14px; scale: .97; } }
 html.glass.light #update-bar { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 18px 40px rgba(0,0,0,.16); }
@@ -484,7 +482,7 @@ html.glass #room-menu.server-menu { padding: 0 0 6px; overflow: hidden auto; max
 #room-menu.server-menu .rm-text .rm-meta { font-size: 11.5px; opacity: .85; }
 #room-menu.server-menu .rm-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; padding: 10px 10px 6px; }
 #room-menu.server-menu .rm-quick-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px 8px; border-radius: var(--r-tile, 12px); border: 1px solid var(--g-edge, var(--line));
-  background: var(--g-fill-2, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .12s ease-out, scale var(--spring-press-dur, .24s) var(--spring-press, ease-out); }
+  background: var(--g-fill-2, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background-color .12s var(--ease-out), scale var(--spring-press-dur, .24s) var(--spring-press, var(--ease-out)); }
 #room-menu.server-menu .rm-quick-btn:hover { background: var(--g-fill-h, var(--hover)); color: var(--text-hi); }
 #room-menu.server-menu .rm-quick-btn:active { scale: .95; transition-duration: 90ms; }
 #room-menu.server-menu .rm-quick-btn.on { color: var(--link); border-color: color-mix(in srgb, var(--link) 45%, transparent); }
@@ -515,7 +513,7 @@ html.glass #room-menu.server-menu { padding: 0 0 6px; overflow: hidden auto; max
 .uname.fx-rainbow { color: transparent; background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #f9f871, #5ef38c, #4fc3ff, #a78bfa, #ff5f6d); animation: nfx-slide 3s linear infinite; }
 .uname.fx-neon { color: color-mix(in srgb, var(--nc, #7df9ff) 55%, #fff); text-shadow: 0 0 1px var(--nc, #7df9ff), 0 0 3px color-mix(in srgb, var(--nc, #7df9ff) 75%, transparent); animation: nfx-flicker 5s infinite; }
 .uname.fx-ouro { color: transparent; background-image: linear-gradient(100deg, #8a6420 0%, #f6d77a 25%, #fff6d5 35%, #d4a43a 50%, #8a6420 70%, #f6d77a 90%); animation: nfx-slide 3.2s linear infinite; }
-.uname.fx-fogo { color: transparent; background-image: linear-gradient(0deg, #ff3d00, #ff9100, #ffd54f, #ff9100, #ff3d00); background-size: 100% 260%; animation: nfx-rise 1.6s ease-in-out infinite alternate; }
+.uname.fx-fogo { color: transparent; background-image: linear-gradient(0deg, #ff3d00, #ff9100, #ffd54f, #ff9100, #ff3d00); background-size: 100% 260%; animation: nfx-rise 1.6s var(--ease-out) infinite alternate; }
 .uname.fx-gelo { color: transparent; background-image: linear-gradient(100deg, #e0f7ff, #7dd3fc, #ffffff, #93c5fd, #e0f7ff); animation: nfx-slide 4.5s linear infinite; }
 .uname.fx-glitch { position: relative; color: var(--nc, var(--text-hi)); }
 .uname.fx-glitch::before, .uname.fx-glitch::after { content: attr(data-text); position: absolute; inset: 0; pointer-events: none; }
@@ -535,7 +533,6 @@ html.glass.light .uname.fx-neon { color: var(--nc, #0369a1); text-shadow: 0 0 2p
 .nfx-grid .nfx:active { scale: .96; }
 .nfx-grid .nfx.sel { border-color: var(--link); box-shadow: 0 0 0 1px var(--link) inset; }
 .nfx-grid .nfx .uname:not([class*="fx-"]) { color: var(--text); }
-@media (prefers-reduced-motion: reduce) { .uname[class*="fx-"], .uname.fx-glitch::before, .uname.fx-glitch::after { animation: none !important; } }
 html.reduce-motion .uname[class*="fx-"], html.reduce-motion .uname.fx-glitch::before, html.reduce-motion .uname.fx-glitch::after { animation: none !important; }
 html.bg-paused .uname[class*="fx-"], html.bg-paused .uname.fx-glitch::before, html.bg-paused .uname.fx-glitch::after { animation-play-state: paused !important; }
 
@@ -576,7 +573,7 @@ html.glass #composer .composer-row:focus-within { box-shadow: inset 0 0 0 1px co
 html.glass #composer #input { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 html.glass #composer #btn-attach { border-radius: 50%; }
 html.glass #composer .send-btn { width: 36px; height: 36px; border-radius: 50% !important; color: #fff !important; background: var(--blurple) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) inset, 0 4px 16px color-mix(in srgb, var(--blurple) 55%, transparent); transition: scale var(--dur-press, 120ms) var(--ease-out, ease-out), box-shadow .2s; }
+  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) inset, 0 4px 16px color-mix(in srgb, var(--blurple) 55%, transparent); transition: scale var(--dur-press, 120ms) var(--ease-out), box-shadow .2s; }
 html.glass #composer .send-btn:hover { box-shadow: 0 0 0 1px color-mix(in srgb, #fff 26%, transparent) inset, 0 6px 22px color-mix(in srgb, var(--blurple) 75%, transparent); }
 html.glass #composer .send-btn:active { scale: .97; }
 /* Pílulas Chat / DMs */
@@ -595,7 +592,7 @@ html.acrylic.light body::before { opacity: .72; }
 .whats-new-modal .wn-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--link); margin-bottom: 6px; }
 .whats-new .wn-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .whats-new .wn-list li { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-tile, 16px); background: var(--g-fill, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line));
-  animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
+  animation: wn-in .5s var(--ease-out) both; }
 .whats-new .wn-list li:nth-child(2) { animation-delay: .05s; } .whats-new .wn-list li:nth-child(3) { animation-delay: .1s; } .whats-new .wn-list li:nth-child(4) { animation-delay: .15s; } .whats-new .wn-list li:nth-child(5) { animation-delay: .2s; } .whats-new .wn-list li:nth-child(6) { animation-delay: .25s; }
 .whats-new .wn-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--link); background: color-mix(in srgb, var(--link) 14%, transparent); }
 .whats-new .wn-list b { display: block; font-size: 13.5px; color: var(--text-hi); margin-bottom: 2px; }
@@ -654,7 +651,7 @@ html.win-round.light:not(.win-max) body::after { box-shadow: inset 0 0 0 1px rgb
 html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range] {
   -webkit-appearance: none; appearance: none; height: 18px; min-height: 0; border-radius: 999px; cursor: default; outline: none;
   background: linear-gradient(90deg, rgba(255,255,255,.92) var(--p, 50%), rgba(255,255,255,.16) var(--p, 50%));
-  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.10); transition: height .22s cubic-bezier(.2,.8,.2,1), transform .25s var(--ease-out, ease-out); }
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.10); transition: height .22s var(--ease-out), transform .25s var(--ease-out); }
 html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:hover { height: 22px; }
 html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:active { transform: scaleY(1.06); }
 html.glass :is(#call .tile.is-screen .live-volume, #ctx-menu .ctx-row, .dj-vol) input[type=range]:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl, #ff8a3d) 55%, transparent); }
@@ -671,15 +668,15 @@ html.glass #win-controls button { border-radius: 999px !important; }            
   background: var(--g-fill, var(--bg-panel)); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px var(--g-edge, var(--line)); }
 .whats-new .wn-duo { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 16px; }
 .whats-new .wn-logo { width: 78px; height: 78px; display: grid; place-items: center; flex: none; box-shadow: 0 14px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2); }
-.whats-new .wn-resenha { border-radius: 24px; background: var(--bg-float, #1c1c1f); overflow: hidden; animation: wn-from-left .5s cubic-bezier(.23,1,.32,1) both; }
+.whats-new .wn-resenha { border-radius: 24px; background: var(--bg-float, #1c1c1f); overflow: hidden; animation: wn-from-left .5s var(--ease-out) both; }
 .whats-new .wn-resenha img { width: 100%; height: 100%; object-fit: cover; }
-.whats-new .wn-spotify { border-radius: 50%; background: #000; box-shadow: 0 14px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(30,215,96,.55); animation: wn-from-right .5s cubic-bezier(.23,1,.32,1) both; }
-.whats-new .wn-plus { font-size: 28px; font-weight: 300; color: var(--muted); animation: wn-pop .4s cubic-bezier(.23,1,.32,1) .3s both; }
-.whats-new .wn-hero h3 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; color: var(--text-hi); animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .35s both; }
-.whats-new .wn-hero p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .42s both; }
+.whats-new .wn-spotify { border-radius: 50%; background: #000; box-shadow: 0 14px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(30,215,96,.55); animation: wn-from-right .5s var(--ease-out) both; }
+.whats-new .wn-plus { font-size: 28px; font-weight: 300; color: var(--muted); animation: wn-pop .4s var(--ease-out) .3s both; }
+.whats-new .wn-hero h3 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; color: var(--text-hi); animation: wn-in .6s var(--ease-out) .35s both; }
+.whats-new .wn-hero p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; animation: wn-in .6s var(--ease-out) .42s both; }
 .whats-new .wn-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 12px; }
 .whats-new .wn-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-hi);
-  background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); animation: wn-in .5s cubic-bezier(.2,.9,.3,1) both; }
+  background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); animation: wn-in .5s var(--ease-out) both; }
 .whats-new .wn-chips span:nth-child(1) { animation-delay: .5s; } .whats-new .wn-chips span:nth-child(2) { animation-delay: .56s; } .whats-new .wn-chips span:nth-child(3) { animation-delay: .62s; }
 .whats-new .wn-chips svg { color: #1ed760; }
 .whats-new-modal .wn-legal { margin: 0; padding: 0 22px 12px; text-align: center; font-size: 11px; line-height: 1.3; color: var(--muted2, var(--muted)); opacity: .7; }
@@ -695,9 +692,9 @@ html.reduce-motion .whats-new :is(.wn-resenha, .wn-spotify, .wn-plus, .wn-hero h
 .wn-y2k .wn-hero { background: #050507; color-scheme: dark; isolation: isolate; }
 .wn-y2k .wn-hero :is(h3, p) { color: #f4f6f8; } .wn-y2k .wn-hero p { color: #b9c0c8; }
 .wn-y2k .wn-hero .wn-chips span { color: #eef1f4; background: rgba(255,255,255,.06); }
-.wn-y2k .wn-kicker { display: inline-block; margin-bottom: 14px; font: 700 11px/1 'Space Grotesk', Figtree, sans-serif; letter-spacing: .32em; text-transform: uppercase; animation: wn-in .6s cubic-bezier(.2,.9,.3,1) .1s both; }
+.wn-y2k .wn-kicker { display: inline-block; margin-bottom: 14px; font: 700 11px/1 'Space Grotesk', Figtree, sans-serif; letter-spacing: .32em; text-transform: uppercase; animation: wn-in .6s var(--ease-out) .1s both; }
 .wn-y2k .wn-sparks { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
-.wn-y2k .wn-sparks i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); animation: wn-twinkle 2.6s ease-in-out infinite; }
+.wn-y2k .wn-sparks i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); animation: wn-twinkle 2.6s var(--ease-out) infinite; }
 .wn-y2k .wn-sparks i:nth-child(1) { left: 14%; top: 22%; } .wn-y2k .wn-sparks i:nth-child(2) { right: 16%; top: 16%; width: 10px; height: 10px; animation-delay: -.8s; }
 .wn-y2k .wn-sparks i:nth-child(3) { left: 24%; bottom: 26%; width: 8px; height: 8px; animation-delay: -1.5s; } .wn-y2k .wn-sparks i:nth-child(4) { right: 22%; bottom: 34%; width: 12px; height: 12px; animation-delay: -2s; }
 .wn-y2k .wn-sparks i:nth-child(5) { left: 50%; top: 8%; width: 7px; height: 7px; animation-delay: -1.1s; }
@@ -742,8 +739,8 @@ html.reduce-motion .whats-new :is(.wn-resenha, .wn-spotify, .wn-plus, .wn-hero h
 @keyframes wn-irid { to { background-position: 200% 0; } }
 .wn-y2k[data-wn="3"] .wn-hero h3 { font: 700 26px/1.15 'Space Grotesk', Figtree, sans-serif; }
 .wn-y2k[data-wn="3"] .wn-plus { font-size: 32px; font-weight: 700; }
-.wn-y2k[data-wn="3"] .wn-logo { padding: 3px; background: var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-left .5s cubic-bezier(.23,1,.32,1) both; box-shadow: 0 0 0 1px rgba(255,255,255,.25), 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(200,170,255,.25); }
-.wn-y2k[data-wn="3"] .wn-spotify { background: radial-gradient(circle, #000 0 63%, transparent 64%), var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-right .5s cubic-bezier(.23,1,.32,1) both; }
+.wn-y2k[data-wn="3"] .wn-logo { padding: 3px; background: var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-left .5s var(--ease-out) both; box-shadow: 0 0 0 1px rgba(255,255,255,.25), 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(200,170,255,.25); }
+.wn-y2k[data-wn="3"] .wn-spotify { background: radial-gradient(circle, #000 0 63%, transparent 64%), var(--foil) !important; animation: wn-foil 5s linear infinite, wn-from-right .5s var(--ease-out) both; }
 .wn-y2k[data-wn="3"] .wn-resenha img { border-radius: 21px; }
 .wn-y2k[data-wn="3"] .wn-chips span { box-shadow: inset 0 0 0 1px rgba(255,200,240,.3); }
 html.reduce-motion .wn-y2k :is(.wn-sparks i, .wn-logo, .wn-kicker, .wn-hero h3, .wn-plus) { animation: none !important; }
@@ -752,7 +749,7 @@ html.reduce-motion .wn-y2k :is(.wn-sparks i, .wn-logo, .wn-kicker, .wn-hero h3, 
 /* 2.2: ícone do Spotify como adesivo holográfico (arte própria em CSS, inspirada na referência do Felipe):
    disco verde furta-cor, faixas escuras translúcidas, borda de foil e a ponta descolando no canto. */
 @keyframes wn-holo-shift { to { background-position: 0 0, 200% 50%, 0 0; } }
-.wn-y2k[data-wn="3"] .wn-spotify { position: relative; overflow: visible; padding: 3px; animation: wn-from-right .5s cubic-bezier(.23,1,.32,1) both !important;
+.wn-y2k[data-wn="3"] .wn-spotify { position: relative; overflow: visible; padding: 3px; animation: wn-from-right .5s var(--ease-out) both !important;
   background: var(--foil) !important; box-shadow: 0 14px 30px rgba(0,0,0,.6), 0 0 22px rgba(120,255,190,.18) !important; }
 .wn-y2k[data-wn="3"] .wn-spotify::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; z-index: 0;
   background: radial-gradient(60% 45% at 68% 22%, rgba(255,255,255,.38), transparent 70%),
@@ -786,7 +783,7 @@ html.reduce-motion .wn-y2k[data-wn="3"] .wn-spotify::before { animation: none !i
 /* 2.2: ícone do Spotify (v3, referência do Felipe): quadrado arredondado verde estilo macOS, disco branco-menta
    em relevo e faixas verdes afundadas. Contorno holográfico (--foil) mantido. Arte própria em CSS. */
 .wn-y2k[data-wn="3"] .wn-spotify { border-radius: 24px !important; padding: 3px; background: var(--foil) !important;
-  animation: wn-foil 5s linear infinite, wn-from-right .5s cubic-bezier(.23,1,.32,1) both !important;
+  animation: wn-foil 5s linear infinite, wn-from-right .5s var(--ease-out) both !important;
   filter: drop-shadow(0 14px 16px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(110,255,170,.14)); }
 .wn-y2k[data-wn="3"] .wn-spotify::before { inset: 3px; border: 0; border-radius: 21px; clip-path: none; animation: none;
   background: radial-gradient(90% 70% at 30% 10%, rgba(255,255,255,.18), transparent 60%), linear-gradient(165deg, #1ff28d 0%, #00dd74 45%, #00be60 100%); }

@@ -1,6 +1,6 @@
 /* 2.6: barra lateral, menu da sala, Aparência e live em destaque. Referências: HIG Sidebars/Menus e a barra lateral do Linear.
    Linhas de 30px, um nível de recuo para quem está na call, cor de destaque só no que pede ação.
-   Movimento: o padrão único do motion.js (ease-out, menu 150ms). Nada aqui anima sem "Reduzir animações" respeitado. */
+   Movimento: o padrão único do motion.js (var(--ease-out), menu 150ms). Nada aqui anima sem "Reduzir animações" respeitado. */
 
 /* ---------- barra lateral ---------- */
 html[data-tk] html[data-tk] #sidebar { display: flex; flex-direction: column; padding: 8px 8px 6px; gap: 1px; font-size: 13.5px; color: var(--text); background: var(--bg-side); }
@@ -9,7 +9,7 @@ html[data-tk] #sidebar #room-header { flex: 1; min-width: 0; display: flex; alig
 html[data-tk] #sidebar #room-header:hover, html[data-tk] #sidebar #room-header.open { background: var(--hover); }
 html[data-tk] #sidebar #room-header:focus-visible, html[data-tk] #sidebar .nsb-ib:focus-visible, html[data-tk] #sidebar #btn-invite.nsb-row:focus-visible, html[data-tk] #sidebar .up-user:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 html[data-tk] #sidebar #room-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; color: var(--text-hi); }
-html[data-tk] #sidebar .nsb-chev { color: var(--muted); display: grid; transition: transform 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
+html[data-tk] #sidebar .nsb-chev { color: var(--muted); display: grid; transition: transform 150ms var(--ease-out); }
 html[data-tk] #sidebar #room-header.open .nsb-chev { transform: rotate(180deg); }
 #room-icon { width: 26px; height: 26px; flex: none; border-radius: 8px; display: grid; place-items: center; overflow: hidden; background: var(--ri-color, var(--accent)); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
 #room-icon img { width: 100%; height: 100%; object-fit: cover; }
@@ -26,7 +26,7 @@ html[data-tk] #sidebar .n-code:empty { display: none; }
 html[data-tk] #sidebar #channels { flex: 1; min-height: 0; overflow-y: auto; padding: 0; margin: 0 -2px; padding: 0 2px; }
 html[data-tk] #sidebar .nsb-sec { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 8px; margin-top: 12px; color: var(--muted2); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 html[data-tk] #sidebar .nsb-sec.hidden { display: none; }
-html[data-tk] #sidebar .cat-add { width: 22px; height: 22px; min-height: 22px; border: 0; padding: 0; border-radius: 6px; background: transparent; color: var(--muted2); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity 120ms var(--ease-out, ease-out); }
+html[data-tk] #sidebar .cat-add { width: 22px; height: 22px; min-height: 22px; border: 0; padding: 0; border-radius: 6px; background: transparent; color: var(--muted2); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity 120ms var(--ease-out); }
 #sidebar:hover .cat-add, html[data-tk] #sidebar .cat-add:focus-visible { opacity: 1; }
 html[data-tk] #sidebar .cat-add:hover { background: var(--hover); color: var(--text-hi); }
 
@@ -118,7 +118,7 @@ html[data-tk] #sidebar #sidebar-toggle:hover { background: var(--hover); color: 
 
 /* ---------- Aparência: cartões de tema e paletas 60/30/10 ---------- */
 .modal .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 12px; }
-.modal .theme-card { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 8px 8px 10px; border: 0; border-radius: 12px; background: var(--bg-panel); box-shadow: inset 0 0 0 1px var(--line3); color: var(--text); text-align: left; cursor: pointer; transition: box-shadow 120ms var(--ease-out, ease-out), transform 120ms var(--ease-out, ease-out); }
+.modal .theme-card { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 8px 8px 10px; border: 0; border-radius: 12px; background: var(--bg-panel); box-shadow: inset 0 0 0 1px var(--line3); color: var(--text); text-align: left; cursor: pointer; transition: box-shadow 120ms var(--ease-out), transform 120ms var(--ease-out); }
 .modal .theme-card:hover { box-shadow: inset 0 0 0 1px var(--line); }
 .modal .theme-card:active { transform: scale(.98); }
 .modal .theme-card.sel { box-shadow: inset 0 0 0 2px var(--accent); }

@@ -87,10 +87,7 @@ html.booting #home { visibility: hidden; }
 #boot h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
 #boot p { margin: 0; min-height: 20px; font-size: 13px; color: var(--muted); }
 .boot-dots { display: flex; gap: 6px; margin-top: 6px; }
-.boot-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: boot-dot 1s infinite ease-in-out; }
-.boot-dots i:nth-child(2) { animation-delay: .15s; } .boot-dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes boot-dot { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .boot-dots i { animation: none; opacity: .6; } }
+.boot-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .6; } /* pontos parados: nada pulsa em loop */
 
 /* ---------- Profile card (click a name) and the profile editor ---------- */
 #ctx-menu.has-card { width: 300px; padding-top: 0; overflow: hidden; }

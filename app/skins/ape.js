@@ -1091,7 +1091,7 @@
       }
     }
     function syncMotion() {
-      const reduced = !!model?.reduceMotion || reducedSystem.matches;
+      const reduced = !!model?.reduceMotion;
       const paused = document.hidden || document.documentElement.classList.contains('bg-paused');
       const halt = paused || !ui.livestage.hidden;
       const next = `${reduced}|${paused}|${halt}`;

@@ -69,3 +69,9 @@ html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.
 .cat-add { --hit-inset: -5px; }
 .nsb-ib { --hit-inset: -1px; }
 #main > .splitter::after { inset: 0 -16px; z-index: 1; }
+
+/* Tokens disponíveis antes do script: a primeira pintura também segue o mesmo padrão. */
+:root {
+  --dur-click: 120ms; --dur-menu: 150ms; --dur-exit: 200ms; --dur-window: 250ms; --dur-layout: 350ms;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+}

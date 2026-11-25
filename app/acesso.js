@@ -25,7 +25,11 @@
   }
   function decorate() {
     const nav = $('#channels'); if (nav && !nav.hasAttribute('role')) { nav.setAttribute('role', 'group'); nav.setAttribute('aria-label', 'Canais e pessoas'); }
-    for (const row of $$('#channels .vu, #channels .ou')) { row.tabIndex = 0; row.setAttribute('role', 'button'); }
+    for (const row of $$('#channels .vu, #channels .ou')) {
+      row.tabIndex = 0; row.setAttribute('role', 'button');
+      const name = ($('.nm', row) || $('span:not(.avatar)', row))?.textContent.replace(/BOT$/, '').trim();
+      row.setAttribute('aria-label', `${name}, ${row.classList.contains('vu') ? 'na call' : 'na sala, fora da call'}`);
+    }
     const list = $$(ITEMS); if (!list.length) return;
     if (!list.some((el) => keyOf(el) === curKey)) curKey = keyOf(list.find((el) => el.classList.contains('active') || el.classList.contains('connected')) || list[0]);
     for (const el of list) {

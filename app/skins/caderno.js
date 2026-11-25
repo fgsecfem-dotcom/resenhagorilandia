@@ -154,7 +154,7 @@
   function motionState() {
     if (!s) return;
     const c = document.documentElement.classList;
-    const disabled = !!s.model?.reduceMotion || osMotion.matches || c.contains('bg-paused') || c.contains('reduce-motion');
+    const disabled = !!s.model?.reduceMotion || c.contains('bg-paused');
     s.ui.classList.toggle('cd-static', disabled);
     if (disabled) {
       for (const el of s.animations.keys()) cancel(el);

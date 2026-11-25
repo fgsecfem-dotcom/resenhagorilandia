@@ -14,12 +14,22 @@
   }
   // Curva padrão para tudo que entra ou sai: começa rápido, então a tela reage na hora.
   const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)';
-  const DUR = { press: 120, menu: 150, exit: 200, modal: 250, enter: 250, layout: 350 };
+  const DUR = { click: 120, menu: 150, exit: 200, window: 250, layout: 350 };
+  Object.assign(DUR, { press: DUR.click, modal: DUR.window, enter: DUR.window });
   // Mudança de layout (quadros da call, gaveta do chat, tela cheia): mola sem quique, ~350 ms.
   const LAYOUT = spring(0.3, 0.95);
   // "Reduzir animações": a opção do app (Configurações > Aparência) ou a do sistema. Tudo muda na hora.
   const osCalm = matchMedia('(prefers-reduced-motion: reduce)');
-  const calm = () => document.documentElement.classList.contains('reduce-motion') || osCalm.matches;
+  let preference = 'auto';
+  const calm = () => preference === true || (preference !== false && osCalm.matches);
+  function setPreference(mode) {
+    preference = typeof mode === 'boolean' ? mode : 'auto';
+    const classes = document.documentElement.classList;
+    classes.toggle('reduce-motion', calm());
+    classes.toggle('motion-full', preference === false);
+    window.dispatchEvent?.(new Event('resenha-reduce-motion'));
+  }
+  osCalm.addEventListener('change', () => { if (preference === 'auto') setPreference('auto'); });
   const root = document.documentElement.style;
   root.setProperty('--ease-out', EASE);
   for (const [k, v] of Object.entries(DUR)) root.setProperty('--dur-' + k, v + 'ms');
@@ -146,7 +156,7 @@
   function popIn(menu) { popEnter(menu, DUR.menu); }
   function popOut(menu, done) {
     if (menu.classList.contains('hidden')) return done();
-    popExit(menu, DUR.exit - 60, done);
+    popExit(menu, DUR.exit, done);
   }
 
   // ---------- Conteúdo entrando em etapas (como a página do Apple TV: imagem, título, depois botões) ----------
@@ -274,7 +284,7 @@
   }
   document.addEventListener('loadedmetadata', liveRatio, true); document.addEventListener('resize', liveRatio, true);
 
-  window.resenhaMotion = { spring, capture, closeOverlay, popIn, popOut, stagger, EASE, DUR };
+  window.resenhaMotion = { spring, capture, closeOverlay, popIn, popOut, stagger, EASE, DUR, calm, setPreference };
 
   // Cada parte liga sozinha: se uma falhar, as outras animações continuam (o erro fica em window.__motionErrors).
   const safe = (name, fn) => { try { fn(); } catch (e) { (window.__motionErrors ||= []).push(name + ': ' + e.message); console.error('[motion]', name, e); } };

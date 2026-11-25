@@ -35,10 +35,13 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
-document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
+// 3.0: quem nunca escolheu "Reduzir animações" passa a seguir o Windows ("auto"); quem ligou continua ligado.
+if (!LS.get('motionAuto', false)) { if (settings.reduceMotion === false) settings.reduceMotion = 'auto'; LS.set('settings', settings); LS.set('motionAuto', true); }
+const applyReduceMotion = () => window.resenhaMotion?.setPreference(settings.reduceMotion);
+applyReduceMotion();
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
 const saveSettings = () => LS.set('settings', settings);
@@ -1103,7 +1106,7 @@ function installLiveOverlay(tile) {
 const AI_HOVER = '.right-music .mu-art, .right-music .mu-play, #call-controls .cc-btn';
 function aiHalo(el) {
   const h = document.documentElement;
-  if (h.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (h.classList.contains('reduce-motion')) return;
   if (!el.matches('.mu-cover')) return; // só a capa do álbum
   if (el._aiAt && performance.now() - el._aiAt < 900) return; el._aiAt = performance.now();
   const r = el.getBoundingClientRect(); if (!r.width) return;
@@ -1338,7 +1341,7 @@ function skinModel() {
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
       messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, nameColor: S.users.get(m.userId)?.nameColor || m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
-    reduceMotion: document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'),
   };
 }
 const skinActions = {
@@ -1366,6 +1369,7 @@ function syncSkinSpeaking() {
   if (sig !== skinSpeakSig) { skinSpeakSig = sig; window.ResenhaSkins.speaking(new Set(ids)); }
 }
 addEventListener('resenha-theme', () => syncSkin());
+addEventListener('resenha-reduce-motion', () => syncSkinSoon());
 // Atualiza as cores sem reconstruir mensagens nem interromper o foco.
 addEventListener('resenha-theme', () => {
   for (const el of $$('[data-person-color]')) el.style.color = window.readableColor(el.dataset.personColor, el.dataset.personSurface);
@@ -2921,7 +2925,7 @@ function perfStop(send = true) {
     install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
     noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
     theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
-    reduceMotion: !!settings.reduceMotion, overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'), overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
   };
   const report = window.ResenhaPerf.summarize(samples, meta);
   if (report) try { navigator.sendBeacon(PERF_URL, new Blob([JSON.stringify(report)], { type: 'text/plain' })); } catch {}
@@ -3048,7 +3052,7 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
-          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${settings.reduceMotion ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
+          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${document.documentElement.classList.contains('reduce-motion') ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
         <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button>
@@ -3163,7 +3167,7 @@ async function openSettings(tab = 'voz') {
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
-  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
+  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); applyReduceMotion(); };
   // Aparência
   
   bindAppearance(el);
@@ -3276,8 +3280,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
   menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
   menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px';
   menu.classList.remove('hidden'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
-  if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches)
-    menu.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+  globalThis.resenhaMotion?.popIn(menu);
   const items = $$('.n-it', menu); items[0]?.focus();
   menu.onkeydown = (e) => {
     const i = items.indexOf(document.activeElement);
