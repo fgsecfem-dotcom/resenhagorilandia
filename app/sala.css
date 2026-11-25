@@ -104,3 +104,9 @@ html #call #call-stage .mute-tag { order: 2; flex: none; padding: 1px 6px; borde
   html #call #call-controls #cc-leave { width: 48px; padding: 0; }
   #call #call-controls #cc-leave > span { display: none; }
 }
+
+/* O diagnóstico fica em segundo plano e não tem moldura de ação principal. */
+.modal p.capture-help { display: block; margin: 12px 0 0; padding: 0; background: transparent; }
+.modal .capture-help .link-btn { border: 0; padding: 0; background: transparent; color: var(--link); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.modal .sources button.src { font: inherit; text-align: left; }
+.modal .sources .src .th { display: block; }

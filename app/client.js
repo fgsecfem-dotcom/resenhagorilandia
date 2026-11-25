@@ -1215,7 +1215,6 @@ function updateTile(key, u, isScreen) {
   } else {
     const sig = (u.avatar || '') + u.color + u.name;
     if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
-    t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
     const muted = self ? V.muted || V.deafened : u.muted || u.deafened;
     t.querySelector('.label').innerHTML = (self && muted ? '<span class="mute-tag">mudo</span>' : u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
@@ -1384,8 +1383,7 @@ function avatarGrid(n, w, h) {
       best = {cols, d, empty, score, width: Math.min(cw, 328), height: d + trim};
     }
   }
-  grid.style.gridTemplateColumns = `repeat(${best.cols}, ${Math.floor(best.w)}px)`;
-  grid.style.gridTemplateRows = `repeat(${best.rows}, ${Math.floor(best.h)}px)`;
+  return best;
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
@@ -1984,6 +1982,16 @@ async function captureNativeScreen(sourceId, Q, audio) {
   }
   return stream;
 }
+function chooseShareSource(sources, tab, saved, { fallback = true, active = false } = {}) {
+  const available = sources.filter((s) => s.screen === (tab === 'screen'));
+  if (saved) {
+    const same = available.find((s) => s.id === saved.id && (s.screen || active || s.name === saved.name));
+    if (same) return same;
+    const byTitle = available.filter((s) => s.name === saved.name && s.screen === saved.screen);
+    if (byTitle.length === 1) return byTitle[0];
+  }
+  return available[0] ?? (fallback ? sources[0] ?? null : null);
+}
 async function toggleShare() {
   // While live on the desktop app, the button opens the same picker to change the live instead of ending it.
   if (V.screen && !native) return stopShare();
@@ -1992,18 +2000,23 @@ async function toggleShare() {
     try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { restrictOwnAudio: true } }); if (stripUnisolatedAudio(stream)) toast('Som desativado: não foi possível excluir o áudio da call.'); startShareWithStream(stream, '1080p30'); } catch {}
     return;
   }
-  const live = !!V.screen;
+  const activeStream = V.screen, attempt = V.voiceAttempt;
+  const live = !!activeStream;
   const captureInfo = await native.captureInfo();
+  if (!V.joined || V.voiceAttempt !== attempt) return;
   // A janela abre na hora; as miniaturas das telas (que o Windows demora para gerar) chegam logo depois.
   const sourcesReady = native.screenSources();
-  let sources = [], sel = null;
-  let tab = live && String(V.screenSourceId || '').startsWith('window:') ? 'window' : 'screen';
-  const quality = captureInfo.compatibility ? '720p30' : live && V.screenQName ? V.screenQName : LS.get('shareQuality', '720p30');
-  const audioOn = live ? V.screen.getAudioTracks().length > 0 : LS.get('shareAudioV2', false);
+  let sources = null, sel = null, tabChanged = false;
+  const lastSource = live ? { id: V.screenSourceId } : LS.get('shareSource', null);
+  const windowSource = live ? String(lastSource.id).startsWith('window:') : lastSource?.screen === false;
+  let tab = windowSource ? 'window' : 'screen';
+  const savedQuality = live ? V.screenQName : LS.get('shareQuality', '720p30');
+  const quality = captureInfo.compatibility || !Object.hasOwn(QUALITY, savedQuality) ? '720p30' : savedQuality;
+  const audioOn = live ? (V.screenAudioRequested ?? activeStream.getAudioTracks().length > 0) : LS.get('shareAudioV2', false);
   const m = openModal(`
     <header><div><h2>${live ? 'Alterar transmissão' : 'Compartilhar tela'}</h2><p>${live ? 'A live continua no ar enquanto você troca' : 'Escolha o que a galera vai ver'}</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
     <div class="body">
-      <div class="tabs"><div class="tab ${tab === 'screen' ? 'active' : ''}" data-tab="screen">Telas</div><div class="tab ${tab === 'window' ? 'active' : ''}" data-tab="window">Janelas / jogos</div></div>
+      <div class="tabs"><button type="button" class="tab ${tab === 'screen' ? 'active' : ''}" data-tab="screen">Telas</button><button type="button" class="tab ${tab === 'window' ? 'active' : ''}" data-tab="window">Janelas / jogos</button></div>
       <div class="sources"></div>
       <div class="opts">
         <div class="field"><label>Qualidade</label><select id="sh-q">${Object.keys(QUALITY).filter((k) => !captureInfo.compatibility || k === '720p30').map((k) => `<option ${k === quality ? 'selected' : ''} value="${k}">${k.replace('p', 'p ').replace(/(\d+)$/, '$1 fps')}</option>`).join('')}</select></div>
@@ -2011,24 +2024,44 @@ async function toggleShare() {
       </div>
       <p class="muted small" style="margin:10px 0 0">${captureInfo.compatibility ? 'Modo de compatibilidade ativo: 720p a 30 fps, sem som do PC.' : captureInfo.audioSupported ? 'O som do PC é opcional. Se não for possível excluir o áudio da call, a transmissão segue apenas com vídeo.' : 'Som do PC requer Windows 10 versão 2004 ou posterior, ou macOS 14.2 ou posterior.'}</p>
       ${live ? '<p class="live-encoder" id="sh-enc">Verificando como a live está sendo codificada…</p>' : ''}
-      <div class="capture-help"><span>Problema para transmitir?</span>${captureInfo.compatibility ? '<button class="btn" id="sh-compat">Voltar ao modo normal</button>' : ''}<button class="btn" id="sh-log">Abrir diagnóstico</button></div>
+      <p class="capture-help muted small">Problema para transmitir? <button type="button" class="link-btn" id="sh-log">Ver diagnóstico</button>${captureInfo.compatibility ? ' · <button type="button" class="link-btn" id="sh-compat">Voltar ao modo normal</button>' : ''}</p>
     </div>
     <footer>${live ? '<button class="btn danger" id="sh-stop">Parar transmissão</button><span class="grow"></span>' : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" id="sh-go">${live ? 'Aplicar' : 'Transmitir'}</button></footer>`, { wide: true });
+  const go = $('#sh-go', m.el);
+  const syncTabs = () => $$('.tab', m.el).forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
   const renderSrc = () => {
-    if (!sources.length) { $('.sources', m.el).innerHTML = '<div class="src loading"><div class="th"></div><div class="nm">&nbsp;</div></div>'.repeat(tab === 'screen' ? 2 : 4); return; }
+    if (!sources) { $('.sources', m.el).innerHTML = '<div class="src loading"><div class="th"></div><div class="nm">&nbsp;</div></div>'.repeat(tab === 'screen' ? 2 : 4); return; }
     const list = sources.filter((s) => (tab === 'screen') === s.screen);
-    if (!list.includes(sel)) sel = list[0];
-    $('.sources', m.el).innerHTML = list.map((s) => `<div class="src ${s === sel ? 'sel' : ''}" data-id="${esc(s.id)}"><div class="th" style="${s.thumb ? `background-image:url(${s.thumb})` : ''}"></div><div class="nm">${s.icon ? `<img src="${s.icon}">` : ''}<span>${esc(s.name)}</span></div></div>`).join('') || '<div class="muted">Nada encontrado</div>';
-    $$('.src', m.el).forEach((el) => { el.onclick = () => { sel = sources.find((s) => s.id === el.dataset.id); renderSrc(); }; el.ondblclick = () => $('#sh-go').click(); });
+    if (!list.includes(sel)) sel = list[0] ?? null;
+    $('.sources', m.el).innerHTML = list.map((s) => `<button type="button" class="src ${s === sel ? 'sel' : ''}" data-id="${esc(s.id)}" aria-pressed="${s === sel}"><span class="th" style="${s.thumb ? `background-image:url(${s.thumb})` : ''}"></span><span class="nm">${s.icon ? `<img src="${s.icon}" alt="">` : ''}<span>${esc(s.name)}</span></span></button>`).join('') || '<div class="muted">Nada encontrado</div>';
+    const buttons = $$('.src', m.el);
+    buttons.forEach((el) => {
+      el.onclick = () => {
+        sel = list.find((s) => s.id === el.dataset.id);
+        buttons.forEach((b) => { b.classList.toggle('sel', b === el); b.setAttribute('aria-pressed', String(b === el)); });
+      };
+      el.ondblclick = () => go.click();
+    });
   };
-  $$('.tab', m.el).forEach((t) => t.onclick = () => { tab = t.dataset.tab; $$('.tab', m.el).forEach((x) => x.classList.toggle('active', x === t)); renderSrc(); });
+  $$('.tab', m.el).forEach((t) => t.onclick = () => { tab = t.dataset.tab; tabChanged = true; syncTabs(); renderSrc(); });
   renderSrc();
   sourcesReady.then((list) => {
     if (!m.el.isConnected) return;
-    sources = list; sel = (live && sources.find((s) => s.id === V.screenSourceId)) || sources.find((s) => (tab === 'screen') === s.screen) || sources[0];
+    sources = list;
+    sel = chooseShareSource(sources, tab, lastSource, { fallback: !tabChanged, active: live });
+    if (sel) { tab = sel.screen ? 'screen' : 'window'; syncTabs(); }
     renderSrc();
   }).catch(() => { if (m.el.isConnected) $('.sources', m.el).innerHTML = '<p class="muted small">Não consegui listar as telas. Feche e tente de novo.</p>'; });
   $('#sh-log', m.el).onclick = () => native.captureDiagnostics();
+  m.el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    const src = e.target.closest('.src[data-id]');
+    if (!src && e.target !== go && e.target.closest('button, select, a')) return;
+    e.preventDefault();
+    if (src) src.click();
+    go.click();
+  });
+  go.focus();
   // Compatibility mode now only comes from the emergency launcher (--compatibility); this is the way back.
   const compat = $('#sh-compat', m.el);
   if (compat) compat.onclick = async () => {
@@ -2045,19 +2078,23 @@ async function toggleShare() {
     el.textContent = `${viewers} assistindo · codificando ${e.copies === 1 ? '1 vez' : e.copies + ' vezes'} ${where}${e.fps ? ` · ${e.fps} fps` : ''}${limit}${e.impl ? ` (${e.impl})` : ''}`;
     el.classList.toggle('warn', e.limit === 'cpu' || (e.impl && !e.gpu));
   });
-  $('#sh-go').onclick = async () => {
-    if (!sel) return;
-    const q = $('#sh-q').value, audio = $('#sh-audio').checked;
-    LS.set('shareQuality', q); LS.set('shareAudioV2', audio);
+  go.onclick = async () => {
+    if (!sel || !m.el.isConnected || go.disabled || !V.joined || V.voiceAttempt !== attempt) return;
+    go.disabled = true;
+    const selected = sel, q = $('#sh-q', m.el).value, audio = $('#sh-audio', m.el).checked;
     m.close();
-    if (live && V.screen && sel.id === V.screenSourceId && q === V.screenQName && audio === audioOn) return;
+    if (live && V.screen && sel.id === V.screenSourceId && q === V.screenQName && audio === (activeStream.getAudioTracks().length > 0)) return;
     const Q = QUALITY[q];
     let captured = null;
     try {
-      const stream = captured = await captureNativeScreen(sel.id, Q, audio);
-      if (live && V.screen) { swapShareStream(stream, q); toast('Transmissão atualizada.'); }
+      const stream = captured = await captureNativeScreen(selected.id, Q, audio);
+      if (!V.joined || V.voiceAttempt !== attempt || V.screen !== activeStream) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (live) { swapShareStream(stream, q); toast('Transmissão atualizada.'); }
       else startShareWithStream(stream, q, !captureInfo.compatibility);
-      V.screenSourceId = sel.id;
+      V.screenSourceId = selected.id; V.screenAudioRequested = audio;
+      LS.set('shareSource', { id: selected.id, name: selected.name, screen: !!selected.screen });
+      if (!captureInfo.compatibility) LS.set('shareQuality', q);
+      if (captureInfo.audioSupported) LS.set('shareAudioV2', audio);
     } catch (e) {
       captured?.getTracks().forEach((t) => t.stop());
       if (live && V.screen) { toast('Não deu pra trocar: ' + e.message + '. A live segue como estava.', 'err'); return; }

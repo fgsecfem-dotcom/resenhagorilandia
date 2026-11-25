@@ -60,3 +60,17 @@ async function handlerTest(audioSupported, requested=true) {
  await handlerTest(true);await handlerTest(false);await handlerTest(true,false);
  console.log('PASS: capture OS policy, compatibility blocks loopback, no thumbnails during capture, one-shot selection');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
+
+{
+ const first = {id:'screen:0:0',name:'Tela 1',screen:true};
+ const game = {id:'window:2:0',name:'Jogo',screen:false};
+ const other = {id:'window:7:0',name:'Outra janela',screen:false};
+ const all = [first,other,game];
+ const choose = audioCtx.chooseShareSource;
+ assert.equal(choose(all,'window',{...game,id:'window:old:0'}),game,'encontra a janela reaberta pelo título');
+ assert.equal(choose(all,'window',{...game,id:other.id}),game,'um ID de janela reaproveitado não vence o título salvo');
+ assert.equal(choose([first],'window',game,{fallback:false}),null,'aba explícita não troca a fonte em silêncio');
+ assert.equal(choose([first],'window',game),first,'fonte removida não deixa o seletor preso numa aba vazia');
+ console.log('PASS: seletor restaura a fonte e trata IDs reaproveitados e fontes removidas');
+}
