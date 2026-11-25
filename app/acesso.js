@@ -8,9 +8,9 @@
   }
 
   // ---------- lista de canais e pessoas: um Tab entra, setas andam, Enter abre ----------
-  const ITEMS = '#voice-channels .channel, #text-channels .channel';
+  const ITEMS = '#voice-channels .channel, #voice-channels .vu, #text-channels .channel, #online-users .ou';
   let curKey = '', focusKey = '';
-  const keyOf = (el) => el?.dataset.vch || el?.dataset.ch;
+  const keyOf = (el) => el?.dataset.vch || el?.dataset.ch || (el?.dataset.uid ? (el.closest('#online-users') ? 'o:' : 'v:') + el.dataset.uid : '');
   const visibleItems = () => $$(ITEMS).filter((el) => el.offsetParent !== null);
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   function labelOf(el) {
@@ -26,14 +26,14 @@
   function decorate() {
     const nav = $('#channels'); if (nav && !nav.hasAttribute('role')) { nav.setAttribute('role', 'group'); nav.setAttribute('aria-label', 'Canais e pessoas'); }
     for (const row of $$('#channels .vu, #channels .ou')) {
-      row.tabIndex = 0; row.setAttribute('role', 'button');
+      row.setAttribute('role', 'button');
       const name = ($('.nm', row) || $('span:not(.avatar)', row))?.textContent.replace(/BOT$/, '').trim();
       row.setAttribute('aria-label', `${name}, ${row.classList.contains('vu') ? 'na call' : 'na sala, fora da call'}`);
     }
     const list = $$(ITEMS); if (!list.length) return;
     if (!list.some((el) => keyOf(el) === curKey)) curKey = keyOf(list.find((el) => el.classList.contains('active') || el.classList.contains('connected')) || list[0]);
     for (const el of list) {
-      el.setAttribute('role', 'button'); el.tabIndex = keyOf(el) === curKey ? 0 : -1; el.setAttribute('aria-label', labelOf(el));
+      el.setAttribute('role', 'button'); el.tabIndex = keyOf(el) === curKey ? 0 : -1; if (el.classList.contains('channel')) el.setAttribute('aria-label', labelOf(el));
       if (el.classList.contains('channel')) { if (el.classList.contains('active') || el.classList.contains('connected')) el.setAttribute('aria-current', el.dataset.vch !== undefined ? 'true' : 'page'); else el.removeAttribute('aria-current'); }
       const edit = $('.ch-edit', el); if (edit) edit.tabIndex = -1; // editar canal: tecla de menu (ou Shift+F10) no item
     }
