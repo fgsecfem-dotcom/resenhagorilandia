@@ -14,6 +14,7 @@ const Turn = require('node-turn');
 process.on('uncaughtException', (e) => console.log('[erro]', e && e.message));
 process.on('unhandledRejection', (e) => console.log('[erro]', e && e.message));
 const { Tunnel } = require('./tunnel-main');
+const { fetchPreview, readPresence } = require('./server/presence');
 const updater = require('./updater');
 const {UpdateManager,busy:updateBusy}=require('./update-manager');
 const { createStartupWindow } = require('./server/startup-launcher');
@@ -281,7 +282,8 @@ app.whenReady().then(async () => {
   });
 
   if ((app.isPackaged || process.env.RESENHA_LAUNCHER) && process.platform === 'win32') {
-    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager, hub:true, rooms:()=>roomHandlers.list(),
+    inspector().warm(); // prepara a consulta do Hub antes da primeira digitação
+    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager, hub:true, rooms:()=>roomHandlers.list(), inspect:inspectLauncherRoom,
       version:app.getVersion(), icon:ICON, log:recordCapture, isQuitting:()=>quitting,
       download:page=>shell.openExternal(page),
       check:force=>TEST_MODE&&!process.env.RESENHA_TEST_UPDATE?Promise.resolve({update:false}):updateManager.check(force===true),
@@ -319,7 +321,7 @@ async function stopHost(code = 4002) {
 
 // ---------- IPC ----------
 ipcMain.handle('host:start', async (e, opts) => {
-  if(opts.resume){const ticket=pendingClaims.get(norm(opts.code));if(!ticket||ticket.until<Date.now())return {ok:false,error:'A reivindicação expirou. Verifique a sala novamente.'};opts.claim=ticket.claim;pendingClaims.delete(norm(opts.code));}
+  if(opts.resume){const ticket=pendingClaims.get(norm(opts.code));if(!ticket||ticket.until<Date.now())return {ok:false,error:'O tempo para abrir a sala acabou. Tente de novo.'};opts.claim=ticket.claim;pendingClaims.delete(norm(opts.code));}
   await stopHost();
   const hostKey = crypto.randomBytes(16).toString('hex');
   const safeRoom = String(opts.roomName || 'sala').replace(/[^\w\- ]/g, '_').slice(0, 40) || 'sala';
@@ -364,7 +366,7 @@ ipcMain.handle('host:start', async (e, opts) => {
     host.mobile = await createMobileInvite({ ips, httpsPort, fingerprint: tls.fingerprint, port, QRCode });
   } catch(e) { host.mobile={error:'HTTPS local indisponível: '+e.message}; }
   if(opts.claim){opts.rank=opts.rank||[0,Date.now(),opts.claim.id];opts.rank.claim=opts.claim;}
-  if (opts.code) tunnel.hostStart(opts.code, port, opts.rank, () => server.clientCount(),()=>server.roomInfo().revision);
+  if (opts.code) tunnel.hostStart(opts.code, port, opts.rank, () => server.clientCount(),()=>server.roomInfo().revision,cover=>fetchPreview(port,code,cover,thumbnailForPreview));
   return { ok: true, port, hostKey,room:server.roomInfo() };
 });
 
@@ -374,11 +376,41 @@ const roomHandlers = createRoomHandlers({ roomStore });
 ipcMain.handle('rooms:locations',()=>roomHandlers.locations());
 ipcMain.handle('rooms:list',()=>roomHandlers.list());
 ipcMain.handle('rooms:save',(e,snap)=>roomHandlers.save(snap));
-ipcMain.handle('rooms:inspect',(e,code)=>tunnel.inspect(norm(code)));
+// O Hub ainda não tem uma janela principal. O túnel de consulta não assume papel de participante.
+let probeTunnel = null;
+const inspector = () => tunnel || (probeTunnel ||= new Tunnel(null));
+async function inspectPresence(code, cover) {
+  if (!/^[a-z0-9]{4}-?[a-z0-9]{4}$/i.test(String(code || '').trim())) return { state: 'unknown' };
+  const result = await inspector().inspect(norm(code), { presence: true, cover: !!cover, timeoutMs: 1750, connectMs: 1000 });
+  return { state: result.state, presence: readPresence(result.presence) };
+}
+function inspectLauncherRoom(code, mode) {
+  if (mode === 'presence') return inspectPresence(code, false);
+  return inspector().inspect(code, { connectMs: 1000, timeoutMs: 1700 });
+}
+const thumbCache = new Map();
+function thumbnailForPreview(url, cover) {
+  const key = crypto.createHash('sha256').update((cover ? 'cover:' : 'profile:') + url).digest('hex');
+  if (thumbCache.has(key)) return thumbCache.get(key);
+  let out = '';
+  try {
+    const img = nativeImage.createFromDataURL(url);
+    if (!img.isEmpty()) {
+      const { width, height } = img.getSize(), max = cover ? 240 : 48;
+      const fitted = width >= height ? { width: max } : { height: max };
+      const bytes = img.resize(fitted).toJPEG(cover ? 58 : 68);
+      if (bytes.length > 0 && bytes.length < (cover ? 17500 : 4400)) out = 'data:image/jpeg;base64,' + bytes.toString('base64');
+    }
+  } catch {}
+  thumbCache.set(key, out);
+  if (thumbCache.size > 60) thumbCache.delete(thumbCache.keys().next().value);
+  return out;
+}
+ipcMain.handle('rooms:inspect', (e, code, opts) => opts?.presence ? inspectPresence(code, opts.cover) : inspector().inspect(norm(code)));
 ipcMain.handle('rooms:claim',async(e,{code,id})=>{
   const snap=roomStore.get(code);if(!snap)return {state:'missing'};
   const claim={id:String(id).slice(0,40)+'-'+roomActor,revision:snap.revision};
-  const result=await tunnel.inspect(snap.code,{claim});
+  const result=await tunnel.inspect(snap.code,{claim,connectMs:3000});
   if(result.state==='won')pendingClaims.set(snap.code,{claim,until:Date.now()+30000});
   return {...result,snapshot:snap};
 });

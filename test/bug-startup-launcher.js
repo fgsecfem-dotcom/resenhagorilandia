@@ -63,12 +63,12 @@ function fixture(options = {}) {
   quitting = true; prevented = false; boot.window.emit('close', { preventDefault: () => prevented = true }); assert.equal(prevented, false); boot.window.emit('closed'); assert.equal(handlers.size, 0);
 
   // Carrega o launcher.js num DOM falso; `store` simula o localStorage e `rooms` a lista que vem do main.
-  const load = async (store = {}, rooms = []) => {
+  const load = async (store = {}, rooms = [], inspect) => {
     const elements = new Map(), actions = [];
-    const element = id => elements.get(id) || elements.set(id, { textContent: '', value: '', hidden: false, style: {}, attrs: {}, handlers: {}, classList: { toggle() {} }, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; },
+    const element = id => elements.get(id) || elements.set(id, { textContent: '', value: '', hidden: false, style: {}, dataset: {}, attrs: {}, handlers: {}, classList: { toggle() {} }, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; },
       addEventListener(type, fn) { this.handlers[type] = fn; }, append() {}, replaceChildren(...nodes) { this.children = nodes; } }).get(id);
     let render; const context = { document: { getElementById: element, createElement: () => ({ style: { setProperty() {} }, append() {} }), documentElement: { dataset: {} }, body: { dataset: {} } },
-      window: { addEventListener() {}, launcherNative: { onState: fn => { render = fn; return () => {}; }, ready: async () => ({ phase: 'checking' }), action: (action, payload) => actions.push([action, payload]), rooms: async () => rooms } },
+      window: { addEventListener() {}, launcherNative: { onState: fn => { render = fn; return () => {}; }, ready: async () => ({ phase: 'checking' }), action: (action, payload) => actions.push([action, payload]), rooms: async () => rooms, inspect } },
       localStorage: { getItem: key => key === 'resenha.settings' ? '{"theme":"arcLight"}' : (store[key] ?? null), setItem: (key, value) => { store[key] = value; } } };
     context.matchMedia = () => ({ matches: true, addEventListener() {} }); context.document.documentElement.style = { setProperty() {} }; context.document.documentElement.classList = { toggle() {} };
     vm.createContext(context); vm.runInContext(fs.readFileSync(path.join(__dirname, '../app/themes.js'), 'utf8'), context); // como no launcher.html
@@ -95,6 +95,17 @@ function fixture(options = {}) {
   hub.element('join-form').handlers.submit({ preventDefault() {} }); same(hub.actions.pop(), ['open', { type: 'join', code: 'K7P4QX9M' }]);
   hub.element('code').value = 'abc'; hub.element('join-form').handlers.submit({ preventDefault() {} }); assert.equal(hub.actions.length, 0); assert(hub.element('hub-error').textContent.includes('8 letras'));
   hub.element('host-go').onclick(); same(hub.actions.pop(), ['open', { type: 'host' }]);
+  const missing = await load({}, [], async () => ({ state: 'offline' }));
+  missing.render({ phase: 'hub' });
+  missing.element('code').value = 'ABCD-1234';
+  await missing.element('join-form').handlers.submit({ preventDefault() {} });
+  assert.deepEqual(missing.actions, [], 'código sem anfitrião fica no lançador');
+  assert.match(missing.element('hub-error').textContent, /confere o código/i);
+  const uncertain = await load({}, [], async () => ({ state: 'unknown' }));
+  uncertain.render({ phase: 'hub' });
+  uncertain.element('code').value = 'ABCD-1234';
+  await uncertain.element('join-form').handlers.submit({ preventDefault() {} });
+  same(uncertain.actions, [['open', { type: 'join', code: 'ABCD1234' }]]);
   // "Abrir direto": entra sem mostrar o Hub; sem novidades pendentes não há aviso
   hub = await load({ 'resenha.skipHub': 'true', 'resenha.whatsNewSeen': '"1.5.1"' }); hub.render({ phase: 'hub', version: '1.5.1', channel: 'stable', canOpen: true });
   same(hub.actions, [['open', null]]);

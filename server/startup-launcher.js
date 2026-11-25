@@ -91,7 +91,7 @@ function publicRooms(list) {
 }
 const HUB_SIZE = { width: 760, height: 560 };
 
-function createStartupWindow({ BrowserWindow, ipcMain, manager, version, icon, open, apply, quit, check, download = () => {}, isQuitting = () => false, log = () => {}, hub = false, rooms = async () => [] }) {
+function createStartupWindow({ BrowserWindow, ipcMain, manager, version, icon, open, apply, quit, check, download = () => {}, isQuitting = () => false, log = () => {}, hub = false, rooms = async () => [], inspect = async () => null }) {
   const window = new BrowserWindow({ width: 420, height: 460, useContentSize: true, resizable: false,
     maximizable: false, fullscreenable: false, frame: false, show: false, title: 'Resenha', icon,
     transparent: true, backgroundColor: '#00000000', // cantos arredondados de verdade: só o cartão aparece
@@ -107,6 +107,12 @@ function createStartupWindow({ BrowserWindow, ipcMain, manager, version, icon, o
   const fromLauncher = event => event.sender === window.webContents && !window.isDestroyed();
   ipcMain.handle('launcher:ready', event => { if (!fromLauncher(event)) return; controller.start(); return { ...controller.current(), version, channel: manager.channel() }; });
   ipcMain.handle('launcher:rooms', async event => { if (!fromLauncher(event)) return []; try { return publicRooms(await rooms()); } catch (error) { log('launcher-rooms-error', { error: error.message }); return []; } });
+  // Só leitura: o Hub consulta quem está numa sala (pelo código) sem entrar nela. Devolve só estado e a prévia.
+  ipcMain.handle('launcher:inspect', async (event, code, mode) => {
+    if (!fromLauncher(event) || !CODE.test(String(code || '').trim())) return null;
+    try { const result = await inspect(String(code).trim().replace('-', '').toUpperCase(), mode === 'presence' ? 'presence' : 'availability'); return result ? { state: String(result.state || 'unknown'), presence: result.presence || null } : null; }
+    catch (error) { log('launcher-inspect-error', { error: error.message }); return null; }
+  });
   ipcMain.handle('launcher:action', (event, action, payload) => {
     if (!fromLauncher(event)) return;
     if (action === 'open') return controller.openCurrent(sanitizeIntent(payload));
@@ -116,7 +122,7 @@ function createStartupWindow({ BrowserWindow, ipcMain, manager, version, icon, o
     if (action === 'close') { if (controller.canClose()) { controller.dispose(); quit(); } return controller.canClose(); }
   });
   window.on('close', event => { if (isQuitting()) return; event.preventDefault(); if (controller.canClose()) { controller.dispose(); quit(); } });
-  window.on('closed', () => { controller.dispose(); for (const name of ['launcher:ready', 'launcher:rooms', 'launcher:action']) ipcMain.removeHandler(name); });
+  window.on('closed', () => { controller.dispose(); for (const name of ['launcher:ready', 'launcher:rooms', 'launcher:inspect', 'launcher:action']) ipcMain.removeHandler(name); });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.on('render-process-gone', () => { log('launcher-renderer-error'); if (!controller.openCurrent()) quit(); });
