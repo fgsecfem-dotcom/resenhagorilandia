@@ -19,7 +19,7 @@ const source=fs.readFileSync(require.resolve('../app/client.js'),'utf8');const c
   const fields = {'#main': el(false), '#home': el(true), '#web-nav': el(false)};
   const S = {myId: 'a', code: 'TEST-1234'}, V = {joined: true, screen: {}};
   let leaves = 0, confirmations = 0, confirmed = false;
-  const ctx = vm.createContext({S, V, document: {documentElement: el(false)}, native: null, $: s => fields[s], closeRoomMenu(){}, hideMenu(){}, syncSkinSoon(){}, setTimeout(){}, renderAll(){}, renderChatHeader(){}, layoutGrid(){}, requestAnimationFrame(){}, forgetLastRoom(){}, leaveRoom(){ leaves++; }, confirmModal(){ confirmations++; return confirmed; }});
+  const ctx = vm.createContext({S, V, document: {documentElement: el(false)}, native: null, $: s => fields[s], closeRoomMenu(){}, hideMenu(){}, djPanel:null, syncSkinSoon(){}, setTimeout(){}, renderAll(){}, renderChatHeader(){}, layoutGrid(){}, requestAnimationFrame(){}, forgetLastRoom(){}, leaveRoom(){ leaves++; }, confirmModal(){ confirmations++; return confirmed; }});
   vm.runInContext(section, ctx); ctx.renderAwayPill = () => {};
   const screen = V.screen;
   await ctx.goHome(); await ctx.goHome();

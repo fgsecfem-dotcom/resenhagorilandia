@@ -93,3 +93,14 @@ html.reduce-motion #main[data-chat-float=true] > #chat { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   #main[data-chat-float=true] > #chat { transition: none; }
 }
+
+/* A call mantém alvos de 48 px e um estado de mudo com texto no quadro. */
+html #call #call-controls .cc-btn { width: 48px; min-width: 48px; height: 48px; flex-shrink: 0; }
+html #call #call-controls #cc-leave { width: auto; min-width: 48px; justify-content: center; white-space: nowrap; }
+html #call #call-controls #cc-mute.off, html[data-tk=vidro] #call #call-controls #cc-mute.off { background: color-mix(in srgb, #dc2626 18%, transparent) !important; color: #f87171 !important; }
+html.light:not([data-tk=vidro]) #call #call-controls #cc-mute.off { color: #b91c1c !important; }
+html #call #call-stage .mute-tag { order: 2; flex: none; padding: 1px 6px; border-radius: 8px; background: color-mix(in srgb, #dc2626 18%, transparent); font-size: 11px; font-weight: 600; }
+@media (width < 1100px) {
+  html #call #call-controls #cc-leave { width: 48px; padding: 0; }
+  #call #call-controls #cc-leave > span { display: none; }
+}

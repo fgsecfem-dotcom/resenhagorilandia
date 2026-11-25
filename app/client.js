@@ -268,7 +268,7 @@ async function goHome(focus){
     S.away = true;
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
     if (!S.away) return;
-    closeRoomMenu();hideMenu();
+    closeRoomMenu();hideMenu();djPanel?.close();
     $('#main').classList.add('hidden');$('#home').classList.remove('hidden');$('#web-nav').classList.add('hidden');
     document.documentElement.classList.add('away');
     syncSkinSoon();renderAwayPill();
@@ -1217,6 +1217,8 @@ function updateTile(key, u, isScreen) {
     if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
     t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
+    const muted = self ? V.muted || V.deafened : u.muted || u.deafened;
+    t.querySelector('.label').innerHTML = (self && muted ? '<span class="mute-tag">mudo</span>' : u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
     const watching = self ? !V.previewHidden : V.watching.has(u.id);
     const tools = t.querySelector('.tile-tools');
     // Quem está ao vivo: "Assistir" (botão) antes de entrar; "Assistindo" (selo, sem ação) depois. Sair é só na barra da live.
@@ -1663,6 +1665,7 @@ function leaveVoice(silentSwitch) {
 }
 function teardownVoice() {
   if (perf.timer) perfStop();
+  djPanel?.close();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -2895,6 +2898,7 @@ function summonDJ() {
 }
 let djPanel = null;
 function openDJPanel() {
+  if (!V.joined || S.away) return;
   if (!S.dj || !S.dj.active) return summonDJ();
   if (djPanel) return;
   djPanel = openModal(`<header><div><h2>${icon('music', 20)} DJ Resenha</h2><p>Cole um link do YouTube ou Spotify (música, playlist ou álbum), ou o nome da música.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
@@ -3362,7 +3366,13 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
     <hr>${it('leave', 'Sair da sala', 'logout', '', 'danger')}`;
   if (menu.parentElement !== document.body) document.body.append(menu); // fora da barra lateral, que corta o que transborda
   const r = (anchor?.isConnected ? anchor : btn).getBoundingClientRect();
-  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
+  const sidebar = $('#sidebar');
+  const side = !anchor?.isConnected && sidebar?.offsetParent ? sidebar.getBoundingClientRect() : null;
+  const compact = $('#main').dataset.sidebarCompact === 'true';
+  const w = side && !compact ? side.width : Math.min(272, innerWidth - 16);
+  menu.style.width = w + 'px';
+  menu.style.left = Math.max(6, Math.min(side?.left ?? r.left, innerWidth - w - 6)) + 'px';
+  menu.style.top = (r.bottom + 6) + 'px';
   menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px';
   menu.classList.remove('hidden'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
   if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches)

@@ -93,9 +93,10 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, responsive,
   function open(view='chat'){
     main.dataset.rightOpen='true';chat.dataset.view=view;
     nav.querySelectorAll('[data-right]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.right===view)));
+    syncChatAccess();onPanel?.(view);
     if(view==='dm')onDMVisible();onResize();
   }
-  function close(){main.dataset.rightOpen='false';onResize();}
+  function close(){main.dataset.rightOpen='false';syncChatAccess();onResize();}
   nav.querySelectorAll('[data-right]').forEach(b=>b.onclick=()=>open(b.dataset.right));$('.right-close',nav).onclick=close;
   const visible = view => main.dataset.rightOpen==='true' && chat.dataset.view===view && !main.classList.contains('hidden');
   const isDMVisible = () => visible('dm'), isChatVisible = () => visible('chat');
@@ -133,8 +134,16 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, responsive,
     const el=document.createElement('section');el.className='floating-dj modal dj-modal';el.setAttribute('role','dialog');el.setAttribute('aria-modal','false');el.setAttribute('aria-label','DJ Resenha');el.innerHTML=html;document.body.append(el);
     const header=$('header',el);header.tabIndex=0;header.title='Arraste para mover · setas ajustam · Home restaura';header.setAttribute('aria-label',header.title);
     let drag=null,positioned=false,closed=false;
-    const place=(x,y)=>{const r=el.getBoundingClientRect(),p=boundedPosition(x,y,r.width,r.height,innerWidth,innerHeight);Object.assign(el.style,{left:p.x+'px',top:p.y+'px',right:'auto',bottom:'auto'});positioned=true;};
-    const reset=()=>{for(const k of ['left','top','right','bottom'])el.style[k]='';positioned=false;};
+    const place=(x,y)=>{const r=el.getBoundingClientRect(),p=boundedPosition(x,y,r.width,r.height,innerWidth,dockRect()?.top ?? innerHeight);Object.assign(el.style,{left:p.x+'px',top:p.y+'px',right:'auto',bottom:'auto'});positioned=true;};
+    // A área acima do dock é o limite inferior do painel, também quando reposicionado.
+    const dock=$('#call-controls');
+    const dockRect=()=>dock?.offsetParent ? dock.getBoundingClientRect() : null;
+    const anchor=()=>{
+      const d=dockRect(); if(!d || positioned) return;
+      const w=el.offsetWidth,left=Math.max(12,Math.min(d.left+(d.width-w)/2,innerWidth-w-12));
+      Object.assign(el.style,{left:left+'px',right:'auto',top:'auto',bottom:(innerHeight-d.top+12)+'px',maxHeight:Math.max(0,d.top-24)+'px'});
+    };
+    const reset=()=>{for(const k of ['left','top','right','bottom','maxHeight'])el.style[k]='';positioned=false;anchor();};
     const resetButton=document.createElement('button');resetButton.className='icon-btn';resetButton.innerHTML=icon('maximize',16);resetButton.title='Restaurar posição do DJ';resetButton.setAttribute('aria-label',resetButton.title);resetButton.onclick=()=>{floatingState.position=null;reset();};header.insertBefore(resetButton,$('[data-close]',header));
     if($('#dj-in',el))$('#dj-in',el).value=floatingState.draft;
     if(floatingState.position)place(floatingState.position.x,floatingState.position.y);
@@ -142,10 +151,13 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, responsive,
     header.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button,input,a'))return;e.preventDefault();const r=el.getBoundingClientRect();drag={id:e.pointerId,x:e.clientX-r.left,y:e.clientY-r.top};header.setPointerCapture(e.pointerId);el.dataset.dragging='true';header.focus();});
     header.addEventListener('pointermove',e=>{if(drag?.id===e.pointerId)place(e.clientX-drag.x,e.clientY-drag.y);});
     for(const type of ['pointerup','pointercancel','lostpointercapture'])header.addEventListener(type,release);
-    const resize=()=>{if(positioned){const r=el.getBoundingClientRect();place(r.left,r.top);}};window.addEventListener('resize',resize);
-    const contentResize=new ResizeObserver(resize);contentResize.observe(el);
+    const resize=()=>{if(positioned){const r=el.getBoundingClientRect();place(r.left,r.top);}else anchor();};window.addEventListener('resize',resize);
+    const contentResize=new ResizeObserver(resize);contentResize.observe(el);if(dock)contentResize.observe(dock);anchor();
+    // Esc fecha de onde estiver o foco, a menos que um menu ou janela esteja por cima.
+    const escClose=e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('#modal-root .overlay')||document.querySelector('#room-menu:not(.hidden), #ctx-menu:not(.hidden)'))return;close();};
+    document.addEventListener('keydown',escClose);
     const previous=document.activeElement;
-    const close=()=>{if(closed)return;closed=true;const r=el.getBoundingClientRect();floatingState.position=positioned?{x:r.left,y:r.top}:null;floatingState.draft=$('#dj-in',el)?.value||'';const restore=el.contains(document.activeElement);window.removeEventListener('resize',resize);contentResize.disconnect();el.remove();onClose?.();if(previous?.isConnected&&restore)previous.focus();};
+    const close=()=>{if(closed)return;closed=true;const r=el.getBoundingClientRect();floatingState.position=positioned?{x:r.left,y:r.top}:null;floatingState.draft=$('#dj-in',el)?.value||'';const restore=el.contains(document.activeElement);window.removeEventListener('resize',resize);document.removeEventListener('keydown',escClose);contentResize.disconnect();el.remove();onClose?.();if(previous?.isConnected&&restore)previous.focus();};
     el.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
     el.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();close();return;}if(e.target!==header)return;if(e.key==='Home'){e.preventDefault();reset();return;}const n=e.shiftKey?40:16,d={ArrowLeft:[-n,0],ArrowRight:[n,0],ArrowUp:[0,-n],ArrowDown:[0,n]}[e.key];if(d){e.preventDefault();const r=el.getBoundingClientRect();place(r.left+d[0],r.top+d[1]);}});
     return {el,close};
