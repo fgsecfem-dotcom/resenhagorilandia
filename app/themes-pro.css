@@ -415,3 +415,53 @@ html[data-tk="holofoil"][data-tk] {
   & .right-music .mu-cover { box-shadow: 0 0 0 1px rgba(255,255,255,.14), inset 0 1px 0 rgba(255,255,255,.4), 0 20px 50px -14px rgba(0,0,0,.7), 0 8px 30px -12px rgba(150,180,255,.25); }
   & #main::before, & #home::before { background: radial-gradient(70% 50% at 50% 110%, rgba(40,60,80,.25), transparent 70%), #030304 !important; }
 }
+
+
+/* ===== LÍQUIDO 2.6 · vidro claro sobre o "fundo vivo" (referência: visionOS — HIG Materials, Ornaments e Windows) =====
+   Vidro escuro separa seções (painéis); vidro claro marca o que é interativo ou selecionado (nunca claro sobre claro).
+   Atrás de tudo: grafite com luz de cima e, por cima dele, a luz que vem da call (app/ambient.js). Sem blur ao vivo nos painéis. */
+html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="vidro"]):not(.light) {
+  --lg-panel: rgba(60,60,64,.34); --lg-tile: rgba(128,128,128,.26); --lg-thin: rgba(255,255,255,.16); --lg-thin-h: rgba(255,255,255,.24);
+  --lg-sel: rgba(255,255,255,.24); --lg-top: rgba(255,255,255,.22); --lg-edge: rgba(255,255,255,.07);
+  & #main { isolation: isolate; background: radial-gradient(120% 90% at 50% -20%, #54545b 0%, #2a2a2f 45%, #141416 100%) !important; }
+  & #main::before, & #main::after { background: none !important; animation: none !important; }
+  & #ambient { display: block; }
+  /* janelas: vidro escuro translúcido, filete de luz no topo e sombra que mostra a distância */
+  & #main #sidebar, & #main #chat { background: var(--lg-panel) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0 !important; border-radius: 28px !important;
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 24px 60px rgba(0,0,0,.35) !important; }
+  & #call .tile:not(.is-screen) { background: var(--lg-tile) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0 !important; border-radius: 24px !important;
+    box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 18px 44px rgba(0,0,0,.30) !important; }
+  & #call .tile.is-screen { border-radius: 24px !important; box-shadow: 0 18px 44px rgba(0,0,0,.35) !important; }
+  & #call .tile.speaking:not(.is-screen) { box-shadow: inset 0 0 0 2px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.08), 0 18px 44px rgba(0,0,0,.30) !important; }
+  & #call .tile .tile-body .avatar { border-radius: 50% !important; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  & #call .tile .label { background: var(--lg-thin) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 999px !important; padding: 4px 12px !important; font-weight: 600; color: #fff !important; }
+  /* texto em três níveis, como a vibração do visionOS (principal, secundário, inativo) */
+  & #main { --text: #fff; --text-hi: #fff; --muted: rgba(255,255,255,.62); --muted2: rgba(255,255,255,.42); }
+  & #sidebar .cat, & #sidebar .cat span { color: rgba(255,255,255,.42) !important; }
+  /* vidro claro só no que é interativo ou selecionado */
+  & #sidebar .channel:hover { background: var(--lg-thin) !important; }
+  & #sidebar .channel.active, & #sidebar .channel.voice.connected { background: var(--lg-sel) !important; color: #fff !important; box-shadow: none !important; }
+  & #sidebar .channel.active *, & #sidebar .channel.voice.connected * { color: #fff !important; }
+  & #sidebar .btn, & #sidebar .code-chip, & #chat .msg .text, & #chat .msg.mine .text, & #composer .composer-row, & #music-mini, & #voice-panel, & #user-panel {
+    background: var(--lg-thin) !important; box-shadow: none !important; border: 0 !important; color: #fff !important; }
+  & #voice-panel, & #user-panel { background: rgba(0,0,0,.14) !important; }
+  & #composer #input::placeholder { color: rgba(255,255,255,.62); }
+  /* ação principal em branco, como os botões de destaque do visionOS */
+  & #sidebar #btn-invite, & #composer .send-btn { background: rgba(255,255,255,.92) !important; color: #111 !important; box-shadow: none !important; }
+  & #sidebar #btn-invite * { color: #111 !important; }
+  & #call #call-title { font-size: 22px; letter-spacing: -.02em; }
+  /* barra da call como ornamento: cápsula de vidro com botões redondos sem borda; o único blur ao vivo fica aqui (e some na live, glass.css) */
+  & #call #call-controls { background: var(--lg-tile) !important; -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%); border: 0 !important; border-radius: 999px !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.24), inset 0 0 0 1px var(--lg-edge), 0 18px 44px rgba(0,0,0,.35) !important; padding: 8px !important; gap: 6px !important; }
+  & #call #call-controls .cc-sep { display: none !important; }
+  & #call #call-controls :is(.cc-btn, #cc-leave) { width: 48px !important; min-width: 48px !important; height: 48px !important; padding: 0 !important; border-radius: 50% !important; background: transparent !important; color: #fff !important; }
+  & #call #call-controls .cc-btn:hover { background: var(--lg-thin-h) !important; }
+  & #call #call-controls #cc-leave { background: #ff453a !important; }
+  & #call #call-controls #cc-leave > span { display: none !important; }
+  & #call #call-controls #cc-leave svg { color: #fff !important; }
+}
+/* fundo vivo: canvas de 16x9 ampliado (o próprio aumento já suaviza; sem blur ao vivo) */
+#ambient { display: none; position: absolute; inset: -4%; width: 108%; height: 108%; z-index: -1; pointer-events: none;
+  opacity: 0; filter: saturate(1.3) brightness(.62); transition: opacity 1.2s var(--ease-out, ease-out); }
+#ambient.lit { opacity: 1; }
+html.reduce-motion #ambient { transition: none; }

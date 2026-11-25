@@ -26,6 +26,13 @@ Leia antes de mexer em qualquer coisa visual (label `visual`, CSS, temas, anima�
 - **Fluidez:** no mínimo 60 fps. Blur só onde é barato (dock e rótulos) e desligado durante a live.
 - **Respeitar "Reduzir animações"** (`settings.reduceMotion` e `html.reduce-motion`).
 - **Material:** vidro fumê no estilo visionOS ("Líquido"). A identidade padrão é grafite neutro mais vidro esfumaçado, com laranja **só** em pequenos detalhes.
+- **Líquido 2.6 (padrão escuro, `themes-pro.css`):** vidro **claro** do visionOS sobre o "fundo vivo". Regras do HIG (Materials, Ornaments, Windows):
+  - Vidro escuro separa seções (barra lateral, chat). Vidro claro só no que é interativo ou selecionado, nunca claro sobre claro.
+  - Janelas soltas com raio de 24–28 px, filete de luz no topo e sombra. Texto branco em três níveis (100%, 62%, 42%).
+  - Barra da call como ornamento: cápsula de vidro, botões redondos sem borda, encerrar em vermelho. É o único blur ao vivo.
+  - Ação principal em branco (Convidar, enviar).
+- **Fundo vivo (`app/ambient.js`):** a luz de fundo vem da call: tela transmitida > câmera de quem fala > capa da música > grafite com luz de cima. Canvas de 16x9 lido 2 vezes por segundo, sem blur ao vivo.
+- **O Felipe rejeitou:** paletas copiadas de referência sem contexto, "assinaturas" inventadas (grão, brilho de horizonte, etiquetas), visual chapado de app corporativo (Whereby: botões quadrados com rótulo, cor sólida no fundo) e fotos de paisagem como fundo.
 
 ## Temas
 - **Poucos e caprichados.** Cada tema muda material, movimento, arranjo e detalhes (`app/themes.js` e `app/themes-pro.css` via `html[data-tk]`), e não só a cor.
