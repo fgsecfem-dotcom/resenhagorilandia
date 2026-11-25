@@ -198,6 +198,7 @@ function setHomeStatus(text, o = {}) {
 (() => { const el = document.getElementById('home-error'); if (el) new MutationObserver(() => { if (el.textContent !== lastHomeStatus) el.classList.remove('neutral', 'busy'); }).observe(el, { childList: true, characterData: true, subtree: true }); })();
 
 let roomsRenderToken=0;
+let shownRooms = [];
 let storedRooms = [], savingRoomFailed = false, staleRoomWarned = false;
 async function renderMyRooms(check=false) {
   if(!native?.rooms)return;
@@ -206,6 +207,7 @@ async function renderMyRooms(check=false) {
   const showOld=!!renderMyRooms.showOld,rooms=showOld?storedRooms:visibleRooms(storedRooms),hiddenCount=storedRooms.length-visibleRooms(storedRooms).length;
   const root=$('#my-rooms');if(!root)return;
   root.classList.toggle('hidden',!storedRooms.length);
+  shownRooms=rooms;
   // Fileira de cards (estilo Apple TV): arte com a cor ou o ícone da sala, nome, status e botão.
   root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room ${r.look?.cover ? 'has-cover' : ''}" data-room-row="${i}" style="--room-color:${r.look?.color || serverColor(r.code)}${r.look?.cover ? `;--room-cover:url('${esc(r.look.cover)}')` : ''}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}</div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}">${check?'Verificando…':esc(fmtCode(r.code))}</span></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
     +(hiddenCount&&!showOld?`<button class="rooms-old" data-rooms-old>Mostrar ${hiddenCount} ${hiddenCount===1?'sala oculta':'salas ocultas'}</button>`:showOld&&hiddenCount?'<button class="rooms-old" data-rooms-old>Esconder salas antigas</button>':'');
@@ -215,6 +217,7 @@ async function renderMyRooms(check=false) {
   setupShelf($('.shelf-wrap',root));
   $$('[data-open-room]',root).forEach(b=>b.onclick=()=>openStoredRoom(rooms[+b.dataset.openRoom]));
   $$('[data-room-row]',root).forEach(c=>c.onclick=(e)=>{if(!e.target.closest('button'))$('[data-open-room]',c)?.click();}); // o card inteiro abre a sala
+  renderRecent();
   if(check)for(let i=0;i<rooms.length;i++){
     if(token!==roomsRenderToken||$('#home').classList.contains('hidden'))break;
     const result=await native.rooms.inspect(rooms[i].code);
@@ -501,12 +504,18 @@ function initHome() {
 }
 function renderRecent() {
   const list = LS.get('recent', []);
-  $('#recent').innerHTML = list.length ? `<div class="field" style="margin:0"><label>Recentes</label></div>` + list.map((r, i) =>
-    `<div class="recent-item" data-i="${i}"><span><b>${esc(r.name || 'Sala')}</b> <span class="muted small">${esc(r.addr)}</span></span><span class="x" data-x="${i}">${icon('x', 16)}</span></div>`).join('') : '';
-  $$('.recent-item', $('#recent')).forEach((el) => el.onclick = (e) => {
-    const i = +el.dataset.i;
-    if (e.target.closest('[data-x]')) { list.splice(i, 1); LS.set('recent', list); return renderRecent(); }
-    $('#join-addr').value = list[i].addr; joinRoom(list[i].addr, $('#join-pass').value);
+  // Sala que já aparece em "Minhas salas" não repete em "Recentes".
+  const mine = new Set(shownRooms.map((r) => normCode(r.code)));
+  const rows = list.map((r, i) => ({ r, i })).filter(({ r }) => looksLikeAddr(r.addr) || !mine.has(normCode(r.addr)));
+  $('#recent').innerHTML = rows.length ? `<div class="field" style="margin:0"><label>Recentes</label></div>` + rows.map(({ r, i }) =>
+    `<div class="recent-item" data-i="${i}"><span><b>${esc(r.name || 'Sala')}</b> <span class="muted small">${esc(r.addr)}</span></span><button type="button" class="x" data-x="${i}" title="Tirar da lista" aria-label="Tirar da lista">${icon('x', 16)}</button></div>`).join('') : '';
+  const drop = (i) => { const l = LS.get('recent', []); l.splice(i, 1); LS.set('recent', l); renderRecent(); };
+  $$('.recent-item', $('#recent')).forEach((el) => {
+    el.onclick = (e) => {
+      const i = +el.dataset.i;
+      if (e.target.closest('[data-x]')) return drop(i);
+      $('#join-addr').value = list[i].addr; joinRoom(list[i].addr, $('#join-pass').value);
+    };
   });
 }
 function addRecent(addr, name) {
