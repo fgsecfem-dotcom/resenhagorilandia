@@ -13,8 +13,8 @@ export async function turnUsage(env, fetchImpl = fetch, now = Date.now()) {
   const from = new Date(now - 31 * DAY).toISOString().slice(0, 10), to = new Date(now + DAY).toISOString().slice(0, 10);
   const query = `query { viewer { accounts(filter: { accountTag: "${env.CF_ACCOUNT_ID}" }) { callsTurnUsageAdaptiveGroups(limit: 1, filter: { date_geq: "${from}", date_leq: "${to}" }) { sum { egressBytes } } } } }`;
   const r = await fetchImpl('https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers: { Authorization: `Bearer ${env.ANALYTICS_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
-  const d = r.ok ? await r.json() : null, acc = d?.data?.viewer?.accounts?.[0];
-  if (!acc || d.errors?.length) throw new Error('uso indisponível');
+  const d = await r.json().catch(() => null), acc = d?.data?.viewer?.accounts?.[0];
+  if (!acc || d?.errors?.length) throw new Error(`uso indisponível: HTTP ${r.status} ${JSON.stringify(d?.errors || d?.data || null).slice(0, 300)}`);
   const bytes = (acc.callsTurnUsageAdaptiveGroups || []).reduce((n, g) => n + (Number(g.sum?.egressBytes) || 0), 0);
   usageCache = { bytes, at: now };
   return bytes;
@@ -29,7 +29,7 @@ export async function turnServers(req, env, fetchImpl = fetch) {
   if (!env.TURN_KEY_ID || !env.TURN_KEY_API_TOKEN) return empty();
   // Sem como medir o uso, não entrega: melhor ficar sem repasse do que gerar cobrança sem saber.
   if (!env.ANALYTICS_TOKEN || !env.CF_ACCOUNT_ID) return empty();
-  try { if ((await turnUsage(env, fetchImpl)) >= CAP_BYTES) return empty(); } catch { return empty(503); }
+  try { if ((await turnUsage(env, fetchImpl)) >= CAP_BYTES) return empty(); } catch (e) { console.log('teto de gasto:', e.message); return empty(503); }
   const r = await fetchImpl(`https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/generate-ice-servers`, {
     method: 'POST', headers: { Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ttl: TURN_TTL }),
   });
