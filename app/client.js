@@ -965,6 +965,7 @@ function handle(m) {
       cacheAttachments(msg);
       if (msg.channelId === S.textChannel) appendMessage(msg);
       else if (msg.userId !== S.myId) { S.unread.add(msg.channelId); renderChannels(); }
+      if (msg.userId !== S.myId && !roomUI?.isChatVisible()) { chatMissed++; updateChatBadge(); }
       if (msg.userId !== S.myId) {
         const ment = mentionsMe(msg);
         if (ment && !roomMuted()) sfx('mention');
@@ -1011,6 +1012,7 @@ async function leaveRoom(endForAll) {
   if (dmPanel) dmPanel.close();
   dmUnread.clear();
   exitAway();
+  chatMissed = 0; updateChatBadge();
   teardownVoice();
   hideBanner();
   try { if (S.ws) S.ws.close(); } catch {}
@@ -1292,6 +1294,7 @@ function renderCall() {
   $('#btn-dj').innerHTML = `${icon('music', 20)}<span class="sr-only">${djHere ? 'DJ Resenha' : 'Chamar DJ'}</span>`;
   $('#btn-dj').title = djHere ? 'Abrir o DJ Resenha' : 'Chamar o DJ Resenha';
   if (!V.joined) {
+    roomUI?.setLive(false);
     for (const tile of tileCache.values()) detachTile(tile); tileCache.clear(); $('#pips').innerHTML = '';
     const blocks = voices.map((c, i) => {
       const us = usersIn(c.id);
@@ -1308,6 +1311,7 @@ function renderCall() {
   const people = sortByTileOrder(vu).map((u) => ({ key: 'user:' + u.id, u, screen: false }));
   const screens = vu.filter((u) => u.id === S.myId ? V.screen && !V.previewHidden && V.windowVisible : u.sharing && V.watching.has(u.id)).map((u) => ({ key: 'screen:' + u.id, u, screen: true }));
   const keys = new Set([...people, ...screens].map((t) => t.key));
+  roomUI?.setLive(!!V.screen || screens.length > 0);
   for (const k of [...tileCache.keys()]) if (!keys.has(k)) { detachTile(tileCache.get(k)); tileCache.delete(k); }
   if (V.focus && !keys.has(V.focus)) V.focus = null;
   const flip = globalThis.resenhaMotion?.capture(stage, (V.focus || '') + '|' + [...keys].join(','));
@@ -2358,6 +2362,18 @@ function dmContacts() {
   const hist = dmHistory();
   return [...entries.values()].map((u) => { const l = (hist[u.id] || []).slice(-1)[0]; return { id: u.id, name: u.name, color: u.color, avatar: u.avatar, online: S.users.has(u.id), fav: !!friends[u.id], unread: dmUnread.has(u.id), last: l ? { text: l.text, ts: l.ts, mine: l.from === S.myId } : null }; })
     .sort((a, b) => (b.unread - a.unread) || ((b.last?.ts || 0) - (a.last?.ts || 0)) || (b.online - a.online) || String(a.name).localeCompare(b.name));
+}
+function renderFriends() { roomUI?.updateUnread(dmUnread); updateChatBadge(); }
+// Contador no botão do chat quando a conversa está fechada (janela pequena, chat flutuando): mensagens novas + DMs não lidas.
+let chatMissed = 0;
+function updateChatBadge() {
+  const b = $('#btn-chat-toggle'); if (!b) return;
+  const n = chatMissed + dmUnread.size;
+  let el = $('.chat-badge', b);
+  if (!n) { el?.remove(); b.setAttribute('aria-label', 'Mostrar ou esconder a conversa'); return; }
+  if (!el) { el = document.createElement('span'); el.className = 'chat-badge'; b.append(el); }
+  el.textContent = n > 99 ? '99+' : String(n);
+  b.setAttribute('aria-label', `Mostrar ou esconder a conversa, ${n} ${n === 1 ? 'não lida' : 'não lidas'}`);
 }
 function receiveDM(msg) {
   const HISTORY_LIMIT = 300;
@@ -3723,7 +3739,7 @@ document.addEventListener('visibilitychange', () => { if (!native) { V.windowVis
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
 native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
-roomUI = createRoomUI({icon,openDM,contacts:dmContacts,avatar:avatarHTML,time:fmtTime,onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
+roomUI = createRoomUI({icon,openDM,contacts:dmContacts,avatar:avatarHTML,time:fmtTime,responsive:!WEB_VIEWER,onPanel:(view)=>{if(view==='chat'){chatMissed=0;updateChatBadge();}},onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
 // Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
 const PILL = '#call .live-volume input[type=range], #ctx-menu .ctx-row input[type=range], .dj-vol input[type=range]';
 const pillFill = (el) => el.style.setProperty('--p', ((el.value - el.min) / ((el.max - el.min) || 1) * 100) + '%');
@@ -3741,7 +3757,7 @@ const music = createMusic({ settings, saveSettings, icon, toast, roomUI, native,
   room: { users: () => [...S.users.values()].filter((u) => u.id !== DJ_ID), me: () => S.myId, now: serverNow, send: (to, data) => sig(to, { listen: data }) } }); window.__resenha.music = music;
 overlayClient = createOverlayClient({ native, settings, saveSettings, S, V, DJ_ID, isSpeaking, setMuted, setDeafened, applyUserVolume, renderAll, music, initials, openModal, openSettings, icon, esc, $, $$, toast }); // ilha por cima do jogo (opcional)
 // Wide windows show the conversation next to the call; narrower ones open it on demand.
-if (innerWidth >= 1280) roomUI.open('chat');
+if (innerWidth >= 1180) roomUI.open('chat');
 initHome();
 overlayClient.start();
 $('#main').dataset.mobilePane = 'call';

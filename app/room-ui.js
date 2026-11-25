@@ -42,7 +42,7 @@ export function installLiveFrame(tile) {
   refresh();
 }
 
-export function createRoomUI({ icon, openDM, contacts, avatar, time, onDMVisible, onResize, liveVolume, setLiveVolume }) {
+export function createRoomUI({ icon, openDM, contacts, avatar, time, responsive, onPanel, onDMVisible, onResize, liveVolume, setLiveVolume }) {
   const $ = (s, r = document) => r.querySelector(s);
   const main = $('#main'), chat = $('#chat');
   document.body.classList.add('layout-next');
@@ -56,10 +56,33 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, onDMVisible
   const sidebarButton = document.createElement('button'); sidebarButton.id = 'sidebar-toggle'; sidebarButton.className = 'icon-btn';
   sidebarButton.setAttribute('aria-controls','channels'); sidebarButton.setAttribute('aria-expanded','true'); sidebarButton.setAttribute('aria-label','Recolher canais e pessoas'); sidebarButton.title='Recolher canais e pessoas'; sidebarButton.textContent='‹';
   $('.nsb-top').append(sidebarButton);
-  sidebarButton.onclick=()=>{
-    const compact=main.dataset.sidebarCompact!=='true'; main.dataset.sidebarCompact=String(compact);
+  const setCompact=compact=>{
+    main.dataset.sidebarCompact=String(compact);
     sidebarButton.setAttribute('aria-expanded',String(!compact));sidebarButton.setAttribute('aria-label',compact?'Expandir canais e pessoas':'Recolher canais e pessoas');sidebarButton.title=sidebarButton.getAttribute('aria-label');sidebarButton.textContent=compact?'›':'‹';onResize();
   };
+  let preferCompact=false, wasSmall=null, wasFloat=false, hasLive=false;
+  sidebarButton.onclick=()=>{
+    const compact=main.dataset.sidebarCompact!=='true';
+    if(!wasSmall) preferCompact=compact;
+    setCompact(compact);
+  };
+  function fitWindow(){
+    if(!responsive) return;
+    const small=innerWidth<1100, float=innerWidth<1180;
+    main.dataset.chatFloat=String(float);
+    if(small!==wasSmall){wasSmall=small;setCompact(small || preferCompact);}
+    if(float && !wasFloat && hasLive && main.dataset.rightOpen==='true') close();
+    wasFloat=float;
+    syncChatAccess();
+  }
+  function setLive(active){
+    const entering=active&&!hasLive;
+    hasLive=active;
+    if(entering && main.dataset.chatFloat==='true' && main.dataset.rightOpen==='true') close();
+  }
+  function syncChatAccess(){
+    chat.inert=main.dataset.chatFloat==='true' && main.dataset.rightOpen!=='true';
+  }
   const peopleButton=document.createElement('button');peopleButton.id='participants-toggle';peopleButton.className='participants-toggle hidden';peopleButton.setAttribute('aria-expanded','true');
   $('#call-stage').after(peopleButton);
   let peopleHidden=false;
@@ -74,7 +97,8 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, onDMVisible
   }
   function close(){main.dataset.rightOpen='false';onResize();}
   nav.querySelectorAll('[data-right]').forEach(b=>b.onclick=()=>open(b.dataset.right));$('.right-close',nav).onclick=close;
-  function isDMVisible(){return main.dataset.rightOpen==='true'&&chat.dataset.view==='dm'&&!main.classList.contains('hidden');}
+  const visible = view => main.dataset.rightOpen==='true' && chat.dataset.view===view && !main.classList.contains('hidden');
+  const isDMVisible = () => visible('dm'), isChatVisible = () => visible('chat');
   function updateUnread(unread){
     const count=$('.dm-count',nav); count.textContent=String(unread.size);count.classList.toggle('hidden',!unread.size);
     $('[data-right="dm"]',nav).setAttribute('aria-label',unread.size?`DMs, ${unread.size} conversas não lidas`:'DMs');
@@ -146,5 +170,6 @@ export function createRoomUI({ icon, openDM, contacts, avatar, time, onDMVisible
     const name=$('.streamer-name',tools)||tools.insertBefore(Object.assign(document.createElement('span'),{className:'streamer-name'}),tools.firstChild);name.textContent=u.name;
     if(!self&&!$('.live-volume',tools)){const volume=document.createElement('label');volume.className='live-volume';volume.innerHTML=icon('volume',16)+'<input type="range" min="0" max="200" step="1" aria-label="Volume da transmissão"><output></output>';const input=$('input',volume),output=$('output',volume);input.value=liveVolume(u);output.textContent=input.value+'%';const fill=()=>volume.style.setProperty('--p',(input.value/2)+'%');fill();input.oninput=()=>{output.textContent=input.value+'%';fill();setLiveVolume(u,Number(input.value));};volume.addEventListener('pointerdown',e=>e.stopPropagation());volume.addEventListener('click',e=>e.stopPropagation());tools.insertBefore(volume,$('[data-stop]',tools));}
   }
-  return {open,close,isDMVisible,dmModal,floatingModal,updateUnread,updatePeople,updateLive,reset(){close();},dispose(){stageObserver.disconnect();titles.disconnect();}};
+  addEventListener('resize',fitWindow);fitWindow();
+  return {open,close,isDMVisible,isChatVisible,dmModal,floatingModal,updateUnread,updatePeople,updateLive,setLive,reset(){hasLive=false;close();},dispose(){stageObserver.disconnect();titles.disconnect();removeEventListener('resize',fitWindow);}};
 }
