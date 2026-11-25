@@ -120,7 +120,7 @@ export function createOverlayClient(d) {
   }
 
   // ---- aba "Ilha" nas configurações ----
-  const tabHTML = () => (supported ? '<div class="tab" data-t="ilha">Ilha</div>' : '');
+  const tabHTML = () => (supported ? '<button type="button" class="tab" data-t="ilha" role="tab" id="st-tab-ilha" aria-controls="st-panel-ilha" tabindex="-1">Ilha</button>' : '');
   const sel = (id, opts, cur) => `<select id="${id}">${opts.map(([v, t]) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
   function panelHTML() {
     if (!supported) return '';

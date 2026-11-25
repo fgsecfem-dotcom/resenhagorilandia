@@ -169,3 +169,22 @@ html[data-tk] #sidebar #sidebar-toggle:hover { background: var(--hover); color: 
 #room-banner { flex: none; height: 84px; margin: 0 0 8px; border-radius: 12px; background: center / cover no-repeat var(--bg-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent); }
 #main[data-sidebar-compact=true] #room-banner { height: 40px; border-radius: 10px; }
 .nmenu .n-cover { height: 76px; margin-bottom: 2px; border-radius: 8px 8px 4px 4px; background: center / cover no-repeat var(--bg-panel); }
+
+
+/* Configurações: cabeçalho e rodapé fixos no fluxo; só o corpo rola. */
+#modal-root .settings-dialog { --settings-inset: 24px; flex-direction: column; overflow: hidden; }
+#modal-root .settings-dialog > header { align-items: center; padding: 16px var(--settings-inset) 8px; flex: none; }
+#modal-root .settings-dialog > .tabs { align-self: stretch; flex: none; width: auto; max-width: none; margin: 0 var(--settings-inset) 8px; padding: 0; flex-wrap: wrap; }
+#modal-root .settings-dialog > .tabs button { border: 0; min-height: 32px; padding: 4px 8px; }
+#modal-root .settings-dialog > .tabs button:first-child { margin-left: -8px; }
+#modal-root .settings-dialog > footer { flex: none; }
+#modal-root .settings-dialog .settings-switches { display: grid; margin-top: 12px; }
+#modal-root .settings-dialog .check { min-height: 40px; gap: 12px; align-items: center; text-align: left; }
+#modal-root .settings-dialog label.check > input[type="checkbox"] { background: color-mix(in srgb, var(--text-hi) 28%, var(--bg-main)); }
+#modal-root .settings-dialog label.check > input[type="checkbox"]:checked { background: #326851; }
+#modal-root .settings-dialog label.check > input[type="checkbox"]::before { background: #fff; box-shadow: none; }
+#modal-root .settings-dialog .settings-switch-note { margin: -4px 0 8px 52px; }
+#modal-root .settings-dialog :is(#st-sens-box, .ns-box) { margin-block: 8px; }
+#modal-root .settings-dialog [data-p="ilha"] > .settings-grid { grid-template-columns: minmax(0, 1fr); }
+#modal-root .settings-dialog [data-p="ilha"] .check + p { margin: -4px 0 0 52px; }
+#modal-root .settings-dialog :is(button, summary, input, select, textarea):focus-visible { outline: 2px solid var(--text-hi); outline-offset: 2px; }

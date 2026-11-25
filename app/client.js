@@ -115,18 +115,44 @@ function fmtDur(ms) { const s = Math.max(0, Math.floor(ms / 1000)); const h = Ma
 const serverNow = () => Date.now() + S.serverOffset;
 function copy(text) { navigator.clipboard.writeText(text).then(() => toast('Copiado!', 'ok', 1500)); }
 
-function openModal(html, { wide = false, onClose, cls = '' } = {}) {
+function openModal(html, { wide = false, onClose, cls = '', label = '', opener = document.activeElement } = {}) {
   if (roomUI && cls === 'dm-panel') return roomUI.dmModal(html, {onClose});
   if (roomUI && cls === 'dj-modal') return roomUI.floatingModal(html, {onClose});
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="modal ${wide ? 'wide' : ''} ${cls}">${html}</div>`;
-  const close = () => { if (globalThis.resenhaMotion?.closeOverlay) globalThis.resenhaMotion.closeOverlay(ov); else ov.remove(); document.removeEventListener('keydown', onKey, true); onClose && onClose(); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  const root = $('#modal-root'), modal = ov.firstElementChild;
+  let closed = false;
+  const top = () => [...root.children].filter((x) => !x.inert).at(-1) === ov;
+  const focusables = () => $$('button, [href], input, select, textarea, summary, [tabindex]', modal)
+    .filter((x) => x.tabIndex >= 0 && !x.matches(':disabled') && x.getClientRects().length && getComputedStyle(x).visibility === 'visible');
+  const initial = () => ($('[data-close]', modal) || focusables()[0] || modal).focus({ preventScroll: true });
+  const onFocus = (e) => { if (top() && !ov.contains(e.target)) initial(); };
+  const close = () => {
+    if (closed) return;
+    closed = true; ov.inert = true;
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('focusin', onFocus);
+    if (globalThis.resenhaMotion?.closeOverlay) globalThis.resenhaMotion.closeOverlay(ov); else ov.remove();
+    onClose?.();
+    if (label || opener?.closest('.settings-dialog')) opener?.focus({ preventScroll: true });
+  };
+  const onKey = (e) => {
+    if (!top()) return;
+    if (e.key === 'Escape' && !e.target.closest?.('.kbd.rec')) { e.preventDefault(); e.stopPropagation(); close(); }
+    if (!label || e.key !== 'Tab') return;
+    const items = focusables(), i = items.indexOf(document.activeElement);
+    if (i === -1 || i === (e.shiftKey ? 0 : items.length - 1)) {
+      e.preventDefault(); (items[e.shiftKey ? items.length - 1 : 0] || modal).focus();
+    }
+  };
+  if (label) { modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', label); modal.tabIndex = -1; }
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) { if (label) e.preventDefault(); close(); } });
   document.addEventListener('keydown', onKey, true);
-  $('#modal-root').appendChild(ov);
+  root.appendChild(ov);
   $$('[data-close]', ov).forEach((b) => (b.onclick = close));
+  if (label) document.addEventListener('focusin', onFocus);
+  if (label || opener?.closest('.settings-dialog')) initial();
   return { el: ov, close };
 }
 function promptModal(title, { value = '', placeholder = '', ok = 'Salvar', extra = '', inputType='text', maxLength=32 } = {}) {
@@ -2998,13 +3024,19 @@ function openViewerSettings() {
 }
 async function openSettings(tab = 'voz') {
   if (WEB_VIEWER) return openViewerSettings();
+  const opener = document.activeElement;
+  if ($('.settings-dialog:not([inert])')?.closest('.overlay:not([inert])')) return;
   const inDevs = await listDevices('audioinput');
   const outDevs = await listDevices('audiooutput');
   const opt = (list, cur) => `<option value="default">Padrão do Windows</option>` + list.map((d) => `<option value="${esc(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || 'Dispositivo')}</option>`).join('');
   const fxBtns = Object.entries(FX).map(([k, f]) => `<button class="fx-btn ${settings.voiceFx === k ? 'sel' : ''}" data-fx="${k}">${esc(f.name)}${f.semis ? `<span>${f.semis > 0 ? '+' : ''}${f.semis}</span>` : ''}</button>`).join('');
-  const m = openModal(`<header><div><h2>Configurações</h2></div><button class="icon-btn" data-close>${icon('x')}</button></header>
+  if ($('.overlay:not([inert]) > .settings-dialog')) return;
+  const tabButton = ([id, name]) => `<button type="button" class="tab" data-t="${id}" id="st-tab-${id}" role="tab" aria-controls="st-panel-${id}" tabindex="-1">${name}</button>`;
+  const tabs = [['voz', 'Voz'], ['filtros', 'Filtros de voz'], ['aparencia', 'Aparência'], ['perfil', 'Perfil'], ...(native ? [['atalhos', 'Atalhos']] : [])];
+  const closeSettingsMic = () => { if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } };
+  const m = openModal(`<header><h2 id="st-title">Configurações</h2><button class="icon-btn" data-close aria-label="Fechar configurações">${icon('x')}</button></header>
+    <div class="tabs" role="tablist" aria-label="Seções de configurações">${tabs.map(tabButton).join('')}${overlayClient ? overlayClient.tabHTML() : ''}</div>
     <div class="body">
-      <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}${overlayClient ? overlayClient.tabHTML() : ''}</div>
       <div class="tp" data-p="aparencia">
         ${appearanceHTML()}
         <div class="section-title">Ícone do app</div>
@@ -3059,11 +3091,11 @@ async function openSettings(tab = 'voz') {
             <input type="range" id="st-thr" min="-80" max="-10" value="${settings.threshold}" ${settings.autoSens ? 'disabled' : ''}>
           </div>
         </div>
-        <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px">
+        <div class="settings-switches">
           <label class="check"><input type="checkbox" id="st-ec" ${settings.echoCancellation ? 'checked' : ''}> Cancelamento de eco</label>
           <label class="check"><input type="checkbox" id="st-ag" ${settings.autoGain ? 'checked' : ''}> Ganho automático</label>
           <label class="check"><input type="checkbox" id="st-snd" ${settings.sounds ? 'checked' : ''}> Sons de entrar/sair</label>
-          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small" style="margin:2px 0 0 26px">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
+          ${native?.performanceSample ? `<label class="check"><input type="checkbox" id="st-perf" aria-describedby="st-perf-note" ${settings.perfTelemetry !== false ? 'checked' : ''}> Enviar dados anônimos de desempenho</label><p class="muted small settings-switch-note" id="st-perf-note">CPU, memória e qualidade da call. Sem nome, sala, IP ou mensagens. Ajuda a deixar o Resenha mais leve.</p>` : ''}
         </div>
       </div>
       <div class="tp" data-p="filtros">
@@ -3080,12 +3112,32 @@ async function openSettings(tab = 'voz') {
       </div>
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { onClose: () => { V.testing = false; setMonitor(false); if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } } });
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { V.testing = false; setMonitor(false); closeSettingsMic(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
-  const showTab = (t) => { $$('.tab', el).forEach((x) => x.classList.toggle('active', x.dataset.t === t)); $$('.tp', el).forEach((x) => x.classList.toggle('hidden', x.dataset.p !== t)); };
-  $$('.tab', el).forEach((x) => x.onclick = () => showTab(x.dataset.t));
-  showTab(tab);
+  const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
+  for (const panel of panels) {
+    panel.id = 'st-panel-' + panel.dataset.p; panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'st-tab-' + panel.dataset.p);
+  }
+  const showTab = (t) => {
+    for (const x of tabEls) {
+      const on = x.dataset.t === t;
+      x.classList.toggle('active', on); x.tabIndex = on ? 0 : -1; x.setAttribute('aria-selected', String(on));
+    }
+    for (const x of panels) { x.hidden = x.dataset.p !== t; x.classList.toggle('hidden', x.hidden); }
+    $('.body', el).scrollTop = 0;
+  };
+  tabEls.forEach((x) => x.onclick = () => showTab(x.dataset.t));
+  $('[role="tablist"]', el).onkeydown = (e) => {
+    const i = tabEls.indexOf(e.target), count = tabEls.length;
+    if (i < 0) return;
+    const next = { ArrowLeft: (i + count - 1) % count, ArrowRight: (i + 1) % count, Home: 0, End: count - 1 }[e.key];
+    if (next == null) return;
+    e.preventDefault(); e.stopPropagation(); showTab(tabEls[next].dataset.t); tabEls[next].focus();
+  };
+  $$('label.check input[type="checkbox"]', el).forEach((input) => input.setAttribute('role', 'switch'));
+  showTab(tabEls.some((x) => x.dataset.t === tab) ? tab : 'voz');
   if(native){native.version().then(v=>$('#st-ver',el).textContent='Resenha v'+v);$('#st-updates',el).onclick=openUpdateSettings;}
   setAvatarEl($('#st-av', el), me);
   $('#st-photo', el).onclick = () => pickAvatar(() => { setAvatarEl($('#st-av', el), me); renderAll(); previewCard(); });
@@ -3168,12 +3220,14 @@ registerShortcuts();
   // Medidor
   try {
     await ensureAudio();
+    if (el.inert) return;
     if (!V.src) await openMic();
+    if (el.inert) { if (!V.joined) closeSettingsMic(); return; }
     V.testing = true;
     const lvl = $('.lvl', el), thr = $('.thr', el), st = $('#st-state', el);
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
-      if (!document.body.contains(el)) return;
+      if (el.inert || !el.isConnected) return;
       const ai = settings.aiNoise && (V.rnReady || V.dfnReady);
       const open = ai ? V.vadOpen : V.gateOpen;
       lvl.style.width = pos(V.selfLevel);
