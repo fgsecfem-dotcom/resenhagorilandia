@@ -155,7 +155,7 @@ export function createOverlayClient(d) {
   function bindPanel(el) {
     if (!supported) return;
     const p = $('.tp[data-p="ilha"]', el); if (!p) return;
-    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper ? '' : 'O overlay não está disponível neste computador.'; });
+    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper || !cfg.enabled ? '' : 'O overlay não está disponível neste computador.'; });
     $('#ov-en', el).onchange = (e) => { cfg.enabled = e.target.checked; save(); if (cfg.enabled && !cfg.trained) note('Dica', 'faça o treino guiado para aprender a usar a ilha.', 5000); sync(true); };
     $('#ov-mode-sel', el).onchange = (e) => { cfg.mode = e.target.value; save(); };
     $('#ov-fs', el).onchange = (e) => { cfg.fullscreen = e.target.checked; save(); };

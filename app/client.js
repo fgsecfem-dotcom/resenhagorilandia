@@ -43,10 +43,15 @@ const settings = Object.assign({
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
+// Migração do antigo padrão desligado; o desligado explícito da nova opção é preservado.
+if (!LS.get('motionAuto', false)) { if (settings.reduceMotion === false) settings.reduceMotion = 'auto'; LS.set('settings', settings); LS.set('motionAuto', true); }
 const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const applyReduceMotion = () => document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion === 'auto' ? systemReducedMotion.matches : settings.reduceMotion === true);
+const applyReduceMotion = () => {
+  if (window.resenhaMotion?.setPreference) return window.resenhaMotion.setPreference(settings.reduceMotion);
+  document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion === 'auto' ? systemReducedMotion.matches : settings.reduceMotion === true);
+};
 applyReduceMotion();
-systemReducedMotion.addEventListener('change', applyReduceMotion);
+if (!window.resenhaMotion?.setPreference) systemReducedMotion.addEventListener('change', applyReduceMotion);
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
 const saveSettings = () => LS.set('settings', settings);
@@ -3111,7 +3116,7 @@ async function openSettings(tab = 'voz') {
         </div>
         <div class="profile-editor">
           <div class="profile-fields">
-            <div class="row profile-image-actions"><button class="btn" id="st-photo">Escolher foto</button><button class="btn" id="st-banner">Escolher banner</button></div>
+            <div class="row profile-image-actions"><button class="btn" id="st-photo" aria-label="Escolher foto de perfil">Foto</button><button class="btn" id="st-banner" aria-label="Escolher banner">Banner</button></div>
             <div class="field"><label>Banner</label>
               <div class="swatches" id="st-bcolors">${BANNER_COLORS.map((c) => `<button class="swatch ${me.bannerColor === c ? 'sel' : ''}" data-c="${c}" style="background:${c}" aria-label="Cor do banner ${c}"></button>`).join('')}</div>
               <button class="btn" id="st-banner-x">Remover banner</button>

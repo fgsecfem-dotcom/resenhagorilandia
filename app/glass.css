@@ -512,10 +512,11 @@ html.glass #room-menu.server-menu { padding: 0 0 6px; overflow: hidden auto; max
 .uname { color: var(--nc, inherit); }
 .uname.fx-ouro { color: color-mix(in oklab, var(--text-hi) 72%, #ad782b); font-weight: 700; }
 .uname.fx-gelo { color: color-mix(in oklab, var(--text-hi) 72%, #5795b5); font-weight: 700; }
+#st-av { flex: 0 0 40px; width: 40px; height: 40px; }
 .profile-image-actions { gap: 8px; margin-bottom: 12px; }
 #st-banner-x { margin-top: 8px; }
 /* Escolha no perfil */
-.nfx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+.nfx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .nfx-grid .nfx { white-space: nowrap; }
 .nfx-grid .nfx { min-height: 38px; padding: 6px 4px; border-radius: 12px; border: 1px solid var(--g-edge, var(--line)); background: var(--g-fill, var(--bg-panel)); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer;
   transition: background-color .12s, border-color .12s, scale .2s; overflow: hidden; }
