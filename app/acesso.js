@@ -41,7 +41,7 @@
     if (focusKey && document.activeElement === document.body) { const again = list.find((el) => keyOf(el) === focusKey); if (again) again.focus({ preventScroll: true }); }
   }
   let decorateQueued = false;
-  const decorateSoon = () => { if (decorateQueued) return; decorateQueued = true; requestAnimationFrame(() => { decorateQueued = false; decorate(); }); };
+  const decorateSoon = () => { if (decorateQueued) return; decorateQueued = true; setTimeout(() => { decorateQueued = false; decorate(); }, 0); };
   function setCurrent(el) { curKey = keyOf(el); for (const x of visibleItems()) x.tabIndex = keyOf(x) === curKey ? 0 : -1; }
   function onChannelKey(e) {
     const el = e.target;
@@ -121,13 +121,13 @@
     announcementTimer = setTimeout(() => {
       const status = $('#sr-live'), text = pending.join(' '); pending = [];
       status.textContent = '';
-      requestAnimationFrame(() => { status.textContent = text; });
+      setTimeout(() => { status.textContent = text; }, 30);
     }, 60);
   }
   function replaceLog(log, update) {
     log.setAttribute('aria-live', 'off');
     update();
-    requestAnimationFrame(() => requestAnimationFrame(() => log.setAttribute('aria-live', 'polite')));
+    setTimeout(() => log.setAttribute("aria-live", "polite"), 60);
   }
   function iconLabels(root) {
     const selector = 'button, [role="button"]';
@@ -152,6 +152,6 @@
     document.addEventListener('focusin', (e) => { focusKey = e.target.matches?.(ITEMS) ? keyOf(e.target) : ''; if (focusKey) setCurrent(e.target); });
     document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.(ITEMS)) focusKey = ''; }, true);
   }
-  window.ResenhaA11y = { syncSkinChannels, controls, cycle, originFor, restore, contextMenu, announce, replaceLog };
+  window.ResenhaA11y = { decorate, syncSkinChannels, controls, cycle, originFor, restore, contextMenu, announce, replaceLog };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
