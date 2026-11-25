@@ -1277,9 +1277,12 @@ function renderCall() {
   const stage = $('#call-stage');
   const vcId = V.joined ? V.channel : voiceChannels()[0]?.id;
   const vc = chanById(vcId);
-  $('#call-title').textContent = vc ? vc.name : 'Call';
   const vu = V.joined ? myVoiceUsers() : [];
-  $('#call-count').textContent = vu.length ? `${vu.length} na call` : V.joined ? '' : 'Escolha um canal para entrar';
+  const voices = voiceChannels(), nVoice = voices.length;
+  const nInCall = [...S.users.values()].filter((u) => u.voiceChannel && u.id !== DJ_ID).length;
+  $('#call-title').textContent = V.joined ? (vc ? vc.name : 'Call') : 'Canais de voz';
+  $('#call-count').textContent = V.joined ? (vu.length ? `${vu.length} na call` : '')
+    : `${nVoice} ${nVoice === 1 ? 'canal' : 'canais'} · ${nInCall ? `${nInCall} ${nInCall === 1 ? 'pessoa' : 'pessoas'} na call` : 'ninguém na call'}`;
   $('#call-controls').classList.toggle('hidden', !V.joined);
   renderPerfNotice();
   const djHere = S.dj && S.dj.active && S.dj.channelId === V.channel;
@@ -1289,14 +1292,14 @@ function renderCall() {
   $('#btn-dj').title = djHere ? 'Abrir o DJ Resenha' : 'Chamar o DJ Resenha';
   if (!V.joined) {
     for (const tile of tileCache.values()) detachTile(tile); tileCache.clear(); $('#pips').innerHTML = '';
-    const blocks = voiceChannels().map((c) => {
+    const blocks = voices.map((c, i) => {
       const us = usersIn(c.id);
       return `<div class="vc-card" data-join="${esc(c.id)}"><div class="vc-name">${icon('volume', 18)} ${esc(c.name)}</div>
         <div class="avatars">${us.slice(0, 6).map((u) => avatarHTML(u)).join('')}</div>
         <div class="muted small">${us.length ? us.map((u) => esc(u.name)).join(', ') : 'Ninguém aqui ainda'}</div>
-        <button class="btn green">Entrar</button></div>`;
+        <button class="btn vc-join ${i === 0 ? 'main' : ''}">Entrar</button></div>`;
     }).join('');
-    stage.innerHTML = `<div class="call-empty"><h2>Canais de voz</h2><div class="vc-cards">${blocks}</div></div>`;
+    stage.innerHTML = `<div class="call-empty"><div class="vc-cards">${blocks}</div></div>`;
     $$('[data-join]', stage).forEach((el) => el.onclick = () => joinVoice(el.dataset.join));
     return;
   }

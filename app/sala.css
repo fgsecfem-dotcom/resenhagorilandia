@@ -42,3 +42,9 @@ html #call #call-stage .tile.is-voice .label { position: static; max-width: calc
 #perf-note { position: absolute; z-index: 4; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-float); color: var(--text); font-size: 12px; }
 #perf-note span { line-height: 1.3; }
 #perf-note button { min-height: 28px; padding: 0 8px; white-space: nowrap; }
+
+/* Duas hierarquias visuais, nenhuma confunde entrar com conectado. */
+#call .vc-card .vc-join { min-height: 36px; padding-inline: 16px; border-color: var(--line); background: var(--bg-panel); color: var(--text-hi); }
+#call .vc-card .vc-join:hover { background: var(--active); }
+#call .vc-card .vc-join.main { border-color: transparent; background: #f6f6f6; color: #202127; }
+#call .vc-card .vc-join.main:hover { background: #e5e5e5; }
