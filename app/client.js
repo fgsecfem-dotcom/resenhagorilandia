@@ -1086,10 +1086,11 @@ function renderSidebar() {
   renderHeader();
   renderChannels();
   const others = [...S.users.values()].filter((u) => !u.voiceChannel);
-  $('#online-cat').textContent = `Fora da call · ${others.length}`;
+  const texts = textChannels(), here = texts.length === 1 ? `no #${texts[0].name}` : 'na sala';
+  $('#online-cat').textContent = 'Na sala';
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.id === S.myId ? ' <span class="you">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span><span class="st-text">${esc(here)}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
   if (!V.joined) setConnStatus('idle', 'Online');
@@ -2350,13 +2351,13 @@ function toggleFriend(u) {
   else friends[u.id] = { id: u.id, name: u.name, color: u.color, avatar: u.avatar };
   LS.set('friends', friends); renderFriends();
 }
-function renderFriends() {
-  const list = $('#friends-list'); if (!list) return;
+// Aba DMs: contatos antigos, favoritos e quem está na sala, com a última mensagem, a hora e se há algo novo.
+function dmContacts() {
   const entries = new Map([...Object.values(LS.get(dmStorageKey() + '.contacts', {})), ...Object.values(friends)].map((u) => [u.id, u]));
   for (const u of S.users.values()) if (u.id !== S.myId && u.id !== DJ_ID) entries.set(u.id, u);
-  list.innerHTML = [...entries.values()].map((u) => `<button class="friend-row" data-friend="${esc(u.id)}">${avatarHTML(u)}<span>${friends[u.id] ? '☆ ' : ''}${esc(u.name)}<br><small class="muted">${S.users.has(u.id) ? 'Na sala' : 'Fora da sala'}</small></span>${dmUnread.has(u.id) ? '<span class="badge">Novo</span>' : ''}</button>`).join('') || '<div class="muted small">Seus amigos aparecem aqui.</div>';
-  $$('[data-friend]', list).forEach((b) => b.onclick = () => openDM(b.dataset.friend));
-  roomUI?.updateUnread(dmUnread);
+  const hist = dmHistory();
+  return [...entries.values()].map((u) => { const l = (hist[u.id] || []).slice(-1)[0]; return { id: u.id, name: u.name, color: u.color, avatar: u.avatar, online: S.users.has(u.id), fav: !!friends[u.id], unread: dmUnread.has(u.id), last: l ? { text: l.text, ts: l.ts, mine: l.from === S.myId } : null }; })
+    .sort((a, b) => (b.unread - a.unread) || ((b.last?.ts || 0) - (a.last?.ts || 0)) || (b.online - a.online) || String(a.name).localeCompare(b.name));
 }
 function receiveDM(msg) {
   const HISTORY_LIMIT = 300;
@@ -3722,7 +3723,7 @@ document.addEventListener('visibilitychange', () => { if (!native) { V.windowVis
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
 native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
-roomUI = createRoomUI({icon,openDM,contacts:()=>[...new Map([...Object.values(LS.get(dmStorageKey()+'.contacts',{})),...Object.values(friends),...[...S.users.values()].filter(u=>u.id!==S.myId&&u.id!==DJ_ID)].map(u=>[u.id,u])).values()],onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
+roomUI = createRoomUI({icon,openDM,contacts:dmContacts,avatar:avatarHTML,time:fmtTime,onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
 // Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
 const PILL = '#call .live-volume input[type=range], #ctx-menu .ctx-row input[type=range], .dj-vol input[type=range]';
 const pillFill = (el) => el.style.setProperty('--p', ((el.value - el.min) / ((el.max - el.min) || 1) * 100) + '%');

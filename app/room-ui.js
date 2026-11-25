@@ -42,7 +42,7 @@ export function installLiveFrame(tile) {
   refresh();
 }
 
-export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, liveVolume, setLiveVolume }) {
+export function createRoomUI({ icon, openDM, contacts, avatar, time, onDMVisible, onResize, liveVolume, setLiveVolume }) {
   const $ = (s, r = document) => r.querySelector(s);
   const main = $('#main'), chat = $('#chat');
   document.body.classList.add('layout-next');
@@ -78,15 +78,24 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   function updateUnread(unread){
     const count=$('.dm-count',nav); count.textContent=String(unread.size);count.classList.toggle('hidden',!unread.size);
     $('[data-right="dm"]',nav).setAttribute('aria-label',unread.size?`DMs, ${unread.size} conversas não lidas`:'DMs');
-    // Also visible with the right panel closed.
-    const shortcut=$('#sidebar-dms');if(shortcut){shortcut.title=unread.size?`Mensagens privadas · ${unread.size} conversas não lidas`:'Mensagens privadas';shortcut.setAttribute('aria-label',shortcut.title);$('.dm-count',shortcut).textContent=unread.size||'';$('.dm-count',shortcut).classList.toggle('hidden',!unread.size);}
+    // Lista da aba DMs: avatar, nome, prévia da última mensagem, hora e bolinha de não lida.
     const list=$('.dm-contacts',dmHost);list.replaceChildren();
     for(const u of contacts()){
-      const b=document.createElement('button');b.className='dm-contact';b.textContent=u.name+(unread.has(u.id)?' · Nova':'');b.onclick=()=>openDM(u.id);list.append(b);
+      const b=document.createElement('button');b.className='dm-contact'+(u.unread?' unread':'')+(u.online?' online':'');b.dataset.uid=u.id;
+      const av=document.createElement('span');av.className='dm-av';av.innerHTML=avatar(u);
+      const mid=document.createElement('span');mid.className='dm-main';
+      const top=document.createElement('span');top.className='dm-top';
+      const name=document.createElement('b');name.className='dm-name';name.textContent=(u.fav ? '☆ ' : '') + u.name;
+      const when=document.createElement('time');when.className='dm-time';when.textContent=u.last?time(u.last.ts):'';
+      top.append(name,when);
+      const prev=document.createElement('span');prev.className='dm-preview';
+      prev.textContent=u.last?(u.last.mine?'Você: ':'')+u.last.text:(u.online?'Na sala · diga oi':'Fora da sala');
+      mid.append(top,prev);b.append(av,mid);
+      if(u.unread){const dot=document.createElement('i');dot.className='dm-dot';dot.setAttribute('aria-label','mensagem nova');b.append(dot);}
+      b.onclick=()=>openDM(u.id);list.append(b);
     }
-    if(!list.children.length)list.textContent='Seus amigos aparecem aqui enquanto estiverem na sala.';
+    if(!list.children.length)list.textContent='As conversas privadas aparecem aqui.';
   }
-  const dmShortcut=document.createElement('button');dmShortcut.id='sidebar-dms';dmShortcut.className='friend-row';dmShortcut.innerHTML=`${icon('chat',20)}<span class="side-dm-label">Mensagens privadas</span><span class="dm-count hidden"></span>`;dmShortcut.onclick=()=>open('dm');$('#friends-list').before(dmShortcut);
   function dmModal(html,{onClose}={}){
     const el=document.createElement('section');el.className='dm-view';el.innerHTML=html;
     const host=$('.dm-view-host',dmHost);host.replaceChildren(el);dmHost.classList.add('has-conversation');open('dm');
@@ -119,7 +128,7 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   }
   // Side names remain discoverable when compact; never expand on hover.
   const titles=new MutationObserver(()=>{
-    $('#channels').querySelectorAll('.channel,.vu,.ou,.friend-row').forEach(el=>{el.title=el.textContent.trim();});
+    $('#channels').querySelectorAll('.channel,.vu,.ou').forEach(el=>{el.title=el.textContent.trim();});
   });titles.observe($('#channels'),{childList:true,subtree:true});
   function updateLive(tile,u,self,watching,people=[]){
     if(!tile.refreshFrame)installLiveFrame(tile);
