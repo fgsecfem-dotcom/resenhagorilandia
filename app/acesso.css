@@ -1,0 +1,8 @@
+/* Acessibilidade das superfícies compartilhadas. */
+/* Vídeo, papel claro ou quadro escuro: o texto é sempre claro sobre vidro fumê. */
+html[data-tk] #call .tile .label,
+html.glass.light[data-tk] #call .tile .label { background: rgba(12, 13, 17, .80) !important; color: #fff !important; }
+html[data-tk] #call .tile .label .uname { color: inherit; background: none; text-shadow: none; animation: none; }
+html[data-tk] #call .tile .label .uname::before,
+html[data-tk] #call .tile .label .uname::after { content: none; }
+html[data-tk] #call .tile .label .ic { color: #fca5a5; }
