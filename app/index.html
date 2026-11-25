@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="glass.css">
 <link rel="stylesheet" href="themes-pro.css">
+<link rel="stylesheet" href="nav.css">
 <link rel="stylesheet" href="music.css">
 <link rel="stylesheet" href="overlay-ui.css">
 <script src="boot.js"></script>
@@ -89,47 +90,25 @@
 
 <!-- App principal -->
 <div id="main" class="screen hidden">
-  <nav id="rail">
-    <div class="rail-item home" title="Início" id="rail-home"><img src="icon.png" alt=""></div>
-    <div class="rail-sep"></div>
-    <div class="rail-item active" id="rail-room" title=""></div>
-  </nav>
-
-  <aside id="sidebar">
-    <nav id="server-row" class="server-row hidden" aria-label="Seus servidores"></nav>
-    <div class="side-brand"><img src="icon.png" alt=""><div class="side-room"><header id="room-header" title="Opções da sala" role="button" tabindex="0" aria-haspopup="menu"><span id="room-name">Sala</span><span class="chev" aria-hidden="true">▾</span></header><small id="room-sub"></small></div></div>
-    <div class="side-actions">
-      <button class="code-chip hidden" id="btn-code" title="Copiar código da sala"></button>
-      <button class="btn primary" id="btn-invite" title="Convidar amigos"></button>
+  <aside id="sidebar" aria-label="Sala">
+    <div class="nsb-top">
+      <button id="room-header" class="nsb-room" title="Opções da sala" aria-haspopup="menu" aria-expanded="false"><span id="room-icon" aria-hidden="true"></span><b id="room-name">Sala</b><span class="nsb-chev" aria-hidden="true"></span></button>
+      <button class="nsb-ib" id="side-home" title="Início" aria-label="Início"></button>
     </div>
-    <div id="room-menu" class="dropdown hidden"></div>
+    <button class="nsb-row" id="btn-invite" title="Convidar amigos (Ctrl+I)"><span class="nsb-ic" aria-hidden="true"></span><span>Convidar</span><span class="n-code" id="btn-code" title="Copiar código da sala"></span></button>
+    <div id="room-menu" class="nmenu hidden" role="menu" aria-label="Opções da sala"></div>
     <div id="channels">
-      <div class="cat"><span>Voz</span><button class="cat-add" data-add="voice" title="Criar canal de voz" aria-label="Criar canal de voz"></button></div>
+      <div class="nsb-sec"><span>Voz</span><button class="cat-add" data-add="voice" title="Criar canal de voz" aria-label="Criar canal de voz"></button></div>
       <div id="voice-channels"></div>
-      <div class="cat"><span>Texto</span><button class="cat-add" data-add="text" title="Criar canal de texto" aria-label="Criar canal de texto"></button></div>
+      <div class="nsb-sec"><span>Texto</span><button class="cat-add" data-add="text" title="Criar canal de texto" aria-label="Criar canal de texto"></button></div>
       <div id="text-channels"></div>
-      <div class="cat" id="online-cat">Na sala</div>
+      <div class="nsb-sec" id="online-cat">Na sala</div>
       <div id="online-users"></div>
-      <div class="cat">Amigos e conversas</div><div id="friends-list" class="friends-list"></div>
+      <div class="nsb-sec">Amigos e conversas</div><div id="friends-list" class="friends-list"></div>
     </div>
-
-    <div id="voice-panel" class="hidden">
-      <div class="vp-top">
-        <div class="vp-status"><span id="vp-signal"></span><div><div id="vp-title" class="good">Voz conectada</div><div id="vp-sub">Lobby</div></div></div>
-        <button class="icon-btn" id="vp-leave" title="Desconectar"></button>
-      </div>
-      <div class="vp-buttons">
-        <button class="vp-btn" id="vp-share" title="Compartilhar tela"></button>
-        <button class="vp-btn" id="vp-dj" title="DJ Resenha"></button>
-        <button class="vp-btn" id="vp-invite" title="Convidar"></button>
-      </div>
-    </div>
-
-    <div id="user-panel">
-      <div class="up-user" id="up-user"><div class="avatar" id="up-avatar"></div><div class="up-names"><div id="up-name"></div><div id="up-sub">Online</div></div></div>
-      <button class="icon-btn" id="btn-mute" title="Mutar microfone (clique direito: escolher microfone)"></button>
-      <button class="icon-btn" id="btn-deafen" title="Mutar som e microfone (clique direito: escolher saída)"></button>
-      <button class="icon-btn" id="btn-settings" title="Configurações"></button>
+    <div id="user-panel" class="nsb-me">
+      <div class="up-user" id="up-user" role="button" tabindex="0" title="Seu perfil"><div class="avatar" id="up-avatar"></div><div class="up-names"><div id="up-name"></div><div id="up-sub"><span id="vp-signal" aria-hidden="true"></span><span id="vp-title">Online</span></div></div></div>
+      <button class="nsb-ib" id="btn-settings" title="Configurações (Ctrl+,)" aria-label="Configurações"></button>
     </div>
   </aside>
 

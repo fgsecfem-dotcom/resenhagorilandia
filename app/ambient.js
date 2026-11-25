@@ -3,7 +3,7 @@
 // Barato de propósito: desenha a fonte num canvas de 16x9 duas vezes por segundo e o CSS só amplia (sem blur ao vivo).
 (() => {
   const W = 16, H = 9, TICK = 500, MIX = 0.22; // MIX: quanto de cada leitura nova entra (a troca de cor leva ~2 s)
-  const THEMES = /^(system|arcDark|vidro)$/;
+  const THEMES = /^vidro$/;
   let canvas = null, ctx = null, timer = 0, lit = false;
 
   // Quem ilumina a sala agora (o primeiro que tiver imagem pronta).

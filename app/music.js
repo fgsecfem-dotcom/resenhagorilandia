@@ -140,7 +140,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
 
   function mount() {
     if (st.els) return;
-    const nav = $('#chat .right-nav'), chat = $('#chat'), side = $('#sidebar'), vp = $('#voice-panel');
+    const nav = $('#chat .right-nav'), chat = $('#chat'), side = $('#sidebar');
     if (!nav || !chat || !side) return;
     const tab = document.createElement('button'); tab.dataset.right = 'music'; tab.setAttribute('aria-pressed', 'false'); tab.className = 'mu-tab';
     tab.title = 'Música (Spotify)'; tab.setAttribute('aria-label', 'Música (Spotify)');
@@ -183,7 +183,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     const mini = document.createElement('div'); mini.id = 'music-mini';
     mini.innerHTML = `<div class="mu-ambient" aria-hidden="true"></div><button class="mm-open" title="Abrir o player"><img class="mu-cover" alt=""><span class="mm-text"><b class="mu-title"></b><span class="mu-artist"></span></span><i class="mm-eq" aria-hidden="true"><b></b><b></b><b></b></i></button>
       <button class="icon-btn mm-play" aria-label="Tocar"></button><button class="icon-btn mu-next" title="Próxima" aria-label="Próxima">${icon('skip', 16)}</button><i class="mm-bar" aria-hidden="true"></i>`;
-    side.insertBefore(mini, vp || $('#user-panel'));
+    side.insertBefore(mini, $('#user-panel'));
     st.els = { tab, panel, mini };
     const toggle = () => { if (jamAsk(st.state?.paused ? 'resume' : 'pause')) return; st.player ? st.player.togglePlay() : roomUI?.open('music'); };
     $('.mu-play', panel).onclick = toggle; $('.mm-play', mini).onclick = toggle;

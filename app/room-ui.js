@@ -55,7 +55,7 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   chat.append(dmHost);
   const sidebarButton = document.createElement('button'); sidebarButton.id = 'sidebar-toggle'; sidebarButton.className = 'icon-btn';
   sidebarButton.setAttribute('aria-controls','channels'); sidebarButton.setAttribute('aria-expanded','true'); sidebarButton.setAttribute('aria-label','Recolher canais e pessoas'); sidebarButton.title='Recolher canais e pessoas'; sidebarButton.textContent='‹';
-  $('.side-brand').append(sidebarButton);
+  $('.nsb-top').append(sidebarButton);
   sidebarButton.onclick=()=>{
     const compact=main.dataset.sidebarCompact!=='true'; main.dataset.sidebarCompact=String(compact);
     sidebarButton.setAttribute('aria-expanded',String(!compact));sidebarButton.setAttribute('aria-label',compact?'Expandir canais e pessoas':'Recolher canais e pessoas');sidebarButton.title=sidebarButton.getAttribute('aria-label');sidebarButton.textContent=compact?'›':'‹';onResize();

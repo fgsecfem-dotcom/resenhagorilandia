@@ -27,6 +27,6 @@ assert.ok(W * H <= 16 * 9 && TICK >= 500, 'leitura minúscula e no máximo 2 vez
 assert.ok(!/#ambient[^{]*\{[^}]*filter:[^;}]*blur/.test(pro), 'sem blur ao vivo no fundo vivo');
 assert.match(pro, /#ambient\.lit \{ opacity: 1; \}/);
 assert.match(html, /<script src="ambient\.js"><\/script>/);
-assert.match(code, /THEMES = \/\^\(system\|arcDark\|vidro\)\$\//, 'só no Líquido escuro (padrão)');
+assert.match(code, /THEMES = \/\^vidro\$\//, 'só no tema Vidro');
 assert.match(code, /document\.hidden/, 'pausa com a janela escondida');
 console.log('PASS: fundo vivo é leve, só no padrão e pausa escondido');

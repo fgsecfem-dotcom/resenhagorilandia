@@ -115,19 +115,8 @@ html #chat .right-music .mu-searchbox .mu-search, html #chat .right-music .mu-se
 #main[data-sidebar-compact=true] #music-mini .mm-open { flex: none; }
 
 /* ---------- Personalidade por tema ---------- */
-html:is([data-tk="system"], [data-tk="arcDark"], [data-tk="arcLight"], [data-tk="vidro"], [data-tk="holofoil"]) { --mu-ambient: .18; --mu-glow: .18; }
-html.light:is([data-tk="system"], [data-tk="arcLight"]) { --mu-ambient: .22; }
-html:is([data-tk="vision"], [data-tk="visionNoite"]) { --mu-ambient: .30; --mu-glow: .2; --mu-r: 22px; --mu-cover-r: 22px; --mu-ink: #2a3236; }
-html:is([data-tk="vision"], [data-tk="visionNoite"]) #music-mini .mu-cover { border-radius: 50%; }
-html[data-tk="cosmos"] { --mu-ambient: .38; --mu-glow: .3; --mu-cover-r: 26px; --mu-ink: #0b1430; }
-html[data-tk="cosmos"] .right-music .mu-cover { box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 18px 50px -10px color-mix(in srgb, var(--hl) 50%, transparent); }
-html[data-tk="neon"] { --mu-ambient: .34; --mu-glow: .4; --mu-r: 12px; --mu-cover-r: 12px; --mu-play-r: 12px; --mu-ink: #fff; }
-html[data-tk="brasa"] { --mu-ambient: .42; --mu-glow: .3; --mu-cover-r: 18px; --mu-play-r: 999px; --mu-ink: #06231b; }
-html[data-tk="brasa"] .mu-play { width: 72px; }
-html[data-tk="bento"] { --mu-ambient: 0; --mu-glow: 0; --mu-r: 16px; --mu-cover-r: 14px; --mu-fill: #1f3a5f; --mu-ink: #f4efe6; --mu-track: rgba(29,39,51,.12); }
-html[data-tk="bento"] .right-music .mu-cover { box-shadow: 0 0 0 1px rgba(29,39,51,.08), 0 12px 24px -12px rgba(70,55,30,.5); }
-html[data-tk="cinema"] { --mu-ambient: .40; --mu-glow: .45; --mu-cover-r: 14px; --mu-ink: #fff; }
-html[data-tk="cinema"] .right-music.playing .mu-cover { box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 22px 60px -12px rgba(255,40,55,.55); }
+html:is([data-tk="resenha"], [data-tk="vidro"]) { --mu-ambient: .18; --mu-glow: .18; }
+html.light[data-tk="resenha"] { --mu-ambient: .22; }
 
 /* Movimento reduzido: sem molas nem inclinação */
 html.reduce-motion :is(.right-music .mu-cover, .mu-play, .mu-vol, .mu-vol-fill, .mu-bar, .mu-knob, .mu-item, .mu-results) { transition: none !important; animation: none !important; rotate: none !important; }
@@ -171,26 +160,13 @@ html.reduce-motion :is(#mu-invite, .mu-jam-pick) { animation: none !important; }
 .mu-tab:not([aria-pressed="true"]) .sp-logo { opacity: .82; }
 .mu-tab[aria-pressed="true"] .sp-logo .sp-spark { opacity: .9; }
 /* Vision · Cosmos · Neon: vidro iridescente (cores de cada tema) */
-html:is([data-tk="vision"], [data-tk="visionNoite"], [data-tk="cosmos"], [data-tk="neon"]) .sp-logo .sp-c { fill: url(#sp-glass); stroke: url(#sp-iri); stroke-width: 1.3; }
-html:is([data-tk="vision"], [data-tk="visionNoite"], [data-tk="cosmos"], [data-tk="neon"]) .sp-logo .sp-a { stroke: url(#sp-iri); }
-html[data-tk="cosmos"] .sp-logo { --sp-i1: #9db7ff; --sp-i2: #cfe0ff; --sp-i3: #6f8cff; --sp-i4: #b9a3ff; }
-html[data-tk="neon"] .sp-logo { --sp-i1: #8f7dff; --sp-i2: #55c1ff; --sp-i3: #c37dff; --sp-i4: #6b5cff; }
-html[data-tk="neon"] .mu-tab[aria-pressed="true"] .sp-logo { filter: drop-shadow(0 0 6px rgba(143,125,255,.7)); }
 /* Brasa: verde com textura de pintura */
-html[data-tk="brasa"] .sp-logo .sp-c { fill: url(#sp-paint); stroke: none; filter: url(#sp-brush); }
-html[data-tk="brasa"] .sp-logo .sp-a { stroke: #140b07; }
 /* Cinema: globo espelhado verde com brilho */
-html[data-tk="cinema"] .sp-logo .sp-c { fill: url(#sp-disco); stroke: rgba(255,255,255,.35); stroke-width: .4; }
-html[data-tk="cinema"] .sp-logo .sp-a { stroke: #050303; stroke-width: 2; }
-html[data-tk="cinema"] .sp-logo .sp-spark { opacity: .95; animation: sp-twinkle 2.4s ease-in-out infinite; }
 @keyframes sp-twinkle { 50% { opacity: .2; transform: scale(.7); transform-origin: 19.6px 4.85px; } }
 /* Bento: traço chapado em azul-ardósia */
-html[data-tk="bento"] .sp-logo .sp-c { fill: #1f3a5f; stroke: none; }
-html[data-tk="bento"] .sp-logo .sp-a { stroke: #f4efe6; }
-html[data-tk="bento"] .mu-tab:not([aria-pressed="true"]) .sp-logo { filter: opacity(.6); }
 /* Tema claro do padrão */
-html.light:is([data-tk="system"], [data-tk="arcLight"]) .sp-logo .sp-c { fill: #111; stroke: none; }
-html.light:is([data-tk="system"], [data-tk="arcLight"]) .sp-logo .sp-a { stroke: #fff; }
+html.light[data-tk="resenha"] .sp-logo .sp-c { fill: var(--c30); stroke: none; }
+html.light[data-tk="resenha"] .sp-logo .sp-a { stroke: var(--c60); }
 html.reduce-motion .sp-logo .sp-spark { animation: none !important; }
 /* 2.2: subabas Tocando | Playlists (traço embaixo, igual às abas dos temas) e lista de playlists */
 .mu-views { display: flex; gap: 20px; padding: 0 4px; margin-top: -2px; box-shadow: inset 0 -1px 0 var(--g-edge, var(--line)); flex: none; }

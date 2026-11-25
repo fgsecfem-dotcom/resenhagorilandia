@@ -3,17 +3,27 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const props = {}, classes = {};
 const appearance = { matches: false, addEventListener: (_, fn) => { appearance.change = fn; } };
-const ctx = vm.createContext({ window: {}, matchMedia: () => appearance, document: { documentElement: { style: { setProperty: (k,v) => props[k]=v }, classList: { toggle: (k,v) => classes[k]=v } } } });
+const ctx = vm.createContext({ window: {}, matchMedia: () => appearance, document: { documentElement: { dataset: {}, style: { setProperty: (k,v) => props[k]=v }, classList: { toggle: (k,v) => classes[k]=v } } } });
 vm.runInContext(fs.readFileSync(require.resolve('../app/themes.js'),'utf8'),ctx);
-ctx.window.applyTheme('system'); assert.equal(classes.light, true); assert.equal(props['--bg-main'], '#ffffff');
-appearance.matches=true;appearance.change();assert.equal(classes.light,false);assert.equal(props['--bg-main'],'#0e0e10');
-ctx.window.applyTheme('arcLight');appearance.change();assert.equal(classes.light,true,'manual override stays light');
-for(const key of Object.keys(ctx.window.PALETTES)) {
- ctx.window.applyTheme('system',key);const lightAccent=props['--blurple'];
- appearance.matches=true;appearance.change();assert.equal(classes.light,false);assert.ok(props['--tone-lilac']);
- appearance.matches=false;appearance.change();assert.equal(classes.light,true);assert.ok(props['--blurple']);
+const W = ctx.window;
+// Seis temas, nessa ordem; todo tema antigo cai num deles.
+assert.deepEqual([...W.VISIBLE_THEMES], ['resenha','vidro','sintonia','ape','caderno','mergulho']);
+for (const k of W.VISIBLE_THEMES) assert.ok(W.THEMES[k], 'tema existe: ' + k);
+for (const [old, now] of Object.entries(W.RETIRED_THEMES)) { assert.ok(W.VISIBLE_THEMES.includes(now), old + ' vai para um tema visível'); assert.ok(!W.VISIBLE_THEMES.includes(old)); }
+for (const [old, p] of Object.entries(W.RETIRED_PALETTES)) assert.ok(W.RESENHA_PALETTES[p], 'paleta de ' + old + ' existe');
+// Automático segue o Windows ao vivo (Lona no claro, Pipoca no escuro); paleta escolhida fica.
+W.applyTheme('resenha','auto'); assert.equal(classes.light, true); assert.equal(props['--bg-main'], '#f3eee6');
+appearance.matches=true;appearance.change();assert.equal(classes.light,false);assert.equal(props['--bg-main'],'#17161a');
+W.applyTheme('resenha','gelo');appearance.matches=false;appearance.change();assert.equal(props['--bg-main'],'#eef1f4','paleta escolhida não muda com o Windows');
+W.applyTheme('arcLight','auto'); assert.equal(ctx.document.documentElement.dataset.tk, 'resenha', 'tema antigo vira Resenha');
+// Contraste: texto, secundário, texto no destaque e destaque em texto passam de 4,5:1 em todas as paletas e temas.
+const C = W.colorContrast;
+const all = [...Object.keys(W.RESENHA_PALETTES).map((k) => [k, W.resenhaTokens(k)]), ...W.VISIBLE_THEMES.filter((k) => W.THEMES[k].c).map((k) => [k, W.themePreview(k)])];
+for (const [k, v] of all) {
+ for (const [fg, bg] of [['text','bg-main'],['muted','bg-main'],['muted2','bg-main'],['on-accent','accent'],['link','bg-main']]) assert.ok(C(v[fg], v[bg]) >= 4.5, `${k}: ${fg} sobre ${bg} = ${C(v[fg], v[bg]).toFixed(2)}`);
+ if (v['side-text']) { assert.ok(C(v['side-text'], v.c30) >= 4.5); assert.ok(C(v['side-muted'], v.c30) >= 4.5, k + ' lateral'); }
 }
-console.log('PASS: system theme reacts live and preserves manual override');
+console.log('PASS: seis temas, migração dos antigos, Automático ao vivo e contraste das paletas');
 
 // Janela escondida: as animações decorativas pausam (sem mudar o visual com a janela em uso).
 {
