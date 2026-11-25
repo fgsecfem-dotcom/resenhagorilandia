@@ -11,3 +11,11 @@ html[data-tk] #call .tile .label .ic { color: #fca5a5; }
 html[data-tk] :is(.btn.primary, #home .btn.primary, #update-bar .small-btn.primary, #pwa-update, #composer .send-btn, .dm-compose .send-btn):not(.right-music *, .mu-guide *) { color: var(--on-primary) !important; }
 html[data-tk] :is(.btn.primary:hover, #home .btn.primary:hover, #update-bar .small-btn.primary:hover):not(.right-music *, .mu-guide *) { color: var(--on-primary-hover) !important; background: var(--blurple-h); }
 html[data-tk="vidro"] #composer .send-btn { color: var(--on-accent) !important; }
+
+/* A cor do anel é validada sobre as superfícies de cada área. */
+#sidebar { --speak: var(--side-speak, var(--green)); }
+html.glass #chat .msg.mine .text, html.glass #chat .msg.mine .text a { color: var(--on-primary); }
+
+.sn .sn-seat-name { background: var(--sn-blue-deep); border-radius: 3px; padding-inline: 4px; }
+.mg .mg-person-name { color: var(--mg-name, inherit); }
+.mg .mg-bar.is-speaking .mg-person-name { color: var(--mg-name-speaking, inherit); }

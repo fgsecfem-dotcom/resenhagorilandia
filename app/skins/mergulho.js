@@ -149,6 +149,10 @@
       if (!face) { text(seal, status); text(name, user.name); text(ping, hasPing ? `${Math.round(user.ping)} ms` : '—'); }
       el.classList.toggle('is-live', !!user.sharing);
       el.classList.toggle('is-muted', !!(user.muted || user.deafened));
+      if (name) {
+        name.style.setProperty('--mg-name', window.readableColor?.(user.nameColor || user.color, ['#0a0a0c', '#202127']) || '');
+        name.style.setProperty('--mg-name-speaking', window.readableColor?.(user.nameColor || user.color, '#fbfcff') || '');
+      }
       el.classList.toggle('is-speaking', speakingIds.has(user.id));
     }
     function setBig(on) {
@@ -247,6 +251,7 @@
       avatar(record.av, msg.name, msg.color || user?.color, user?.avatar);
       const ts = msg.ts ? new Date(msg.ts) : null;
       text(record.author, msg.system ? 'Sistema' : msg.name);
+      record.author.style.color = msg.system ? '' : window.readableColor?.(msg.nameColor || msg.color, '#0a0a0c') || '';
       text(record.stamp, ts && Number.isFinite(ts.getTime()) ? clock.format(ts) : '');
       text(record.badge, msg.bot ? 'DJ' : msg.me ? 'Você' : '');
       show(record.badge, msg.bot || msg.me);

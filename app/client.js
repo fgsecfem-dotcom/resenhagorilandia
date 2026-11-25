@@ -741,6 +741,11 @@ const MAX_BANNER = 8 * 1024 * 1024;
 const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: me.nameFx || '', bannerColor: me.bannerColor || '' });
 // Nome com cor e efeito do perfil (2.1.5): aparece na lista da esquerda, na call, no chat e no cartão.
 const NAME_FX = { '': 'Nenhum', holo: 'Holográfico', rainbow: 'Arco-íris', neon: 'Neon', ouro: 'Ouro', fogo: 'Fogo', gelo: 'Gelo', glitch: 'Glitch' };
+function personInk(color, surface = '') {
+  if (!/^#[0-9a-f]{6}$/i.test(color || '')) return '';
+  return `data-person-color="${color}"${surface ? ` data-person-surface="${surface}"` : ''} style="color:${window.readableColor(color, surface)}"`;
+}
+const listName = (u) => `<span ${personInk(u.nameColor || u.color, 'sidebar')}>${esc(u.name)}</span>`;
 function nameHTML(u, text = u?.name) {
   const fx = u?.nameFx && NAME_FX[u.nameFx] ? u.nameFx : '', c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
   if (!fx && !c) return esc(text);
@@ -1027,7 +1032,7 @@ function renderChannels() {
     const us = usersIn(c.id), live = us.some((u) => u.sharing);
     const since = us.filter((u) => u.voiceSince).map((u) => u.voiceSince);
     return `<div class="channel voice nsb-ch ${V.joined && V.channel === c.id ? 'connected' : ''} ${live ? 'is-live' : ''}" draggable="true" data-vch="${esc(c.id)}">${icon('volume', 16)}<span class="cn">${esc(c.name)}</span><span class="timer" data-since="${since.length ? Math.min(...since) : ''}"></span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>
-      ${us.length ? `<div class="voice-users nsb-who">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>` : ''}`;
+      ${us.length ? `<div class="voice-users nsb-who">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${listName(u)}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>` : ''}`;
   }).join('');
   tickTimers();
 }
@@ -1038,7 +1043,7 @@ function renderSidebar() {
   $('#online-cat').textContent = `Fora da call · ${others.length}`;
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${listName(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
   if (!V.joined) setConnStatus('idle', 'Online');
@@ -1292,7 +1297,7 @@ function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); ren
 // O client entrega um retrato da sala (skinModel) e as ações (skinActions); o tema nunca mexe em S/V nem no DOM do app.
 // A live chega como MediaStream: o tema cria o próprio <video muted> e respeita a proporção real (videoWidth/videoHeight).
 function skinUser(u) {
-  return { id: u.id, name: u.name, color: u.color || '#5865f2', avatar: u.avatar || '', me: u.id === S.myId, host: !!u.isHost, bot: u.id === DJ_ID,
+  return { id: u.id, name: u.name, color: u.color || '#5865f2', nameColor: u.nameColor || u.color, avatar: u.avatar || '', me: u.id === S.myId, host: !!u.isHost, bot: u.id === DJ_ID,
     speaking: isSpeaking(u.id), muted: !!(u.muted || u.deafened), deafened: !!u.deafened, sharing: !!u.sharing, voice: u.voiceChannel || null };
 }
 function skinModel() {
@@ -1311,7 +1316,7 @@ function skinModel() {
     call: { joined: V.joined, channel: V.channel, muted: V.muted || V.deafened, deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
-      messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
+      messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, nameColor: S.users.get(m.userId)?.nameColor || m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
     reduceMotion: document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
   };
 }
@@ -1340,6 +1345,10 @@ function syncSkinSpeaking() {
   if (sig !== skinSpeakSig) { skinSpeakSig = sig; window.ResenhaSkins.speaking(new Set(ids)); }
 }
 addEventListener('resenha-theme', () => syncSkin());
+// Atualiza as cores sem reconstruir mensagens nem interromper o foco.
+addEventListener('resenha-theme', () => {
+  for (const el of $$('[data-person-color]')) el.style.color = window.readableColor(el.dataset.personColor, el.dataset.personSurface);
+});
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
@@ -2475,9 +2484,9 @@ function msgHTML(m, prev) {
   const edited = m.editedAt ? '<span class="edited" title="' + esc(fmtTime(m.editedAt)) + '">(editado)</span>' : '';
   const body = `${m.text ? `<div class="text">${linkify(m.text, m.mentions)}${edited}</div>` : ''}${m.attachments && m.attachments.length ? `<div class="atts">${m.attachments.map(attHTML).join('')}</div>` : ''}`;
   const cls = `msg ${mine ? 'mine' : ''} ${mentionsMe(m) ? 'mentioned' : ''} ${m.bot ? 'bot' : ''}`;
-  const reply = m.replyTo ? `<div class="reply-ref" data-jump="${esc(m.replyTo.id)}">${icon('reply', 14)}<b style="color:${esc(m.replyTo.color)}">@${esc(m.replyTo.name)}</b><span>${esc(m.replyTo.text)}</span></div>` : '';
+  const reply = m.replyTo ? `<div class="reply-ref" data-jump="${esc(m.replyTo.id)}">${icon('reply', 14)}<b ${personInk(m.replyTo.color)}>@${esc(m.replyTo.name)}</b><span>${esc(m.replyTo.text)}</span></div>` : '';
   if (grouped) return `<div class="${cls}" data-id="${esc(m.id)}"><span class="hover-time">${new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>${body}${tools}</div>`;
-  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" style="color:${esc(m.color)}">${m.bot ? esc(m.name) : nameHTML({ ...(S.users.get(m.userId) || {}), name: m.name })}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
+  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" ${personInk(u.nameColor || m.color)}>${esc(m.name)}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
 }
 function renderMessages(keepScroll) {
   renderChatHeader();
@@ -2531,7 +2540,7 @@ async function deleteMsg(m) {
 }
 function startReply(m) {
   S.replyTo = m;
-  $('#reply-bar').innerHTML = `<span>Respondendo a <b style="color:${esc(m.color)}">${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x">${icon('x', 16)}</button>`;
+  $('#reply-bar').innerHTML = `<span>Respondendo a <b ${personInk(m.color)}>${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x">${icon('x', 16)}</button>`;
   $('#reply-bar').classList.remove('hidden');
   $('#reply-x').onclick = cancelReply;
   $('#input').focus();

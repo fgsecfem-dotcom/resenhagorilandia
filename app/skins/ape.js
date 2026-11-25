@@ -951,10 +951,10 @@
       }
       for (const [id, el] of textNodes) if (!keep.has(id)) { el.remove(); textNodes.delete(id); }
       btn.chat.classList.toggle('ap-unread', text.some(ch => ch.unread));
-      const waiting = lobby.flatMap(u => [u.id, u.name, u.color, u.avatar]);
+      const waiting = lobby.flatMap(u => [u.id, u.name, u.color, u.nameColor, u.avatar]);
       if (!sameFields(lobbyKey, waiting)) {
         lobbyKey = waiting; ui.lobby.hidden = !lobby.length;
-        ui['lobby-people'].innerHTML = lobby.map(u => `<button type="button" class="ap-lobby-user" data-uid="${e(u.id)}" title="${e(u.name)}" aria-label="Opções de ${e(u.name)}">${avatar(u)}<span>${e(u.name)}</span></button>`).join('');
+        ui['lobby-people'].innerHTML = lobby.map(u => `<button type="button" class="ap-lobby-user" data-uid="${e(u.id)}" title="${e(u.name)}" aria-label="Opções de ${e(u.name)}">${avatar(u)}<span style="color:${e(window.readableColor?.(u.nameColor || u.color, ['#0b0638', '#33256a']) || '')}">${e(u.name)}</span></button>`).join('');
       }
       const pf = [me?.name, me?.color, me?.avatar];
       if (!sameFields(profileKey, pf)) { profileKey = pf; ui['profile-face'].innerHTML = avatar(me); }
@@ -1081,6 +1081,7 @@
           const el = document.createElement('article'); el.className = `ap-message${m.system ? ' ap-system' : m.me ? ' ap-mine' : ''}`;
           el.innerHTML = '<strong></strong><div class="ap-message-text"></div>';
           setText(el.firstElementChild, m.system ? 'Sala' : m.me ? 'Você' : m.name || (m.bot ? 'DJ' : 'Alguém'));
+           if (!m.system) el.firstElementChild.style.color = window.readableColor?.(m.nameColor || m.color, ['#282053', '#352867']) || '';
           setText(el.lastElementChild, [m.text, m.files ? `📎 ${m.files} ${m.files === 1 ? 'anexo' : 'anexos'}` : ''].filter(Boolean).join('\n'));
           return el;
         });

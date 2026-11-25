@@ -282,6 +282,7 @@
       const sharing = u.sharing || model.live.some(l => l.uid === u.id);
       paintAvatar(el.firstElementChild, u.name, u.color, u.avatar);
       text(el.querySelector('b'), u.name);
+      el.querySelector('b').style.color = window.readableColor?.(u.nameColor || u.color, '#00477e') || '';
       hide(el.querySelector('.sn-seat-muted'), !u.muted || u.deafened);
       hide(el.querySelector('.sn-seat-deaf'), !u.deafened);
       hide(el.querySelector('.sn-seat-bot'), !u.bot);
@@ -396,6 +397,7 @@
       const user = state.users.get(m.uid);
       paintAvatar(el.firstElementChild, m.name, m.color || user?.color, user?.avatar);
       text(el.querySelector('b'), m.system ? 'Sala' : m.name || 'Participante');
+      el.querySelector('b').style.color = m.system ? '' : window.readableColor?.(m.nameColor || m.color, m.me ? '#cdd9f7' : '#17151a') || '';
       text(el.querySelector('time'), time(m.ts));
       hide(el.querySelector('p'), !m.text);
       text(el.querySelector('p'), m.text);

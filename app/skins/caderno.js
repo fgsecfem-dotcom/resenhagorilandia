@@ -226,6 +226,8 @@
     const role = u.deafened ? 'sem áudio' : u.muted ? 'mudo' : u.sharing ? 'transmitindo' : u.me ? 'você' : u.bot ? 'DJ' : u.voice ? 'ouvindo' : u.host ? 'anfitrião' : 'na sala';
     const color = CSS.supports('color',u.color || '') ? u.color : BLUE;
     if (r.color !== color) { r.color = color; r.el.style.setProperty('--cd-person',color); }
+    r.name.style.color = window.readableColor?.(u.nameColor || u.color, ['#efe6d2', '#d5c5ad']) || '';
+    r.el.style.setProperty('--cd-person-ink', window.readableColor?.(color, '#f7f0e0') || '#2b211b');
     txt(r.name,u.name); txt(r.say,u.name); txt(r.letter,first(u.name).toLocaleUpperCase('pt-BR')); txt(r.role,role); image(r.img,u.avatar);
     const state = u.deafened ? 'headphonesOff' : u.muted ? 'micOff' : u.sharing ? 'screen' : u.host ? 'crown' : '';
     hide(r.state,!state); if (state) glyph(r.state,state,14);
@@ -349,6 +351,7 @@
       const t = new Date(m.ts), valid = Number.isFinite(t.getTime());
       txt(r.time,valid ? hour.format(t) : ''); if (valid) attr(r.time,'datetime',t.toISOString());
       if (marked && valid && r.handEl.title !== r.time.textContent) r.handEl.title = r.time.textContent;
+      r.who.style.color = m.system ? '' : window.readableColor?.(m.nameColor || m.color, ['#f8f1e1', '#ecdcc6']) || '';
       txt(r.who,m.name || ''); ink(r.body,m.text,fresh && s.open && freshIds.has(m.id) && !m.system);
       hide(r.file,!m.files); txt(r.file,m.files ? `◇ ${fileLabel(m.files)}` : ''); previous = m;
     });

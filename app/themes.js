@@ -26,6 +26,7 @@ function mix(a, b, t) { // t = quanto de b; interpolação em OKLab, sem passar 
 }
 const lum = (h) => { const [r, g, b] = hex2rgb(h).map(toLin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const tint = (bg, fg, alpha) => '#' + hex2rgb(bg).map((c, i) => Math.round(255 * (c * (1 - alpha) + hex2rgb(fg)[i] * alpha)).toString(16).padStart(2, '0')).join('');
 const rgba = (h, a) => `rgba(${hex2rgb(h).map((v) => Math.round(v * 255)).join(',')},${a})`;
 // aproxima fg de toward até passar do contraste mínimo contra todos os fundos dados
 const readable = (fg, bgs, min, toward) => { bgs = [].concat(bgs); let c = fg, i = 0; while (Math.min(...bgs.map((b) => contrast(c, b))) < min && i++ < 40) c = mix(c, toward, 0.06); return c; };
@@ -88,7 +89,9 @@ function paletteTokens([c60, c30, c10], dark) {
   { const fb = [c60, v['bg-panel'], v['bg-input'], v['bg-float']];
     v.focus = dark ? readable(c10, fb, 3, '#ffffff') : c30; v['focus-inv'] = dark ? v.focus : c60;
     // anel de quem fala: acompanha a paleta se o destaque dá 3:1; senão fica no verde
-    v.speak = worst(c10, fb) >= 3 ? c10 : (dark ? '#3ecf7a' : '#15803d'); }
+    v.speak = worst(c10, fb) >= 3 ? c10 : readableHue('#3ecf7a', fb, 3);
+    const side = dark ? [v['bg-side'], v.hover, v.active] : [c30, v['side-hover'], v['side-active']];
+    v['side-speak'] = worst(c10, side) >= 3 ? c10 : readableHue('#3ecf7a', side, 3); }
   v.green = dark ? '#3ecf7a' : '#15803d'; v.red = dark ? '#ff5d55' : '#d92d20'; v.yellow = dark ? '#fbbf24' : '#946200';
   v['g-fill'] = rgba(c30, 0.05); v['g-fill-2'] = rgba(c30, 0.07); v['g-fill-h'] = rgba(c30, 0.1); v['g-edge'] = rgba(c30, 0.1);
   v['tone-lilac'] = v.active; v['tone-peach'] = v.hover; v['tone-mint'] = v.hover; v['tone-butter'] = v.hover;
@@ -103,7 +106,7 @@ const VIDRO = { 'bg-rail': '#0a0a0b', 'bg-side': '#0e0e10', 'bg-main': '#0e0e10'
   text: '#ededee', 'text-hi': '#ffffff', muted: '#a1a1a6', muted2: '#a1a1a6', icon: '#c6c6cb', link: '#ff9a57', accent: '#ffffff', 'on-accent': '#111111',
   c60: '#0e0e10', c30: '#ededee', ink30: '#0e0e10',
   blurple: '#3d3d41', 'blurple-h': '#4a4a4f', 'on-primary': inkOn('#3d3d41'), 'on-primary-hover': inkOn('#4a4a4f'), 'accent-soft': 'rgba(255,255,255,.08)', btn: '#151517', 'btn-h': '#232326',
-  focus: '#ff9a57', 'focus-inv': '#ff9a57', speak: '#3ecf7a', green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
+  focus: '#ff9a57', 'focus-inv': '#ff9a57', speak: '#ffffff', 'side-speak': '#ffffff', green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
   'g-fill': 'rgba(255,255,255,.045)', 'g-fill-2': 'rgba(255,255,255,.065)', 'g-fill-h': 'rgba(255,255,255,.10)', 'g-edge': 'rgba(255,255,255,.09)' };
 
 // Os temas alternativos usam o mesmo gerador para o que continua comum (menus, Configurações, avisos);
@@ -159,9 +162,13 @@ window.themePreview = (key, palette) => themeFor(key, palette).vars;
 window.readableColor = (hex, bg) => {
   if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex;
   const v = activeVars || themeFor(activeTheme, activePalette).vars;
-  const bgs = bg ? [].concat(bg) : [v['bg-main'], v['bg-panel'], v['bg-side'], v['bg-input'], v['bg-float']].filter(Boolean);
+  const bgs = bg === 'sidebar' ? (v['side-text'] ? [v.c30, v['side-hover'], v['side-active']] : [v['bg-side'], v.hover, v.active])
+    : bg ? [].concat(bg) : [v['bg-main'], v['bg-panel'], v['bg-input'], v['bg-float'], v.active, tint(v['bg-main'], '#f0b232', .15)];
   const k = hex.toLowerCase() + '|' + bgs.join(',');
-  if (!nameCache.has(k)) nameCache.set(k, readableHue(hex.toLowerCase(), bgs, 4.5));
+  if (!nameCache.has(k)) {
+    if (nameCache.size >= 512) nameCache.clear();
+    nameCache.set(k, readableHue(hex.toLowerCase(), bgs, 4.5));
+  }
   return nameCache.get(k);
 };
 // Cor da inicial dentro de um avatar de cor `hex`: branca ou escura, a que tiver mais contraste.

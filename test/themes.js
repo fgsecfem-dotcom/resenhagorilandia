@@ -50,3 +50,14 @@ for (const [key, v] of [...all, ['vidro', W.themePreview('vidro')]]) {
 for (const c of ['#67b9a0', '#fee75c', '#ff6420', '#a535f5', '#00868a', '#0e0e10']) {
   assert.ok(C(W.avatarInk(c), c) >= 4.5, `Inicial em ${c}`);
 }
+
+// A lateral clara tem fundo de tinta escura, enquanto o chat tem fundo de papel.
+for (const [key, v] of [...all, ['vidro', W.themePreview('vidro')]]) {
+  W.applyTheme(W.THEMES[key] ? key : 'resenha', key);
+  const side = v['side-text'] ? [v.c30, v['side-hover'], v['side-active']] : [v['bg-side'], v.hover, v.active];
+  for (const c of ['#fee75c', '#57f287', '#5865f2', '#ff6420', '#321432', '#ffffff', '#000000']) {
+    for (const bg of side) assert.ok(C(W.readableColor(c, 'sidebar'), bg) >= 4.5, `${key}: ${c} na lista`);
+    for (const bg of [v['bg-main'], v['bg-panel'], v['bg-input'], v['bg-float'], v.active]) assert.ok(C(W.readableColor(c), bg) >= 4.5, `${key}: ${c} no chat`);
+  }
+  for (const bg of side) assert.ok(C(v['side-speak'], bg) >= 3, `${key}: anel na lista`);
+}

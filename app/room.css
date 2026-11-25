@@ -65,10 +65,10 @@
 #sidebar .voice-users { margin: 2px 0 6px 22px; padding: 0 0 0 10px; border-left: 1px solid var(--line); }
 #sidebar .vu, #sidebar .ou { padding: 5px 4px; font-size: 13px; border-radius: 8px; gap: 8px; }
 #sidebar .vu:hover, #sidebar .ou:hover { background: var(--hover); }
-#sidebar .vu .avatar, #sidebar .ou .avatar { width: 24px; height: 24px; font-size: 10px; }
-#sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 4px var(--green); }
-#sidebar .tag { font-size: 10px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 1px 6px; background: var(--accent-soft); color: var(--link); }
-#sidebar .live { font-size: 10px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 2px 6px; background: #dc2626; color: #fff; }
+#sidebar .vu .avatar, #sidebar .ou .avatar { width: 24px; height: 24px; font-size: 11px; }
+#sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 4px var(--speak, var(--green)); }
+#sidebar .tag { font-size: 11px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 1px 6px; background: var(--accent-soft); color: var(--link); }
+#sidebar .live { font-size: 11px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 2px 6px; background: #dc2626; color: #fff; }
 #sidebar .friend-row { border-radius: 10px; font-size: 13px; }
 
 /* Connection line above the user row; the dock holds the call controls. */
@@ -102,7 +102,7 @@ html.light #sidebar #user-panel .icon-btn.off { color: #b91c1c; }
 /* Avatars scale with the tile so small windows never clip them. */
 #call .grid > .tile:not(.is-screen), #call .focus-strip > .tile { container-type: size; }
 #call .tile:not(.is-screen) .avatar { width: min(96px, 46cqh, 40cqw); height: min(96px, 46cqh, 40cqw); font-size: min(32px, 15cqh); font-weight: 800; box-shadow: none; }
-#call .tile.speaking { box-shadow: inset 0 0 0 3px var(--green); border: 0; }
+#call .tile.speaking { box-shadow: inset 0 0 0 3px var(--speak, var(--green)); border: 0; }
 #call .tile .label, html.light #call .tile .label { left: 14px; bottom: 12px; padding: 6px 10px; border: 0; border-radius: 10px; background: rgba(8, 9, 12, .72); color: #fff; font-size: 13px; font-weight: 700; }
 #call .tile .label .ic { color: #fca5a5; }
 #call .tile:not(.is-screen) .tile-tools .live-join { min-height: 34px; padding: 6px 12px; border-radius: 10px; background: var(--blurple); color: #fff; font-size: 12px; font-weight: 700; }
@@ -173,7 +173,7 @@ html.light #call #call-controls .cc-btn.off { color: #b91c1c; }
 #call .live-people { margin-left: auto; display: flex; flex-direction: column; gap: 10px; }
 #call .live-people:empty { display: none; }
 #call .live-person { position: relative; width: 148px; height: 92px; border-radius: 16px; background: rgba(29,31,37,.92); display: flex; align-items: center; justify-content: center; }
-#call .live-person.speaking { box-shadow: inset 0 0 0 3px var(--green); }
+#call .live-person.speaking { box-shadow: inset 0 0 0 3px var(--speak, var(--green)); }
 #call .live-face { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; color: #fff; background-size: cover; background-position: center; }
 #call .live-person-name { position: absolute; left: 10px; bottom: 8px; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #fff; }
 #call .live-muted { display: flex; color: #fca5a5; }
