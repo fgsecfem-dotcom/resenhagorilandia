@@ -85,12 +85,25 @@
       $('rooms-title').hidden = $('rooms').hidden = !rooms.length; $('empty').hidden = !!rooms.length;
     }).catch(() => { $('rooms-title').hidden = $('rooms').hidden = true; $('empty').hidden = false; });
   }
+  let joinAttempt = 0;
   $('code').addEventListener('input', () => {
+    joinAttempt++; $('join-go').disabled = false;
     const c = norm($('code').value).slice(0, 8); $('code').value = c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4) : c; $('hub-error').textContent = '';
   });
-  $('join-form').addEventListener('submit', event => {
+  $('join-form').addEventListener('submit', async event => {
     event.preventDefault(); const c = norm($('code').value);
     if (c.length !== 8) { $('hub-error').textContent = 'O código tem 8 letras ou números, tipo K7P4-QX9M.'; return; }
+    const button = $('join-go');
+    if (button.disabled) return;
+    const attempt = ++joinAttempt;
+    if (native.inspect) {
+      button.disabled = true;
+      const status = $('hub-error'); status.dataset.state = 'search'; status.textContent = 'Procurando a sala…';
+      const result = await native.inspect(c).catch(() => null);
+      if (attempt !== joinAttempt || $('hub').hidden) return;
+      button.disabled = false; status.dataset.state = ''; status.textContent = '';
+      if (result?.state === 'offline') { status.textContent = 'Não achei essa sala. Confere o código ou pede pra galera abrir a sala.'; return; }
+    }
     native.action('open', { type: 'join', code: c });
   });
   $('host-go').onclick = () => native.action('open', { type: 'host' });

@@ -289,13 +289,20 @@ function rememberRoomCard(){
 }
 function endBoot(){document.documentElement.classList.remove('booting');}
 let startTried=false;
+let pendingLaunchJoin = null;
 async function openStartServer(){
   if(startTried)return;startTried=true;
   const booting=document.documentElement.classList.contains('booting');
-  if(!native?.rooms||WEB_VIEWER||!me.name.trim())return endBoot();
-  // Escolha feita no Hub do launcher (entrar por código, abrir uma sala, criar). Sem escolha, vale o comportamento de sempre.
+  if(!native?.rooms||WEB_VIEWER)return endBoot();
   const intent=await native.launchIntent?.().catch(()=>null);
-  if(intent?.type==='join'&&intent.code){endBoot();return joinRoom(intent.code,$('#join-pass').value);}
+  if(intent?.type==='join'&&intent.code){
+    const code=fmtCode(intent.code);
+    $('#join-addr').value=code;
+    endBoot();
+    if(!me.name.trim()){pendingLaunchJoin=code;return;}
+    return joinRoom(code,$('#join-pass').value);
+  }
+  if(!me.name.trim()&&intent?.type!=='host')return endBoot();
   if(intent?.type==='host'){endBoot();showCreate(true);return;}
   const code=intent?.type==='room'&&intent.code?normCode(intent.code):favoriteCode()||LS.get('lastRoom',null)?.code;
   const room=code&&(storedRooms.length?storedRooms:await native.rooms.list()).find(r=>normCode(r.code)===code);
@@ -427,6 +434,8 @@ function closeWelcome() {
 function finishWelcome() {
   if (!checkName()) return;
   $('#home-error').textContent = '';
+  const code = pendingLaunchJoin; pendingLaunchJoin = null;
+  if (code && $('#join-addr').value === code) return joinRoom(code, $('#join-pass').value);
   $('#join-addr').focus();
 }
 function initHome() {
@@ -520,6 +529,7 @@ async function hostRoom() {
 
 async function joinRoom(addrText, password) {
   if (!checkName()) return;
+  pendingLaunchJoin = null;
   S.viaCode = null;
   if (addrText && !looksLikeAddr(addrText)) return joinByCode(addrText, password);
   const a = parseAddr(addrText);
@@ -561,7 +571,7 @@ async function joinByCode(codeText, password) {
       if(cached && await confirmModal('Ninguém está hospedando','Este PC tem uma cópia desta sala. Abrir aqui com o mesmo código?','Abrir sala',false)) {$('#btn-join').disabled=false;return openStoredRoom(cached);}
     }
     const msg = {
-      notfound: `Não achei a sala ${code}.\nO código só funciona enquanto alguém hospeda a sala. Se todos fecharam o app, o anfitrião deve reabrir a sala com o mesmo nome no computador usado antes; depois os amigos entram pelo código.`,
+      notfound: `Não achei a sala ${code}. Confere o código ou pede pra galera abrir a sala.`,
       nobroker: 'Sem internet, ou algo está bloqueando o app (antivírus/firewall).',
       p2p: 'Achei a sala, mas não consegui ligar os dois PCs.\nA rede de um de vocês bloqueia conexão direta (comum em rede de faculdade/empresa ou 4G). Tente trocar quem abre a sala.',
     }[e.message] || 'Erro: ' + e.message;

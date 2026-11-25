@@ -3,5 +3,6 @@ contextBridge.exposeInMainWorld('launcherNative', {
   ready: () => ipcRenderer.invoke('launcher:ready'),
   action: (action, payload) => ipcRenderer.invoke('launcher:action', action, payload),
   rooms: () => ipcRenderer.invoke('launcher:rooms'),
+  inspect: (code, cover) => ipcRenderer.invoke('launcher:inspect', code, !!cover),
   onState: callback => { const listener = (event, state) => callback(state); ipcRenderer.on('launcher:state', listener); return () => ipcRenderer.removeListener('launcher:state', listener); }
 });

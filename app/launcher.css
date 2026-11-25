@@ -8,11 +8,11 @@ body{font-family:Figtree,'Segoe UI',sans-serif;color:var(--fg);-webkit-font-smoo
 .wall{position:absolute;inset:0;pointer-events:none;background:var(--wall,radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--blurple) 22%,transparent) 0,transparent 60%),radial-gradient(110% 90% at 100% 100%,color-mix(in srgb,var(--blurple) 14%,transparent) 0,transparent 60%),var(--bg))}
 .wall::after{content:'';position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 38%,transparent 0,rgba(0,0,0,.28) 100%)}
 :root[data-theme=light] .wall::after{display:none}
-header{height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 12px 0 20px;-webkit-app-region:drag;z-index:1}
+header{height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 24px 0;-webkit-app-region:drag;z-index:1}
 header>span{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 button,summary{-webkit-app-region:no-drag;font:inherit;cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button:disabled{cursor:default;opacity:.45}
 #close{width:30px;height:30px;border:0;border-radius:50%;background:var(--fill);color:var(--muted);font-size:18px;line-height:1;box-shadow:inset 0 0 0 1px var(--edge);transition:background-color .12s,color .12s}#close:hover{background:var(--fill-2);color:var(--fg)}
-section{flex:1;min-height:0;padding:0 34px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:1}
+section{flex:1;min-height:0;padding:0 24px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:1}
 .mascot{width:84px;height:84px;flex:none;margin-bottom:18px;border-radius:22px;display:grid;place-items:center;overflow:hidden;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 18px 40px rgba(0,0,0,.35);animation:float 4.5s ease-in-out infinite}
 .mascot svg{width:84px;height:84px;display:block}
@@ -29,8 +29,8 @@ h1{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.25;margin:
 .text-button{min-height:36px;padding:0 16px;border:0;border-radius:999px;background:var(--fill-2);color:var(--fg);font-size:13px;font-weight:600;box-shadow:inset 0 0 0 1px var(--edge);transition:background-color .12s,scale .2s}
 .text-button:hover{background:color-mix(in srgb,var(--fg) 14%,transparent)}.text-button:active{scale:.96}
 #open{background:var(--blurple);color:#fff;box-shadow:none}
-footer{height:38px;flex:none;display:flex;gap:12px;justify-content:space-between;align-items:center;padding:0 20px;font-size:10.5px;color:var(--muted);z-index:1;border-top:1px solid var(--edge);background:var(--fill)}
-footer span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+footer{height:38px;flex:none;display:flex;gap:12px;justify-content:space-between;align-items:center;padding:0 24px;font-size:10.5px;color:var(--muted);z-index:1;border-top:1px solid var(--edge);background:var(--fill)}
+footer small{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [hidden]{display:none!important}
 #details{width:100%;max-height:62px;flex:none;overflow:auto;text-align:left;color:var(--muted);font-size:11px}#error{margin:6px 0;overflow-wrap:anywhere;user-select:text}summary{padding:4px;text-align:center}
 body[data-error=true] .mascot{width:64px;height:64px;margin-bottom:12px;border-radius:17px;animation:none}body[data-error=true] .mascot svg{width:64px;height:64px}body[data-error=true] .progress-region{height:12px;padding:0}
@@ -83,7 +83,7 @@ body[data-error=true] .ring{inset:-7px;border-radius:23px}
 
 /* ---------- Hub (tela inicial do launcher) ---------- */
 /* Mesmas variáveis do tema: o Hub muda com o tema e o ícone escolhidos, sem paleta própria. */
-.hub{align-items:stretch;justify-content:flex-start;text-align:left;padding:4px 36px 12px;min-width:0}
+.hub{align-items:stretch;justify-content:flex-start;text-align:left;padding:4px 24px 12px;min-width:0}
 .notice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 6px 16px;margin-bottom:12px;border-radius:14px;background:var(--fill);box-shadow:inset 0 0 0 1px var(--edge);font-size:12.5px;color:var(--muted)}
 .notice .text-button{min-height:30px;padding:0 14px}
 .greet{display:flex;align-items:center;gap:14px;margin:2px 0 16px}
@@ -120,3 +120,4 @@ body[data-phase=hub] #hub-open{display:inline-flex;align-items:center;min-height
 @media(prefers-reduced-motion:reduce){.hub>*{animation:none!important}}
 /* Holofoil: o mesmo gradiente holográfico do app, só nas peças-chave do Hub (botão principal, sala em destaque, campo em foco). */
 @keyframes holo-flow{from{background-position:0% 50%}to{background-position:200% 50%}}
+.hub-error[data-state=search]{color:var(--muted)}

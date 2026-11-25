@@ -280,7 +280,7 @@ app.whenReady().then(async () => {
   });
 
   if ((app.isPackaged || process.env.RESENHA_LAUNCHER) && process.platform === 'win32') {
-    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager, hub:true, rooms:()=>roomHandlers.list(),
+    startupLauncher = createStartupWindow({ BrowserWindow, ipcMain, manager:updateManager, hub:true, rooms:()=>roomHandlers.list(), inspect:inspectLauncherRoom,
       version:app.getVersion(), icon:ICON, log:recordCapture, isQuitting:()=>quitting,
       download:page=>shell.openExternal(page),
       check:force=>TEST_MODE&&!process.env.RESENHA_TEST_UPDATE?Promise.resolve({update:false}):updateManager.check(force===true),
@@ -373,6 +373,9 @@ const roomHandlers = createRoomHandlers({ roomStore });
 ipcMain.handle('rooms:locations',()=>roomHandlers.locations());
 ipcMain.handle('rooms:list',()=>roomHandlers.list());
 ipcMain.handle('rooms:save',(e,snap)=>roomHandlers.save(snap));
+let probeTunnel = null;
+const inspector = () => tunnel || (probeTunnel = probeTunnel || (() => { const t = new Tunnel(null); t.warm(); return t; })());
+function inspectLauncherRoom(code) { return inspector().inspect(code, { connectMs: 1000, timeoutMs: 1700 }); }
 ipcMain.handle('rooms:inspect',(e,code)=>tunnel.inspect(norm(code)));
 ipcMain.handle('rooms:claim',async(e,{code,id})=>{
   const snap=roomStore.get(code);if(!snap)return {state:'missing'};
