@@ -82,7 +82,7 @@ body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.nsb-ib, #si
 
 /* Em janela estreita a conversa não modifica a largura do palco. */
 #main[data-chat-float=true] > .splitter:is([data-left=chat], [data-right=chat]) { display: none; }
-#main[data-chat-float=true] > #chat { display: flex; position: absolute; z-index: 15; top: 72px; right: 16px; bottom: 16px; width: min(320px, calc(100% - 32px)); min-width: 0; height: auto; margin: 0; background: var(--bg-float); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px #0004; transition: transform 250ms var(--ease-out), opacity 250ms var(--ease-out), visibility 250ms; }
+#main[data-chat-float=true] > #chat { display: flex; position: absolute; z-index: 15; top: 72px; right: 16px; bottom: 92px; width: min(320px, calc(100% - 32px)); min-width: 0; height: auto; margin: 0; background: var(--bg-float); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px #0004; transition: transform 250ms var(--ease-out), opacity 250ms var(--ease-out), visibility 250ms; }
 #main[data-chat-float=true][data-right-open=false] > #chat { display: flex; visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(12px); }
 :is(.os-win32,.os-linux) #main[data-chat-float=true] #chat .right-nav { padding-inline: 12px; }
 :is(.os-win32,.os-linux) #main[data-chat-float=true] #call .pane-header { padding-right: 112px; }
