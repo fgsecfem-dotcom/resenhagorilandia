@@ -1281,6 +1281,7 @@ function renderCall() {
   const vu = V.joined ? myVoiceUsers() : [];
   $('#call-count').textContent = vu.length ? `${vu.length} na call` : V.joined ? '' : 'Escolha um canal para entrar';
   $('#call-controls').classList.toggle('hidden', !V.joined);
+  renderPerfNotice();
   const djHere = S.dj && S.dj.active && S.dj.channelId === V.channel;
   $('#btn-dj').classList.toggle('hidden', !V.joined || !S.djAvailable);
   $('#btn-dj').classList.toggle('on', !!djHere);
@@ -2965,10 +2966,20 @@ async function perfTick() {
     if (perf.samples.length > 240) perf.samples.splice(1, 1); // call de mais de 2 h: fica com as leituras mais recentes
   } catch {}
 }
+// Continua fora do fluxo e some ao entrar na call.
+function renderPerfNotice() {
+  const note = $('#perf-note');
+  if (V.joined || !perfOn() || window.ResenhaSkins?.has(settings.theme)) { note?.remove(); return; }
+  if (note || S.away || $('#main').classList.contains('hidden') || LS.get('perfNotice', false)) return;
+  const el = document.createElement('aside'); el.id = 'perf-note';
+  el.innerHTML = '<span>Enviamos dados anônimos de desempenho. Desative em Configurações › Voz.</span><button type="button" class="btn">Entendi</button>';
+  $('button', el).onclick = () => el.remove();
+  $('#call').append(el);
+  LS.set('perfNotice', true);
+}
 function perfStart() {
   perfStop(false);
   if (!perfOn()) return;
-  if (!LS.get('perfNotice', false)) { LS.set('perfNotice', true); toast('O Resenha envia dados anônimos de desempenho (CPU, memória e qualidade da call) para ficar mais leve. Dá para desligar em Configurações > Voz.', '', 10000); }
   perf.startedAt = Date.now(); perf.timer = setInterval(perfTick, 30000); perfTick(); perfWatchJank(true);
 }
 function perfStop(send = true) {

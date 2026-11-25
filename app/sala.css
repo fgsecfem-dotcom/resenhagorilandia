@@ -37,3 +37,8 @@ html #call #call-stage .tile.is-voice .label { position: static; max-width: calc
 @media (height < 720px) {
   #call #call-stage .focus-strip > .tile.is-voice { --voice-size: 32px; }
 }
+
+/* Nota única e não modal; não participa da altura do palco. */
+#perf-note { position: absolute; z-index: 4; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-float); color: var(--text); font-size: 12px; }
+#perf-note span { line-height: 1.3; }
+#perf-note button { min-height: 28px; padding: 0 8px; white-space: nowrap; }
