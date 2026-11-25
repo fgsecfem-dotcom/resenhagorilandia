@@ -1186,6 +1186,7 @@ function getRemoteScreen(uid) {
   return p?.streams.get(u.screenStreamId) || via?.streams.get(u.screenStreamId) || null;
 }
 function renderCall() {
+  syncSkinSoon(); // a live (trilha chegando ou saindo) também passa por aqui
   const stage = $('#call-stage');
   const vcId = V.joined ? V.channel : voiceChannels()[0]?.id;
   const vc = chanById(vcId);
@@ -1273,7 +1274,7 @@ function layoutGrid() {
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
-function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); syncSkin(); }
+function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); syncSkinSoon(); }
 
 // ---------------- Temas com sala própria (2.6) ----------------
 // Sintonia, Apê, Caderno e Mergulho desenham a sala inteira (app/skins/<tema>.js, registrados em window.ResenhaSkins).
@@ -1313,12 +1314,14 @@ const skinActions = {
   invite: () => openInvite(), roomMenu: (anchor) => roomMenu(anchor) /* botão com data-room-menu */, settings: (tab) => openSettings(tab), profile: () => openSettings('perfil'),
   home: () => goHome(), userMenu: (e, uid) => userMenu?.(e, uid), fullscreen: (el) => el?.requestFullscreen?.(),
 };
-let skinSpeakSig = '', skinReady = false; // skinReady: só depois que o módulo inteiro rodou (curMessages, input… já existem)
+let skinSpeakSig = '', skinReady = false, skinQueued = false; // skinReady: só depois que o módulo inteiro rodou (curMessages, input… já existem)
 function syncSkin() {
   const skins = window.ResenhaSkins; if (!skinReady || !skins) return;
   if (!skins.active && !skins.has(settings.theme)) return; // tema sem sala própria: nem monta o retrato
   skins.sync(settings.theme, skinModel(), skinActions); skinSpeakSig = '';
 }
+// Várias mudanças seguidas (trilha da live chegando, gente entrando) viram um retrato só, no fim da tarefa atual.
+function syncSkinSoon() { if (skinQueued) return; skinQueued = true; queueMicrotask(() => { skinQueued = false; syncSkin(); }); }
 // Fala muda várias vezes por segundo: o tema recebe só o conjunto de quem fala, sem refazer o retrato inteiro.
 function syncSkinSpeaking() {
   if (!window.ResenhaSkins?.active) return;
@@ -2474,7 +2477,7 @@ function renderMessages(keepScroll) {
   list.forEach((m, i) => { h += msgHTML(m, list[i - 1]); });
   $('#msg-list').innerHTML = h;
   if (!keepScroll || atBottom) scrollBottom(true); else box.scrollTop = prevTop;
-  syncSkin();
+  syncSkinSoon();
 }
 // Redesenha só as mensagens desse autor (efeito/cor/avatar mudou), sem mexer na rolagem.
 function refreshAuthor(uid) {
@@ -2494,7 +2497,7 @@ function appendMessage(m) {
   const list = curMessages();
   $('#msg-list').insertAdjacentHTML('beforeend', msgHTML(m, list[list.length - 2]));
   if (atBottom || m.userId === S.myId) scrollBottom(true);
-  syncSkin();
+  syncSkinSoon();
 }
 function scrollBottom(force) {
   const box = $('#messages');
@@ -3232,7 +3235,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
     const i = items.indexOf(document.activeElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement?.click(); }
-    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeRoomMenu(); btn.focus(); }
+    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeRoomMenu(); (anchor?.isConnected && anchor.offsetParent ? anchor : btn).focus(); }
   };
   items.forEach((el) => el.onmouseenter = () => el.focus());
   items.forEach((el) => el.onclick = async () => {
