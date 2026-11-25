@@ -1,0 +1,9 @@
+/* Início não encerra a sala; o retorno fica separado do conteúdo da tela. */
+#away-pill { position: fixed; z-index: 55; inset: auto 16px 16px auto; display: flex; align-items: center; max-width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 24px; background: var(--bg-float); color: var(--text-hi); box-shadow: 0 8px 24px #0002; }
+#away-pill button { display: flex; align-items: center; gap: 8px; min-height: 40px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+#away-pill button:hover { background: var(--hover); }
+#away-pill .away-back { min-width: 0; padding: 0 12px; }
+#away-pill .away-leave { flex: none; width: 40px; justify-content: center; }
+#away-pill .away-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#away-pill .away-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+#away-pill.in-call .away-dot { background: var(--green); }

@@ -67,7 +67,7 @@ const FX = {
 // ---------------- Estado ----------------
 const S = {
   ws: null, addr: null, base: '', token: '', myId: null, turn: null, isHost: false, hostKey: null, password: '',
-  users: new Map(), roomName: '', serverOffset: 0, closing: false, reconnectTries: 0, lastPing: null,
+  users: new Map(), roomName: '', serverOffset: 0, closing: false, reconnectTries: 0, lastPing: null, away: false,
   channels: [], history: {}, textChannel: null, unread: new Set(), typing: new Map(),
   replyTo: null, editing: null, dj: null, djAvailable: false,
 };
@@ -212,6 +212,7 @@ async function renderMyRooms(check=false) {
 }
 async function openStoredRoom(room, opts={}) {
   if(!checkName()||!room||!native)return;
+  if(!await awayGuard(room.code))return;
   const status=$('#home-error');status.textContent='Consultando a descoberta e verificando quem hospeda…';
   let password=$('#join-pass').value || $('#host-pass').value;
   if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){password=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});if(password===null)return;}
@@ -259,11 +260,58 @@ async function refreshStoredRooms(){
   if(!native?.rooms)return;
   try{storedRooms=await native.rooms.list();}catch{}
 }
+// Início (a casa) abre a tela inicial SEM derrubar a call nem a live: a sala continua conectada ("fora da tela"),
+// uma pílula "Na call · Lobby · Voltar" leva de volta e só "Sair da sala" desconecta de verdade.
 async function goHome(focus){
-  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e do servidor. Continuar?','Sair',false))return;
+  if (S.away) return;
+  if ((S.myId || V.joined || S.addr) && !$('#main').classList.contains('hidden')) {
+    S.away = true;
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    if (!S.away) return;
+    closeRoomMenu();hideMenu();
+    $('#main').classList.add('hidden');$('#home').classList.remove('hidden');$('#web-nav').classList.add('hidden');
+    document.documentElement.classList.add('away');
+    syncSkinSoon();renderAwayPill();
+    if(native?.rooms)renderMyRooms(false);
+    setTimeout(()=>$(focus||'#join-addr')?.focus({preventScroll:true}),50);
+    return;
+  }
+  if (focus) $(focus)?.focus({preventScroll:true});
+}
+function backToRoom(){
+  if(!S.away)return;
+  S.away=false;document.documentElement.classList.remove('away');
+  $('#away-pill')?.remove();
+  $('#home').classList.add('hidden');$('#main').classList.remove('hidden');
+  renderAll();renderChatHeader();layoutGrid();requestAnimationFrame(()=>{layoutGrid();document.querySelectorAll('#call .tile.is-screen').forEach((t)=>t.refreshFrame?.());});
+}
+function exitAway(){S.away=false;document.documentElement.classList.remove('away');$('#away-pill')?.remove();}
+function renderAwayPill(){
+  if(!S.away)return;
+  let p=$('#away-pill');
+  if(!p){
+    p=document.createElement('div');p.id='away-pill';p.setAttribute('role','group');p.setAttribute('aria-label','Você continua na sala');
+    p.innerHTML=`<button type="button" class="away-back"><span class="away-dot" aria-hidden="true"></span><span class="away-txt"></span><b>Voltar</b></button><button type="button" class="away-leave" title="Sair da sala" aria-label="Sair da sala">${icon('logout',16)}</button>`;
+    document.body.append(p);
+    $('.away-back',p).onclick=backToRoom;
+    $('.away-leave',p).onclick=()=>leaveRoomAsked();
+  }
+  const where=V.joined?`Na call · ${chanById(V.channel)?.name||'call'}`:`Na sala · ${S.roomName||'sala'}`;
+  $('.away-txt',p).textContent=where+(V.screen?' · ao vivo':'')+' · ';
+  p.classList.toggle('in-call',!!V.joined);
+}
+// "Sair da sala" desconecta de verdade. Só pede confirmação (leve) quando você está na call.
+async function leaveRoomAsked(){
+  if(V.joined&&!await confirmModal('Sair da sala?','Você está na call. Sair da sala desconecta a call'+(V.screen?' e encerra sua live':'')+'.','Sair da sala',false))return;
   forgetLastRoom();
   await leaveRoom();
-  if(focus)setTimeout(()=>$(focus)?.focus(),50);
+}
+// Entrar em outra sala (ou na mesma) enquanto você está no Início: volta para a atual ou pede para sair dela.
+async function awayGuard(code){
+  if(!S.away)return true;
+  if(code&&normCode(code)===normCode(S.code)){backToRoom();return false;}
+  if(V.joined&&!await confirmModal('Trocar de sala?','Você está numa call. Entrar em outra sala sai dela.','Trocar',false))return false;
+  forgetLastRoom();await leaveRoom();return true;
 }
 async function switchServer(code){
   const room=storedRooms.find(r=>normCode(r.code)===code);
@@ -487,6 +535,7 @@ async function hostRoom() {
   const code = codes[roomName] || (codes[roomName] = newCode());
   const existing = storedRooms.find(r=>fmtCode(r.code)===fmtCode(code));
   if(existing){$('#btn-host').disabled=false;return openStoredRoom(existing);} 
+  if (!await awayGuard(null)) { $('#btn-host').disabled = false; return; }
   LS.set('roomCodes', codes);
   const r = await native.startHost({ roomName, port, password, code, rank: [0, Date.now(), CID] });
   $('#btn-host').disabled = false;
@@ -497,7 +546,6 @@ async function hostRoom() {
 
 async function joinRoom(addrText, password) {
   if (!checkName()) return;
-  S.viaCode = null;
   if (addrText && !looksLikeAddr(addrText)) return joinByCode(addrText, password);
   const a = parseAddr(addrText);
   if (!a) { $('#home-error').textContent = 'Código ou endereço inválido. Exemplo: K7P4-QX9M'; return; }
@@ -508,18 +556,20 @@ async function joinRoom(addrText, password) {
     clearTimeout(to);
     if (info.app !== 'resenha') throw new Error('não é sala do Resenha');
     if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
-    S.isHost = false; S.hostKey = null; S.code = null; S.joinedAt = Date.now(); S.forceGuest = false;
+    if (S.away && a.text === S.addr?.text) { backToRoom(); return; }
+    if (!await awayGuard(info.code)) return;
+    S.isHost = false; S.hostKey = null; S.code = null; S.viaCode = null; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(a.text, info.name);
     connect(a, password, true);
   } catch (e) {
     $('#home-error').textContent = `Não consegui chegar na sala ${a.text}.\nConfere se o IP e a porta estão certos, se a sala está aberta e se o anfitrião liberou a porta.`;
-  }
-  $('#btn-join').disabled = false;
+  } finally { $('#btn-join').disabled = false; }
 }
 
 async function joinByCode(codeText, password) {
   const code = fmtCode(codeText);
   if (code.replace('-', '').length !== 8) { $('#home-error').textContent = 'O código tem 8 letras/números, tipo K7P4-QX9M.'; return; }
+  if (!await awayGuard(code)) return;
   if (globalThis.RESENHA_PWA) return pwaJoin(code, password);
   if (!window.Tun) { $('#home-error').textContent = 'Entrar por código só funciona no app.'; return; }
   $('#btn-join').disabled = true; $('#home-error').textContent = 'Procurando a sala...';
@@ -950,6 +1000,7 @@ function handle(m) {
 
 function showMain() {
   endBoot();
+  if (S.away) return; // você está no Início: a sala só reaparece em "Voltar"
   $('#home').classList.add('hidden');
   $('#main').classList.remove('hidden');
   $('#home-error').textContent = '';
@@ -959,6 +1010,7 @@ async function leaveRoom(endForAll) {
   S.closing = true;
   if (dmPanel) dmPanel.close();
   dmUnread.clear();
+  exitAway();
   teardownVoice();
   hideBanner();
   try { if (S.ws) S.ws.close(); } catch {}
@@ -1284,7 +1336,7 @@ function layoutGrid() {
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
-function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); syncSkinSoon(); }
+function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); renderAwayPill(); syncSkinSoon(); }
 
 // ---------------- Temas com sala própria (2.6) ----------------
 // Sintonia, Apê, Caderno e Mergulho desenham a sala inteira (app/skins/<tema>.js, registrados em window.ResenhaSkins).
@@ -3234,7 +3286,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
     ${S.isHost ? it('look', 'Personalizar sala', 'image') + it('icon', S.roomIcon ? 'Trocar ícone da sala' : 'Pôr ícone na sala', 'upload') + (S.roomIcon ? it('noicon', 'Tirar ícone da sala', 'trash') : '') + (S.code && people.some((u) => u.id !== S.myId && u.canHost) ? it('transfer', 'Transferir anfitrião', 'crown') : '') : ''}
     ${it('mute', muted ? 'Ativar avisos da sala' : 'Silenciar a sala', muted ? 'bell' : 'bellOff')}${fav !== null ? it('fav', fav ? 'Não abrir ao iniciar' : 'Abrir esta sala ao iniciar', 'star', '', fav ? 'is-on' : '') : ''}
     ${native?.rooms ? `<hr><div class="n-label">Suas salas</div>${others.map((r) => `<div class="n-it" role="menuitem" tabindex="-1" data-a="room" data-code="${esc(normCode(r.code))}">${roomAv(r.name, r.look?.color || serverColor(r.code), r.icon, 20)}<span class="n-lb">${esc(r.name)}</span>${normCode(r.code) === favoriteCode() ? icon('star', 12, 'n-fav') : ''}</div>`).join('')}${it('home', 'Entrar ou criar sala', 'plus')}` : ''}
-    <hr>${it('leave', S.isHost ? 'Fechar sala' : 'Sair da sala', 'logout', '', 'danger')}`;
+    <hr>${it('leave', 'Sair da sala', 'logout', '', 'danger')}`;
   if (menu.parentElement !== document.body) document.body.append(menu); // fora da barra lateral, que corta o que transborda
   const r = (anchor?.isConnected ? anchor : btn).getBoundingClientRect();
   menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
@@ -3272,11 +3324,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
       const n = await native.hostNetwork();
       copy(n.publicV4 && !n.cgnat ? `${n.publicV4}:${n.port}` : `${n.lan[0]}:${n.port}`);
     }
-    if (a === 'leave') {
-      if (S.isHost && S.users.size > 1 && !await confirmModal('Fechar a sala', 'Fechar a sala desconecta todo mundo. Continuar?', 'Fechar sala')) return;
-      forgetLastRoom();
-      leaveRoom();
-    }
+    if (a === 'leave') return leaveRoomAsked();
   });
 }
 function closeRoomMenu() {
