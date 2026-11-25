@@ -164,3 +164,8 @@ html[data-tk] #sidebar #sidebar-toggle:hover { background: var(--hover); color: 
 #call .focus-main { container-type: size; display: flex; align-items: center; justify-content: center; }
 #call .focus-main > .tile.is-screen:not(:fullscreen) { flex: none; width: min(100cqw, 100cqh * var(--live-arn, 1.7778)) !important; height: auto !important; max-height: 100cqh; aspect-ratio: var(--live-ar, 16 / 9) !important; }
 #call .focus-main > .tile.is-screen video { object-fit: contain; }
+
+/* Banner da sala (capa de Personalizar sala): topo da barra lateral e cabeçalho do menu da sala. */
+#room-banner { flex: none; height: 84px; margin: 0 0 8px; border-radius: 12px; background: center / cover no-repeat var(--bg-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent); }
+#main[data-sidebar-compact=true] #room-banner { height: 40px; border-radius: 10px; }
+.nmenu .n-cover { height: 76px; margin-bottom: 2px; border-radius: 8px 8px 4px 4px; background: center / cover no-repeat var(--bg-panel); }

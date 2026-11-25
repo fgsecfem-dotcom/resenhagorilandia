@@ -998,6 +998,16 @@ function renderHeader() {
     ri.innerHTML = img ? `<img src="${esc(img)}" alt="">` : esc(initials(S.roomName || 'S'));
     ri.classList.toggle('has-img', !!img);
   }
+  // Banner da sala (a capa de Personalizar sala) no topo da barra lateral, como no Discord.
+  const side = $('#sidebar');
+  if (side) {
+    let bn = $('#room-banner');
+    if (look.cover) {
+      if (!bn) { bn = document.createElement('div'); bn.id = 'room-banner'; bn.setAttribute('aria-hidden', 'true'); side.prepend(bn); }
+      bn.style.backgroundImage = `url("${look.cover}")`;
+    } else bn?.remove();
+    side.classList.toggle('has-banner', !!look.cover);
+  }
 }
 function statusIcons(u) {
   let h = '';
@@ -1292,7 +1302,7 @@ function skinModel() {
     return { uid: u.id, name: u.name, me: self, watching, stream: watching ? (self ? V.screen : getRemoteScreen(u.id)) || null : null };
   });
   return {
-    room: { name: S.roomName || 'Sala', code: S.code ? fmtCode(S.code) : '', color: look.color || serverColor(S.code || S.roomName), icon: S.roomIcon || look.cover || '', about: look.about || '', host: S.isHost },
+    room: { name: S.roomName || 'Sala', code: S.code ? fmtCode(S.code) : '', color: look.color || serverColor(S.code || S.roomName), icon: S.roomIcon || look.cover || '', cover: look.cover || '', about: look.about || '', host: S.isHost },
     me: skinUser(S.users.get(S.myId) || { ...me, id: S.myId }),
     voice: voiceChannels().map((c) => ({ id: c.id, name: c.name, here: V.joined && V.channel === c.id, users: usersIn(c.id).map(skinUser) })),
     text: textChannels().map((c) => ({ id: c.id, name: c.name, active: c.id === S.textChannel, unread: S.unread.has(c.id) && c.id !== S.textChannel })),
@@ -3216,7 +3226,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
   const it = (a, label, ic, extra = '', cls = '', data = '') => `<div class="n-it ${cls}" role="menuitem" tabindex="-1" data-a="${a}" ${data}>${icon(ic, 16)}<span class="n-lb">${label}</span>${extra}</div>`;
   const kbd = (k) => `<span class="n-kbd">${k}</span>`;
   const roomAv = (name, color, img, size) => `<span class="n-av sq" style="--c:${esc(color)};--s:${size}px">${img ? `<img src="${esc(img)}" alt="">` : esc(initials(name || 'S'))}</span>`;
-  menu.innerHTML = `<div class="n-head">${roomAv(S.roomName, look.color || serverColor(S.code || S.roomName), S.roomIcon || look.cover, 34)}<div><b>${esc(S.roomName || 'Sala')}</b><span>${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}${host ? ' · ' + (host.id === S.myId ? 'você é o anfitrião' : 'anfitrião ' + esc(host.name)) : ''}</span>${look.about ? `<span class="n-about">${esc(look.about)}</span>` : ''}</div></div>
+  menu.innerHTML = `${look.cover ? `<div class="n-cover" style="background-image:url('${esc(look.cover)}')" aria-hidden="true"></div>` : ''}<div class="n-head">${roomAv(S.roomName, look.color || serverColor(S.code || S.roomName), S.roomIcon || look.cover, 34)}<div><b>${esc(S.roomName || 'Sala')}</b><span>${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}${host ? ' · ' + (host.id === S.myId ? 'você é o anfitrião' : 'anfitrião ' + esc(host.name)) : ''}</span>${look.about ? `<span class="n-about">${esc(look.about)}</span>` : ''}</div></div>
     ${it('invite', 'Convidar pessoas', 'userPlus', kbd('Ctrl I'))}
     ${it('copy', S.code ? 'Copiar código' : 'Copiar endereço', 'copy', S.code ? `<span class="n-code">${esc(fmtCode(S.code))}</span>` : '')}
     ${live.length ? `<hr><div class="n-label">Ao vivo agora</div>${live.map((u) => it('watch', esc(u.name), 'screen', `<span class="n-live">${V.watching?.has(u.id) ? 'assistindo' : 'assistir'}</span>`, '', `data-uid="${esc(u.id)}"`)).join('')}` : ''}
