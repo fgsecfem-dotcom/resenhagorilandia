@@ -35,7 +35,7 @@
   // Troca os logos da interface (barra lateral, tela inicial, carregamento, favicon).
   function applyLogo(key) {
     const url = dataURL(key, 128);
-    document.querySelectorAll('.side-brand > img, .home-logo img, .home-tip img, #boot img, #rail-home img').forEach((img) => { img.src = url; });
+    document.querySelectorAll('.home-logo img, .home-tip img, #boot img').forEach((img) => { img.src = url; });
     const fav = document.querySelector('link[rel=icon]'); if (fav) fav.href = url;
   }
 

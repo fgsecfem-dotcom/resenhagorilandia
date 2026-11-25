@@ -33,7 +33,7 @@ const settings = Object.assign({
   mutedRooms: {},
   inputDevice: 'default', outputDevice: 'default', micGain: 100, autoSens: true, threshold: -55,
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
-  voiceFx: 'normal', pitchSemis: 0, theme: 'system', themeColor: 'lavanda',
+  voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
@@ -195,7 +195,7 @@ async function renderMyRooms(check=false) {
   root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room ${r.look?.cover ? 'has-cover' : ''}" data-room-row="${i}" style="--room-color:${r.look?.color || serverColor(r.code)}${r.look?.cover ? `;--room-cover:url('${esc(r.look.cover)}')` : ''}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}</div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}">${check?'Verificando…':esc(fmtCode(r.code))}</span></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
     +(hiddenCount&&!showOld?`<button class="rooms-old" data-rooms-old>Mostrar ${hiddenCount} ${hiddenCount===1?'sala oculta':'salas ocultas'}</button>`:showOld&&hiddenCount?'<button class="rooms-old" data-rooms-old>Esconder salas antigas</button>':'');
   root.classList.toggle('hidden',!rooms.length&&!hiddenCount);
-  $$('[data-hide-room]',root).forEach(b=>b.onclick=(e)=>{e.stopPropagation();const h=new Set(LS.get('hiddenRooms',[]));h.add(b.dataset.hideRoom);LS.set('hiddenRooms',[...h]);renderMyRooms();renderServerRow();});
+  $$('[data-hide-room]',root).forEach(b=>b.onclick=(e)=>{e.stopPropagation();const h=new Set(LS.get('hiddenRooms',[]));h.add(b.dataset.hideRoom);LS.set('hiddenRooms',[...h]);renderMyRooms();refreshStoredRooms();});
   $('[data-rooms-old]',root)?.addEventListener('click',()=>{renderMyRooms.showOld=!showOld;if(renderMyRooms.showOld)LS.set('hiddenRooms',[]);renderMyRooms(true);});
   setupShelf($('.shelf-wrap',root));
   $$('[data-open-room]',root).forEach(b=>b.onclick=()=>openStoredRoom(rooms[+b.dataset.openRoom]));
@@ -254,20 +254,10 @@ function setupShelf(wrap){
   shelf.addEventListener('wheel',(e)=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&shelf.scrollWidth>shelf.clientWidth){e.preventDefault();shelf.scrollBy({left:e.deltaY});}},{passive:false});
   new ResizeObserver(update).observe(shelf);update();
 }
-async function renderServerRow(){
-  const row=$('#server-row');if(!row)return;
-  if(!native?.rooms){row.classList.add('hidden');return;}
+// A lista de salas guardadas alimenta o menu da sala ("Suas salas") e a tela inicial.
+async function refreshStoredRooms(){
+  if(!native?.rooms)return;
   try{storedRooms=await native.rooms.list();}catch{}
-  const cur=normCode(S.code),fav=favoriteCode();
-  const list=visibleRooms(storedRooms).sort((a,b)=>(normCode(b.code)===fav)-(normCode(a.code)===fav));
-  row.innerHTML=list.map(r=>{
-    const code=normCode(r.code),isCur=code===cur,img=isCur&&S.roomIcon!==undefined?S.roomIcon:r.icon,name=isCur&&S.roomName?S.roomName:r.name,dotColor=(isCur&&S.roomLook?.color)||r.look?.color||serverColor(code),cover=isCur&&S.roomLook?S.roomLook.cover:r.look?.cover;
-    return `<button class="server-dot ${isCur?'active':''}" data-server="${esc(code)}" title="${esc(name)}${code===fav?' · abre ao iniciar':''}" aria-label="${esc(name)}" aria-current="${isCur}" style="--dot:${dotColor}">${img?`<img src="${esc(img)}" alt="">`:cover?`<img class="from-cover" src="${esc(cover)}" alt="">`:`<span>${esc(initials(name))}</span>`}${code===fav?`<i class="server-fav" aria-hidden="true">${icon('star',9)}</i>`:''}</button>`;
-  }).join('')+`<button class="server-dot ghost" data-server-add title="Entrar ou criar servidor" aria-label="Entrar ou criar servidor">${icon('add',16)}</button><button class="server-dot ghost home" data-server-home title="Página inicial" aria-label="Página inicial">${icon('home',16)}</button>`;
-  row.classList.remove('hidden');
-  $$('[data-server]',row).forEach(b=>b.onclick=()=>switchServer(b.dataset.server));
-  $('[data-server-add]',row).onclick=()=>goHome('#join-addr');
-  $('[data-server-home]',row).onclick=()=>goHome();
 }
 async function goHome(focus){
   if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e do servidor. Continuar?','Sair',false))return;
@@ -327,7 +317,7 @@ function toggleFavorite(){
   const code=normCode(S.code);if(!code)return;
   const on=favoriteCode()!==code;LS.set('favoriteRoom',on?code:'');LS.set('favoriteRoomName',on?S.roomName:'');
   toast(on?`${S.roomName} vai abrir quando você iniciar o Resenha.`:'O Resenha volta a abrir na página inicial.');
-  renderServerRow();
+  refreshStoredRooms();
 }
 function pickServerIcon(){
   const inp=$('#avatar-input');inp.value='';
@@ -850,7 +840,7 @@ function handle(m) {
       if (LS.get('musicIntro', false)) { LS.set('musicIntro', false); setTimeout(() => roomUI?.open('music'), 700); } // 2.2: primeira sala depois de atualizar
       renderMessages();
       renderAll();
-      renderServerRow();
+      refreshStoredRooms();
       rememberRoom();
       uploadBanner();
       syncDJ();
@@ -872,7 +862,7 @@ function handle(m) {
     case 'room-snapshot': {
       if(!m.snapshot||fmtCode(m.snapshot.code)!==fmtCode(S.code))break;
       S.latestRoomSnapshot=m.snapshot;
-      if(native?.rooms)native.rooms.save(m.snapshot).then(result=>{renderServerRow();if(result.newerLocal&&!staleRoomWarned){staleRoomWarned=true;toast('Sua cópia local tem revisão mais nova que a sala aberta. Ela foi preservada; mensagens recentes podem faltar aqui.','',9000);}}).catch(e=>{if(!savingRoomFailed){savingRoomFailed=true;toast('Não consegui salvar a cópia local da sala: '+e.message,'err',8000);}});
+      if(native?.rooms)native.rooms.save(m.snapshot).then(result=>{refreshStoredRooms();if(result.newerLocal&&!staleRoomWarned){staleRoomWarned=true;toast('Sua cópia local tem revisão mais nova que a sala aberta. Ela foi preservada; mensagens recentes podem faltar aqui.','',9000);}}).catch(e=>{if(!savingRoomFailed){savingRoomFailed=true;toast('Não consegui salvar a cópia local da sala: '+e.message,'err',8000);}});
       break;
     }
     case 'command-result': finishCommand(m); break;
@@ -947,7 +937,7 @@ function handle(m) {
     }
     case 'typing': if (m.channelId === S.textChannel) { S.typing.set(m.id, Date.now()); renderTyping(); } break;
     case 'signal': onSignal(m.from, m.data); break;
-    case 'room': S.roomName = m.room.name; if (typeof m.room.icon === 'string') S.roomIcon = m.room.icon; if (m.room.look) S.roomLook = m.room.look; renderHeader(); renderServerRow(); rememberRoom(); break;
+    case 'room': S.roomName = m.room.name; if (typeof m.room.icon === 'string') S.roomIcon = m.room.icon; if (m.room.look) S.roomLook = m.room.look; renderHeader(); refreshStoredRooms(); rememberRoom(); break;
     case 'pong': {
       const rtt = Date.now() - m.ts; S.lastPing = rtt;
       if (m.serverTime) { const off = m.serverTime + rtt / 2 - Date.now(); S.serverOffset = S.offsetInit ? S.serverOffset * 0.8 + off * 0.2 : off; S.offsetInit = true; }
@@ -994,31 +984,19 @@ const myVoiceUsers = () => (V.joined ? usersIn(V.channel) : []);
 function renderHeader() {
   $('#room-name').textContent = S.roomName;
   $('#tb-title').textContent = S.roomName + ' · Resenha';
-  $('#rail-room').textContent = initials(S.roomName);
-  $('#rail-room').title = S.roomName;
   document.title = S.roomName + ' · Resenha';
-  const people = [...S.users.values()].filter((u) => u.id !== DJ_ID).length;
-  const sub = $('#room-sub'); if (sub) sub.textContent = S.isHost ? 'Você é o anfitrião' : people === 1 ? '1 pessoa na sala' : `${people} pessoas na sala`;
   const chip = $('#btn-code');
-  if (chip) { chip.classList.toggle('hidden', !S.code); if (S.code) chip.innerHTML = `<span>${esc(fmtCode(S.code))}</span>${icon('copy', 14)}`; }
+  if (chip) chip.textContent = S.code ? fmtCode(S.code) : '';
   rememberRoomCard();
-  // Visual da sala: foto de capa no topo da barra lateral, descrição e cor (Personalizar sala).
-  const look = S.roomLook || {}, side = $('#sidebar');
-  if (side) {
-    side.classList.toggle('has-cover', !!look.cover);
-    if (look.cover) side.style.setProperty('--room-cover', `url("${look.cover}")`); else side.style.removeProperty('--room-cover');
-    if (look.color) $('#main').style.setProperty('--room-color', look.color); else $('#main').style.removeProperty('--room-color');
-    let about = $('#room-about');
-    if (!about && sub) { about = document.createElement('div'); about.id = 'room-about'; sub.after(about); }
-    if (about) { about.textContent = look.about || ''; about.classList.toggle('hidden', !look.about); }
-    const brand = $('.side-brand');
-    if (brand) {
-      let ri = $('#room-icon'); if (!ri) { ri = document.createElement('span'); ri.id = 'room-icon'; ri.setAttribute('aria-hidden', 'true'); brand.prepend(ri); }
-      const img = S.roomIcon || look.cover || '';
-      ri.style.setProperty('--ri-color', look.color || serverColor(S.code || S.roomName));
-      ri.innerHTML = img ? `<img src="${esc(img)}" alt="">` : esc(initials(S.roomName || 'S'));
-      ri.classList.toggle('has-img', !!img);
-    }
+  // Visual da sala (Personalizar sala): cor e ícone no seletor do topo; a capa e a descrição aparecem no menu da sala.
+  const look = S.roomLook || {};
+  if (look.color) $('#main').style.setProperty('--room-color', look.color); else $('#main').style.removeProperty('--room-color');
+  const ri = $('#room-icon');
+  if (ri) {
+    const img = S.roomIcon || look.cover || '';
+    ri.style.setProperty('--ri-color', look.color || serverColor(S.code || S.roomName));
+    ri.innerHTML = img ? `<img src="${esc(img)}" alt="">` : esc(initials(S.roomName || 'S'));
+    ri.classList.toggle('has-img', !!img);
   }
 }
 function statusIcons(u) {
@@ -1031,13 +1009,14 @@ function statusIcons(u) {
   return h;
 }
 function renderChannels() {
-  $('#text-channels').innerHTML = textChannels().map((c) =>
-    `<div class="channel ${c.id === S.textChannel ? 'active' : ''} ${S.unread.has(c.id) ? 'unread' : ''}" draggable="true" data-ch="${esc(c.id)}">${icon('hash', 20)}<span class="cn">${esc(c.name)}</span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>`).join('');
+  $('#text-channels').innerHTML = textChannels().map((c) => {
+    return `<div class="channel nsb-ch ${c.id === S.textChannel ? 'active' : ''} ${S.unread.has(c.id) ? 'unread' : ''}" draggable="true" data-ch="${esc(c.id)}">${icon('hash', 16)}<span class="cn">${esc(c.name)}</span>${S.unread.has(c.id) && c.id !== S.textChannel ? '<span class="n-dot" aria-label="mensagens novas"></span>' : ''}<button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>`;
+  }).join('');
   $('#voice-channels').innerHTML = voiceChannels().map((c) => {
-    const us = usersIn(c.id);
+    const us = usersIn(c.id), live = us.some((u) => u.sharing);
     const since = us.filter((u) => u.voiceSince).map((u) => u.voiceSince);
-    return `<div class="channel voice ${V.joined && V.channel === c.id ? 'connected' : ''}" draggable="true" data-vch="${esc(c.id)}">${icon('volume', 20)}<span class="cn">${esc(c.name)}</span><span class="timer" data-since="${since.length ? Math.min(...since) : ''}"></span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>
-      <div class="voice-users">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.isHost ? '<span class="tag">HOST</span>' : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>`;
+    return `<div class="channel voice nsb-ch ${V.joined && V.channel === c.id ? 'connected' : ''} ${live ? 'is-live' : ''}" draggable="true" data-vch="${esc(c.id)}">${icon('volume', 16)}<span class="cn">${esc(c.name)}</span><span class="timer" data-since="${since.length ? Math.min(...since) : ''}"></span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>
+      ${us.length ? `<div class="voice-users nsb-who">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>` : ''}`;
   }).join('');
   tickTimers();
 }
@@ -1045,24 +1024,15 @@ function renderSidebar() {
   renderHeader();
   renderChannels();
   const others = [...S.users.values()].filter((u) => !u.voiceChannel);
-  $('#online-cat').textContent = `Na sala (fora da call) · ${others.length}`;
+  $('#online-cat').textContent = `Fora da call · ${others.length}`;
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? '<span class="tag">HOST</span>' : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
-  $('#up-sub').textContent = V.joined ? (WEB_VIEWER && !WEB_VOICE ? 'Ouvindo' : 'Em voz') : 'Online';
+  if (!V.joined) setConnStatus('idle', 'Online');
+  else if (S.ws && S.ws.readyState === 1) setConnStatus(S.lastPing > 250 ? 'warn' : 'good', `Na call · ${chanById(V.channel)?.name || ''}`);
   renderFriends();
-  const muteOff = V.muted || V.deafened;
-  $('#btn-mute').innerHTML = icon(muteOff ? 'micOff' : 'mic');
-  $('#btn-mute').classList.toggle('off', muteOff);
-  $('#btn-deafen').innerHTML = icon(V.deafened ? 'headphonesOff' : 'headphones');
-  $('#btn-deafen').classList.toggle('off', V.deafened);
-  $('#voice-panel').classList.toggle('hidden', !V.joined);
-  $('#vp-share').classList.toggle('on', !!V.screen);
-  $('#vp-share').innerHTML = icon(V.screen ? 'screenOff' : 'screen');
-  $('#vp-dj').classList.toggle('on', !!(S.dj && S.dj.active && S.dj.channelId === V.channel));
-  $('#vp-sub').textContent = `${chanById(V.channel)?.name || ''} / ${S.roomName}`;
 }
 function tickTimers() {
   $$('#voice-channels .timer').forEach((t) => { const s = +t.dataset.since; t.textContent = s ? fmtDur(serverNow() - s) : ''; });
@@ -1099,7 +1069,7 @@ const AI_HOVER = '.right-music .mu-art, .right-music .mu-play, #call-controls .c
 function aiHalo(el) {
   const h = document.documentElement;
   if (h.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  if (!el.matches('.mu-cover') && h.dataset.tk !== 'holofoil') return; // capa: todos os temas; o resto só no Holofoil
+  if (!el.matches('.mu-cover')) return; // só a capa do álbum
   if (el._aiAt && performance.now() - el._aiAt < 900) return; el._aiAt = performance.now();
   const r = el.getBoundingClientRect(); if (!r.width) return;
   const o = document.createElement('i'); o.className = 'ai-halo'; o.setAttribute('aria-hidden', 'true');
@@ -1216,6 +1186,7 @@ function getRemoteScreen(uid) {
   return p?.streams.get(u.screenStreamId) || via?.streams.get(u.screenStreamId) || null;
 }
 function renderCall() {
+  syncSkinSoon(); // a live (trilha chegando ou saindo) também passa por aqui
   const stage = $('#call-stage');
   const vcId = V.joined ? V.channel : voiceChannels()[0]?.id;
   const vc = chanById(vcId);
@@ -1287,31 +1258,10 @@ function renderCall() {
   $('#cc-share').title = !V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar';
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
-// Arranjo da call por tema (2.2): Bento = quem fala grande à esquerda; Cinema = quem fala no alto e os outros numa faixa.
-// O destaque só troca de pessoa depois de 3 s, para a tela não ficar pulando a cada fala.
-let stageFocus = null, stageFocusAt = 0;
-const stageArrangement = () => ({ bento: 'bento', cinema: 'cinema' })[document.documentElement.dataset?.tk] || null;
 function layoutGrid() {
   const grid = $('#call-stage .grid'); if (!grid) return;
   const n = grid.children.length || 1;
   const W = grid.clientWidth, H = grid.clientHeight, gap = 10;
-  const mode = stageArrangement(), kids = [...grid.children];
-  kids.forEach((el) => el.classList.remove('stage-focus'));
-  grid.dataset.arrange = mode && n >= 3 ? mode : '';
-  if (mode && n >= 3) {
-    const focus = (stageFocus && tileCache.get('user:' + stageFocus)?.parentElement === grid && tileCache.get('user:' + stageFocus)) || kids[0];
-    focus.classList.add('stage-focus');
-    if (mode === 'bento') {
-      const rows = n - 1, big = Math.floor((W - gap) * 0.62), small = W - gap - big;
-      grid.style.gridTemplateColumns = `${big}px ${small}px`;
-      grid.style.gridTemplateRows = `repeat(${rows}, ${Math.floor((H - gap * (rows - 1)) / rows)}px)`;
-    } else {
-      const strip = Math.max(72, Math.min(120, Math.floor(H * 0.24))), cols = n - 1;
-      grid.style.gridTemplateColumns = `repeat(${cols}, ${Math.floor((W - gap * (cols - 1)) / cols)}px)`;
-      grid.style.gridTemplateRows = `${H - gap - strip}px ${strip}px`;
-    }
-    return;
-  }
   let best = { cols: 1, w: 0, h: 0, rows: 1 };
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
@@ -1324,71 +1274,82 @@ function layoutGrid() {
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
-// Barra de ícones flutuante (só aparece no tema Vision): atalhos práticos para início, call, chat e configurações.
-(() => {
-  const main = document.getElementById('main'); if (!main || document.getElementById('theme-rail')) return;
-  const rail = document.createElement('nav'); rail.id = 'theme-rail'; rail.setAttribute('aria-label', 'Atalhos');
-  const items = [['home', 'Início', () => $('#server-row [data-server-home]')?.click()], ['volume', 'Call', () => { roomUI?.close?.(); }],
-    ['chat', 'Chat', () => roomUI?.open('chat')], ['settings', 'Configurações', () => openSettings()]];
-  rail.innerHTML = items.map(([ic, t], i) => `<button type="button" data-i="${i}" title="${t}" aria-label="${t}">${icon(ic, 17)}</button>`).join('');
-  rail.querySelectorAll('button').forEach((b) => b.onclick = () => items[+b.dataset.i][2]());
-  main.append(rail);
-})();
-// Física do Vision (os dois temas Vision): cada bloco se inclina na direção do mouse, sobe e volta com mola, cada um por si.
-// Painéis grandes mexem pouco (leitura); cartões pequenos mexem mais. Só roda enquanto há movimento; respeita "reduzir animações".
-(() => {
-  const SEL = '#main #sidebar, #main #chat, #call .tile:not(.is-screen), #call #call-controls, #music-mini, #theme-rail';
-  const BASE = { sidebar: [0, 4], chat: [0, -5] };
-  const bodies = new Map(); let raf = 0, px = -1e4, py = -1e4, on = false;
-  const root = document.documentElement;
-  const active = () => /^(vision|visionNoite)$/.test(root.dataset?.tk || '') && !root.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function step() {
-    raf = 0; if (!on) return; let moving = false;
-    for (const el of document.querySelectorAll(SEL)) {
-      const r = el.getBoundingClientRect(); if (!r.width) continue;
-      let b = bodies.get(el); if (!b) bodies.set(el, b = { rx: 0, ry: 0, z: 0, vx: 0, vy: 0, vz: 0 });
-      const base = BASE[el.id] || [0, 0], dx = (px - (r.left + r.width / 2)) / r.width, dy = (py - (r.top + r.height / 2)) / r.height;
-      const inside = Math.abs(dx) < .5 && Math.abs(dy) < .5, near = Math.max(0, 1 - Math.hypot(dx, dy) * .9), big = r.width * r.height > 120000;
-      const amp = inside ? (big ? 3.5 : 8) : (big ? 1.5 : 3) * near;
-      const ty = base[1] + Math.max(-1, Math.min(1, dx)) * amp, tx = base[0] - Math.max(-1, Math.min(1, dy)) * amp * .8, tz = inside ? (big ? 8 : 22) : 0;
-      const k = .09, d = .78;
-      b.vx = (b.vx + (tx - b.rx) * k) * d; b.vy = (b.vy + (ty - b.ry) * k) * d; b.vz = (b.vz + (tz - b.z) * k) * d; b.rx += b.vx; b.ry += b.vy; b.z += b.vz;
-      if (Math.abs(b.vx) + Math.abs(b.vy) + Math.abs(b.vz) > .01 || Math.abs(tx - b.rx) + Math.abs(ty - b.ry) + Math.abs(tz - b.z) > .02) moving = true;
-      el.style.transform = `perspective(1200px) translateZ(${b.z.toFixed(2)}px) rotateX(${b.rx.toFixed(2)}deg) rotateY(${b.ry.toFixed(2)}deg)`;
-    }
-    if (moving) raf = requestAnimationFrame(step);
-  }
-  const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
-  addEventListener('pointermove', (e) => { if (!on) return; px = e.clientX; py = e.clientY; kick(); }, { passive: true });
-  document.documentElement.addEventListener('pointerleave', () => { px = py = -1e4; kick(); });
-  addEventListener('blur', () => { px = py = -1e4; kick(); });
-  const sync = () => { on = active(); if (!on) { for (const el of bodies.keys()) el.style.transform = ''; bodies.clear(); } else kick(); };
-  addEventListener('resenha-theme', sync); new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['class'] }); sync();
-})();
+function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); syncSkinSoon(); }
 
-function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); }
+// ---------------- Temas com sala própria (2.6) ----------------
+// Sintonia, Apê, Caderno e Mergulho desenham a sala inteira (app/skins/<tema>.js, registrados em window.ResenhaSkins).
+// O client entrega um retrato da sala (skinModel) e as ações (skinActions); o tema nunca mexe em S/V nem no DOM do app.
+// A live chega como MediaStream: o tema cria o próprio <video muted> e respeita a proporção real (videoWidth/videoHeight).
+function skinUser(u) {
+  return { id: u.id, name: u.name, color: u.color || '#5865f2', avatar: u.avatar || '', me: u.id === S.myId, host: !!u.isHost, bot: u.id === DJ_ID,
+    speaking: isSpeaking(u.id), muted: !!(u.muted || u.deafened), deafened: !!u.deafened, sharing: !!u.sharing, voice: u.voiceChannel || null };
+}
+function skinModel() {
+  if ($('#main').classList.contains('hidden')) return null;
+  const look = S.roomLook || {}, txt = chanById(S.textChannel);
+  const live = [...S.users.values()].filter((u) => u.sharing && (!V.joined || u.voiceChannel === V.channel)).map((u) => {
+    const self = u.id === S.myId, watching = self ? !!V.screen : V.watching.get(u.id) === u.screenStreamId;
+    return { uid: u.id, name: u.name, me: self, watching, stream: watching ? (self ? V.screen : getRemoteScreen(u.id)) || null : null };
+  });
+  return {
+    room: { name: S.roomName || 'Sala', code: S.code ? fmtCode(S.code) : '', color: look.color || serverColor(S.code || S.roomName), icon: S.roomIcon || look.cover || '', about: look.about || '', host: S.isHost },
+    me: skinUser(S.users.get(S.myId) || { ...me, id: S.myId }),
+    voice: voiceChannels().map((c) => ({ id: c.id, name: c.name, here: V.joined && V.channel === c.id, users: usersIn(c.id).map(skinUser) })),
+    text: textChannels().map((c) => ({ id: c.id, name: c.name, active: c.id === S.textChannel, unread: S.unread.has(c.id) && c.id !== S.textChannel })),
+    lobby: [...S.users.values()].filter((u) => !u.voiceChannel).map(skinUser),
+    call: { joined: V.joined, channel: V.channel, muted: V.muted || V.deafened, deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
+    live,
+    chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
+      messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
+    reduceMotion: document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
+  };
+}
+const skinActions = {
+  joinVoice: (id) => joinVoice(id), leaveVoice: () => leaveVoice(),
+  toggleMute: () => setMuted(!(V.muted || V.deafened)), toggleDeafen: () => setDeafened(!V.deafened),
+  toggleShare: () => toggleShare(), openDJ: () => openDJPanel(),
+  watch: (uid, on = true) => { setWatching(uid, on); renderAll(); },
+  selectText: (id) => selectTextChannel(id),
+  send: (text) => { text = String(text || '').trim(); if (!text) return false; input.value = text; sendMessage(); return true; },
+  invite: () => openInvite(), roomMenu: (anchor) => roomMenu(anchor) /* botão com data-room-menu */, settings: (tab) => openSettings(tab), profile: () => openSettings('perfil'),
+  home: () => goHome(), userMenu: (e, uid) => userMenu?.(e, uid), fullscreen: (el) => el?.requestFullscreen?.(),
+};
+let skinSpeakSig = '', skinReady = false, skinQueued = false; // skinReady: só depois que o módulo inteiro rodou (curMessages, input… já existem)
+function syncSkin() {
+  const skins = window.ResenhaSkins; if (!skinReady || !skins) return;
+  if (!skins.active && !skins.has(settings.theme)) return; // tema sem sala própria: nem monta o retrato
+  skins.sync(settings.theme, skinModel(), skinActions); skinSpeakSig = '';
+}
+// Várias mudanças seguidas (trilha da live chegando, gente entrando) viram um retrato só, no fim da tarefa atual.
+function syncSkinSoon() { if (skinQueued) return; skinQueued = true; queueMicrotask(() => { skinQueued = false; syncSkin(); }); }
+// Fala muda várias vezes por segundo: o tema recebe só o conjunto de quem fala, sem refazer o retrato inteiro.
+function syncSkinSpeaking() {
+  if (!window.ResenhaSkins?.active) return;
+  const ids = [...S.users.keys()].filter((id) => isSpeaking(id)), sig = ids.join(',');
+  if (sig !== skinSpeakSig) { skinSpeakSig = sig; window.ResenhaSkins.speaking(new Set(ids)); }
+}
+addEventListener('resenha-theme', () => syncSkin());
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
-  if (stageArrangement()) {
-    const now = Date.now(), who = [...S.users.keys()].find((id) => isSpeaking(id));
-    if (who && who !== stageFocus && now - stageFocusAt > 3000) { stageFocus = who; stageFocusAt = now; layoutGrid(); }
-  }
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   for (const [k, t] of tileCache) if (k.startsWith('user:')) t.classList.toggle('speaking', isSpeaking(k.slice(5)));
   $$('.live-person').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   overlayClient?.syncSpeaking();
+  syncSkinSpeaking();
 }
 
 // ---------------- Voz: cadeia de áudio ----------------
 // mic -> ganho -> RNNoise (IA: tira ruído e corta quando não é voz) -> filtro de voz (tom) -> portão/mute -> envio
+// Voz e live: STUN e, como reserva, o repasse da Cloudflare (app/turn.js). O WebRTC prefere sempre o caminho direto;
+// o repasse só carrega o áudio de quem não consegue ligar direto com aquela pessoa, sem nova tentativa visível.
 function iceServers() {
   const list = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }];
   if (S.turn && !S.isHost && !S.viaCode) {
     list.unshift({ urls: `stun:${S.addr.hf}:${S.turn.port}` });
     list.push({ urls: `turn:${S.addr.hf}:${S.turn.port}?transport=udp`, username: S.turn.username, credential: S.turn.credential });
   }
-  return list;
+  return [...list, ...(window.ResenhaTurn?.servers() || [])];
 }
 
 let rnBinary = null;
@@ -1680,14 +1641,16 @@ setInterval(() => {
   if (V.windowVisible && !document.hidden) updateDJProgress();
 }, 1000);
 
+// Estado da voz na linha "você" da barra lateral: ícone de sinal (cor pelo ping) + onde você está.
 function setConnStatus(kind, text) {
-  $('#vp-title').className = kind; $('#vp-title').textContent = text;
-  $('#vp-signal').className = kind === 'good' ? '' : kind;
+  const sub = $('#up-sub'); if (!sub) return;
+  sub.className = kind; $('#vp-title').textContent = text;
+  $('#vp-signal').innerHTML = kind === 'idle' ? '' : icon('signal', 12);
 }
 function updatePing() {
   if (!V.joined) return;
-  $('#vp-signal').title = `Ping até o anfitrião: ${S.lastPing} ms`;
-  if (S.ws && S.ws.readyState === 1) setConnStatus(S.lastPing > 250 ? 'warn' : 'good', 'Voz conectada');
+  $('#up-sub').title = `Ping até o anfitrião: ${S.lastPing} ms`;
+  if (S.ws && S.ws.readyState === 1) setConnStatus(S.lastPing > 250 ? 'warn' : 'good', `Na call · ${chanById(V.channel)?.name || ''}`);
 }
 
 // ---------- WebRTC (malha) ----------
@@ -1695,7 +1658,7 @@ function sig(to, data) { wsSend({ t: 'signal', to, data }); }
 function getPeer(uid) {
   let p = V.peers.get(uid);
   if (p) return p;
-  const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && !S.isHost ? 'relay' : 'all' });
+  const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && (!S.isHost || window.ResenhaTurn?.servers().length) ? 'relay' : 'all' });
   p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null, since: Date.now(), okAt: 0 };
   V.peers.set(uid, p);
   pc.onnegotiationneeded = async () => {
@@ -2403,10 +2366,16 @@ async function deviceMenu(e, kind) {
 
 document.addEventListener('mousedown', (e) => {
   if (!e.target.closest('#ctx-menu')) hideMenu();
-  if (!e.target.closest('#room-menu, #room-header')) $('#room-menu').classList.add('hidden');
+  if (!e.target.closest('#room-menu, #room-header, [data-room-menu]') && !$('#room-menu').classList.contains('hidden')) closeRoomMenu();
   if (!e.target.closest('#mention-pop, #input')) hideMentionPop();
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideMenu(); $('.lightbox')?.remove(); } });
+// Atalhos da sala (mostrados nos menus): Ctrl+I convida, Ctrl+, abre as Configurações.
+document.addEventListener('keydown', (e) => {
+  if (!e.ctrlKey || e.altKey || e.shiftKey || $('#main').classList.contains('hidden') || $('#modal-root').children.length) return;
+  if (e.key === 'i' || e.key === 'I') { e.preventDefault(); openInvite(); }
+  else if (e.key === ',') { e.preventDefault(); openSettings(); }
+});
 
 // ---------------- Canais ----------------
 async function createChannel(type) {
@@ -2510,6 +2479,7 @@ function renderMessages(keepScroll) {
   list.forEach((m, i) => { h += msgHTML(m, list[i - 1]); });
   $('#msg-list').innerHTML = h;
   if (!keepScroll || atBottom) scrollBottom(true); else box.scrollTop = prevTop;
+  syncSkinSoon();
 }
 // Redesenha só as mensagens desse autor (efeito/cor/avatar mudou), sem mexer na rolagem.
 function refreshAuthor(uid) {
@@ -2529,6 +2499,7 @@ function appendMessage(m) {
   const list = curMessages();
   $('#msg-list').insertAdjacentHTML('beforeend', msgHTML(m, list[list.length - 2]));
   if (atBottom || m.userId === S.myId) scrollBottom(true);
+  syncSkinSoon();
 }
 function scrollBottom(force) {
   const box = $('#messages');
@@ -2981,15 +2952,36 @@ function addrBlock(title, value, note, cls = '') {
 function bindCopy(root) { $$('[data-copy]', root).forEach((b) => b.onclick = () => { copy(b.dataset.copy); b.textContent = 'Copiado'; setTimeout(() => (b.textContent = 'Copiar'), 1500); }); }
 
 // ---------------- Configurações ----------------
-function bindPaletteCards(el) {
-  $$('[data-palette]',el).forEach((b)=>b.onclick=()=>{settings.themeColor=b.dataset.palette;saveSettings();applyTheme(settings.theme,settings.themeColor);$$('[data-palette]',el).forEach((x)=>x.classList.toggle('sel',x===b));});
+// Aparência (2.6): seis temas em cartões e, no Resenha, as paletas 60/30/10 (faixas na proporção real de cada cor).
+function themeCardHTML(k, attr = 'data-theme') {
+  const t = THEMES[k], v = themePreview(k, k === 'resenha' ? settings.themeColor : undefined);
+  return `<button class="theme-card tc-${k} ${settings.theme === k ? 'sel' : ''}" ${attr}="${k}" aria-pressed="${settings.theme === k}"><div class="tc-prev" style="--p60:${v.c60 || v['bg-main']};--p30:${v.c30 || v.text};--p10:${v.accent}"><i></i><i></i><b></b></div><span class="tc-name">${esc(t.name)}</span><span class="tc-hint">${esc(t.hint)}</span></button>`;
+}
+function paletteRowHTML() {
+  const auto = `<button class="pal ${settings.themeColor === 'auto' ? 'sel' : ''}" data-palette="auto" title="Segue o Windows: Pipoca no escuro, Lona no claro"><span class="pal-sw auto"><i style="--c:${RESENHA_PALETTES.pipoca.c[0]}"></i><i style="--c:${RESENHA_PALETTES.lona.c[0]}"></i></span><span>Automático</span></button>`;
+  return auto + Object.entries(RESENHA_PALETTES).map(([k, p]) => `<button class="pal ${settings.themeColor === k ? 'sel' : ''}" data-palette="${k}" title="${esc(p.n.join(' · '))}"><span class="pal-sw">${p.c.map((x, i) => `<i style="--c:${x};flex:${[6, 3, 1][i]}"></i>`).join('')}</span><span>${esc(p.name)}</span></button>`).join('');
+}
+function appearanceHTML(attr = 'data-theme') {
+  return `<div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${VISIBLE_THEMES.map((k) => themeCardHTML(k, attr)).join('')}</div>
+    <div class="pal-block ${settings.theme === 'resenha' ? '' : 'hidden'}"><div class="section-title">Cores do Resenha</div><p class="muted small pal-note">Fundo, texto e destaque na proporção 60 · 30 · 10. O contraste é ajustado sozinho.</p><div class="pal-grid">${paletteRowHTML()}</div></div>`;
+}
+function bindAppearance(el, attr = 'data-theme') {
+  const key = attr.replace(/^data-/, '').replace(/-(\w)/g, (_, x) => x.toUpperCase());
+  const refresh = () => { $$(`[${attr}]`, el).forEach((x) => { const on = x.dataset[key] === settings.theme; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); }); $('.pal-block', el)?.classList.toggle('hidden', settings.theme !== 'resenha'); };
+  $$(`[${attr}]`, el).forEach((b) => b.onclick = () => { settings.theme = b.dataset[key]; saveSettings(); applyTheme(settings.theme, settings.themeColor); refresh(); });
+  $$('[data-palette]', el).forEach((b) => b.onclick = () => {
+    settings.themeColor = b.dataset.palette; saveSettings(); applyTheme(settings.theme, settings.themeColor);
+    $$('[data-palette]', el).forEach((x) => x.classList.toggle('sel', x === b));
+    const card = $(`[${attr}="resenha"] .tc-prev`, el), v = themePreview('resenha', settings.themeColor);
+    if (card) { card.style.setProperty('--p60', v.c60); card.style.setProperty('--p30', v.c30); card.style.setProperty('--p10', v.accent); }
+  });
 }
 function openViewerSettings() {
-  const m = openModal(`<header><div><h2>Seu Resenha</h2><p>Aparência e perfil</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body"><div class="field"><label>Seu nome</label><input id="web-name" maxlength="32" value="${esc(me.name)}"></div><div class="field"><label>Cor</label><input id="web-color" type="color" value="${esc(me.color)}"></div><div class="section-title">Tema</div><div class="palette-grid">${window.paletteCards(settings.themeColor)}</div><div class="section-title">Aparência</div><div class="theme-grid">${Object.entries(THEMES).filter(([key]) => window.VISIBLE_THEMES.includes(key)).map(([k,t]) => `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-web-theme="${k}">${esc(t.name)}</button>`).join('')}</div></div><footer><button class="btn primary" data-close>Pronto</button></footer>`);
+  const m = openModal(`<header><div><h2>Seu Resenha</h2><p>Aparência e perfil</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body"><div class="field"><label>Seu nome</label><input id="web-name" maxlength="32" value="${esc(me.name)}"></div><div class="field"><label>Cor</label><input id="web-color" type="color" value="${esc(me.color)}"></div>${appearanceHTML('data-web-theme')}</div><footer><button class="btn primary" data-close>Pronto</button></footer>`);
   $('#web-name', m.el).onchange = (e) => { const name = e.target.value.trim(); if (name) { me.name = name; LS.set('profile',me); $('#home-name').value = name; sendProfile(); renderAll(); } };
   $('#web-color', m.el).oninput = (e) => { me.color=e.target.value; LS.set('profile',me); sendProfile(); renderAll(); };
-  bindPaletteCards(m.el);
-  $$('[data-web-theme]',m.el).forEach((b) => b.onclick = () => { settings.theme=b.dataset.webTheme; saveSettings(); applyTheme(settings.theme,settings.themeColor); $$('[data-web-theme]',m.el).forEach((x) => x.classList.toggle('sel',x===b)); });
+  
+  bindAppearance(m.el, 'data-web-theme');
 }
 async function openSettings(tab = 'voz') {
   if (WEB_VIEWER) return openViewerSettings();
@@ -3001,7 +2993,7 @@ async function openSettings(tab = 'voz') {
     <div class="body">
       <div class="tabs"><div class="tab" data-t="voz">Voz</div><div class="tab" data-t="filtros">Filtros de voz</div><div class="tab" data-t="aparencia">Aparência</div><div class="tab" data-t="perfil">Perfil</div>${native ? '<div class="tab" data-t="atalhos">Atalhos</div>' : ''}${overlayClient ? overlayClient.tabHTML() : ''}</div>
       <div class="tp" data-p="aparencia">
-        <div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${Object.entries(THEMES).filter(([key]) => window.VISIBLE_THEMES.includes(key)).map(([k, t]) => { const v = themePreview(k); return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(t.name)}</span></button>`; }).join('')}</div>
+        ${appearanceHTML()}
         <div class="section-title">Ícone do app</div>
         <div class="icon-grid">${globalThis.PIPOCA ? Object.entries(PIPOCA.VARIANTS).map(([k, v]) => `<button class="icon-card ${settings.appIcon === k ? 'sel' : ''}" data-app-icon="${k}"><img src="${PIPOCA.dataURL(k, 64)}" alt=""><span>${esc(v.name)}</span></button>`).join('') : ''}</div>
         <div class="section-title">Layout</div>
@@ -3127,8 +3119,8 @@ async function openSettings(tab = 'voz') {
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
   $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
   // Aparência
-  bindPaletteCards(el);
-  $$('.theme-card', el).forEach((b) => b.onclick = () => { settings.theme = b.dataset.theme; saveSettings(); applyTheme(settings.theme,settings.themeColor); $$('.theme-card', el).forEach((x) => x.classList.toggle('sel', x === b)); });
+  
+  bindAppearance(el);
   $('#st-fs', el).onchange = (e) => { settings.fontScale = +e.target.value; saveSettings(); applyLayout(); };
   $('#st-fs', el).oninput = (e) => { $('#st-fs-v', el).textContent = e.target.value + '%'; };
   $('#st-compact', el).onchange = (e) => { settings.compact = e.target.checked; saveSettings(); applyLayout(); };
@@ -3212,48 +3204,62 @@ function openMembers(transfer = false) {
   $$('[data-host]', m.el).forEach((b) => b.onclick = () => { m.close(); transferHost(b.dataset.host); });
   $$('[data-dm]', m.el).forEach((b) => b.onclick = () => { m.close(); openDM(b.dataset.dm); });
 }
-function roomMenu() {
-  const menu = $('#room-menu');
-  if (!menu.classList.contains('hidden')) return menu.classList.add('hidden');
+// Menu da sala (2.6): abre do seletor no topo da barra lateral. Ícone à esquerda, atalho à direita, grupos separados
+// por filete e a ação destrutiva por último. "Suas salas" substitui a antiga fileira de bolinhas.
+async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os temas com sala própria passam o deles)
+  const menu = $('#room-menu'), btn = $('#room-header');
+  if (!menu.classList.contains('hidden')) return closeRoomMenu();
   const look = S.roomLook || {}, people = roomPeople(), host = people.find((u) => u.isHost), live = people.filter((u) => u.sharing && u.id !== S.myId);
-  const color = look.color || serverColor(S.code || S.roomName), fav = native?.rooms && S.code ? favoriteCode() === normCode(S.code) : null, muted = roomMuted();
-  const item = (a, label, ic, cls = '') => `<div class="dd-item ${cls}" data-a="${a}">${label} ${icon(ic, 16)}</div>`;
-  const quick = (a, label, ic, on = false) => `<button class="rm-quick-btn ${on ? 'on' : ''}" data-a="${a}" aria-pressed="${on}">${icon(ic, 18)}<span>${label}</span></button>`;
-  menu.classList.add('server-menu');
-  menu.innerHTML = `<div class="rm-head" style="--room-color:${esc(color)}${look.cover ? `;--room-cover:url('${esc(look.cover)}')` : ''}"><div class="rm-cover ${look.cover ? 'has-cover' : ''}"></div>
-      <div class="rm-id"><span class="rm-icon">${S.roomIcon ? `<img src="${esc(S.roomIcon)}" alt="">` : esc(initials(S.roomName || 'S'))}</span>
-      <div class="rm-text"><b>${esc(S.roomName || 'Sala')}</b>${look.about ? `<span>${esc(look.about)}</span>` : ''}<span class="rm-meta">${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}${host ? ' · anfitrião ' + esc(host.id === S.myId ? 'você' : host.name) : ''}</span></div></div></div>
-    <div class="rm-quick">${quick('invite', 'Convidar', 'userPlus')}${quick('mute', muted ? 'Silenciada' : 'Silenciar', muted ? 'headphonesOff' : 'headphones', muted)}${fav !== null ? quick('fav', fav ? 'Favorita' : 'Favoritar', 'star', fav) : ''}</div>
-    ${live.length ? `<div class="rm-sec"><div class="rm-label">Ao vivo agora</div>${live.map((u) => `<div class="dd-item rm-live" data-a="watch" data-uid="${esc(u.id)}"><span class="rm-dot"></span>${esc(u.name)}<span class="rm-go">${V.watching?.has(u.id) ? 'Assistindo' : 'Assistir'}</span></div>`).join('')}</div>` : ''}
-    <div class="rm-sec">${item('members', 'Pessoas na sala', 'userPlus')}${item('profile', 'Meu perfil', 'edit')}${item('newtext', 'Criar canal de texto', 'hash')}${item('newvoice', 'Criar canal de voz', 'volume')}${item('copy', S.code ? 'Copiar código ' + esc(fmtCode(S.code)) : 'Copiar endereço', 'copy')}</div>
-    ${S.isHost ? `<div class="rm-sec"><div class="rm-label">Só o anfitrião</div>${item('look', 'Personalizar sala', 'image')}${S.code && people.some((u) => u.id !== S.myId && u.canHost) ? item('transfer', 'Transferir anfitrião', 'crown') : ''}</div>` : ''}
-    <div class="rm-sec">${item('settings', 'Configurações', 'settings')}${item('leave', S.isHost ? 'Fechar sala' : 'Sair da sala', 'logout', 'danger')}</div>`;
-  menu.classList.remove('hidden');
-  $$('.rm-quick-btn', menu).forEach((b) => b.onclick = () => { menu.classList.add('hidden'); const a = b.dataset.a; if (a === 'invite') openInvite(); if (a === 'mute') toggleRoomMute(); if (a === 'fav') toggleFavorite(); });
-  $$('.dd-item', menu).forEach((it) => it.onclick = async () => {
-    menu.classList.add('hidden');
-    const a = it.dataset.a;
+  const fav = native?.rooms && S.code ? favoriteCode() === normCode(S.code) : null, muted = roomMuted();
+  if (native?.rooms) { try { storedRooms = await native.rooms.list(); } catch {} }
+  const cur = normCode(S.code), others = visibleRooms(storedRooms || []).filter((r) => normCode(r.code) !== cur).slice(0, 6);
+  const it = (a, label, ic, extra = '', cls = '', data = '') => `<div class="n-it ${cls}" role="menuitem" tabindex="-1" data-a="${a}" ${data}>${icon(ic, 16)}<span class="n-lb">${label}</span>${extra}</div>`;
+  const kbd = (k) => `<span class="n-kbd">${k}</span>`;
+  const roomAv = (name, color, img, size) => `<span class="n-av sq" style="--c:${esc(color)};--s:${size}px">${img ? `<img src="${esc(img)}" alt="">` : esc(initials(name || 'S'))}</span>`;
+  menu.innerHTML = `<div class="n-head">${roomAv(S.roomName, look.color || serverColor(S.code || S.roomName), S.roomIcon || look.cover, 34)}<div><b>${esc(S.roomName || 'Sala')}</b><span>${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}${host ? ' · ' + (host.id === S.myId ? 'você é o anfitrião' : 'anfitrião ' + esc(host.name)) : ''}</span>${look.about ? `<span class="n-about">${esc(look.about)}</span>` : ''}</div></div>
+    ${it('invite', 'Convidar pessoas', 'userPlus', kbd('Ctrl I'))}
+    ${it('copy', S.code ? 'Copiar código' : 'Copiar endereço', 'copy', S.code ? `<span class="n-code">${esc(fmtCode(S.code))}</span>` : '')}
+    ${live.length ? `<hr><div class="n-label">Ao vivo agora</div>${live.map((u) => it('watch', esc(u.name), 'screen', `<span class="n-live">${V.watching?.has(u.id) ? 'assistindo' : 'assistir'}</span>`, '', `data-uid="${esc(u.id)}"`)).join('')}` : ''}
+    <hr>${it('members', 'Pessoas na sala', 'users', kbd(String(people.length)))}${it('newtext', 'Novo canal de texto', 'hash')}${it('newvoice', 'Novo canal de voz', 'volume')}
+    ${S.isHost ? it('look', 'Personalizar sala', 'image') + it('icon', S.roomIcon ? 'Trocar ícone da sala' : 'Pôr ícone na sala', 'upload') + (S.roomIcon ? it('noicon', 'Tirar ícone da sala', 'trash') : '') + (S.code && people.some((u) => u.id !== S.myId && u.canHost) ? it('transfer', 'Transferir anfitrião', 'crown') : '') : ''}
+    ${it('mute', muted ? 'Ativar avisos da sala' : 'Silenciar a sala', muted ? 'bell' : 'bellOff')}${fav !== null ? it('fav', fav ? 'Não abrir ao iniciar' : 'Abrir esta sala ao iniciar', 'star', '', fav ? 'is-on' : '') : ''}
+    ${native?.rooms ? `<hr><div class="n-label">Suas salas</div>${others.map((r) => `<div class="n-it" role="menuitem" tabindex="-1" data-a="room" data-code="${esc(normCode(r.code))}">${roomAv(r.name, r.look?.color || serverColor(r.code), r.icon, 20)}<span class="n-lb">${esc(r.name)}</span>${normCode(r.code) === favoriteCode() ? icon('star', 12, 'n-fav') : ''}</div>`).join('')}${it('home', 'Entrar ou criar sala', 'plus')}` : ''}
+    <hr>${it('leave', S.isHost ? 'Fechar sala' : 'Sair da sala', 'logout', '', 'danger')}`;
+  if (menu.parentElement !== document.body) document.body.append(menu); // fora da barra lateral, que corta o que transborda
+  const r = (anchor?.isConnected ? anchor : btn).getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
+  menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px';
+  menu.classList.remove('hidden'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+  if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches)
+    menu.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+  const items = $$('.n-it', menu); items[0]?.focus();
+  menu.onkeydown = (e) => {
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement?.click(); }
+    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeRoomMenu(); (anchor?.isConnected && anchor.offsetParent ? anchor : btn).focus(); }
+  };
+  items.forEach((el) => el.onmouseenter = () => el.focus());
+  items.forEach((el) => el.onclick = async () => {
+    closeRoomMenu();
+    const a = el.dataset.a;
     if (a === 'invite') openInvite();
-    if (a === 'settings') openSettings();
     if (a === 'fav') toggleFavorite();
+    if (a === 'mute') toggleRoomMute();
     if (a === 'look') openRoomLook();
     if (a === 'members') openMembers();
     if (a === 'transfer') openMembers(true);
-    if (a === 'profile') openSettings('perfil');
-    if (a === 'watch') { setWatching(it.dataset.uid, true); }
     if (a === 'icon') pickServerIcon();
     if (a === 'noicon') wsSend({ t: 'room', name: S.roomName, icon: '' });
+    if (a === 'watch') setWatching(el.dataset.uid, true);
     if (a === 'newtext') createChannel('text');
     if (a === 'newvoice') createChannel('voice');
+    if (a === 'room') switchServer(el.dataset.code);
+    if (a === 'home') goHome('#join-addr');
     if (a === 'copy') {
-      if (S.code) return copy(S.code);
+      if (S.code) return copy(fmtCode(S.code));
       if (!S.isHost) return copy(S.addr.text);
-      const mobile = await native.mobileAccess();
-  if (document.body.contains(m.el)) {
-    $('#inv-web',m.el).innerHTML = mobile?.error ? `<p>${esc(mobile.error)}</p>` : (mobile?.links||[]).map(x=>`<div class="addr"><h3>Celular · mesmo Wi-Fi</h3><img width="200" height="200" src="${x.qr}" alt="QR code para configurar o Resenha no celular"><p>Escaneie para configurar o certificado local e entrar. O anfitrião precisa continuar com a sala aberta.</p><code>${esc(x.setup)}</code><button class="btn" data-copy="${esc(x.setup)}">Copiar acesso</button><details><summary>Identidade do certificado</summary><code>${esc(mobile.fingerprint)}</code><p>Confie somente no certificado deste anfitrião. A instalação permite confiar em certificados assinados por ele; remova a confiança quando não usar mais.</p></details></div>`).join('');
-    bindCopy($('#inv-web',m.el));
-  }
-  const n = await native.hostNetwork();
+      const n = await native.hostNetwork();
       copy(n.publicV4 && !n.cgnat ? `${n.publicV4}:${n.port}` : `${n.lan[0]}:${n.port}`);
     }
     if (a === 'leave') {
@@ -3263,7 +3269,10 @@ function roomMenu() {
     }
   });
 }
-
+function closeRoomMenu() {
+  $('#room-menu').classList.add('hidden');
+  const btn = $('#room-header'); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false');
+}
 // ---------------- Atualização ----------------
 let updateInfo=null,updateDismissedVersion=null;
 function hideUpdateBar(){ updateDismissedVersion=updateInfo?.version||null; const bar=$('#update-bar'); if(bar.classList.contains('hidden'))return; bar.classList.add('up-leave'); setTimeout(()=>{if(!bar.classList.contains('up-leave'))return;bar.classList.add('hidden');bar.classList.remove('up-leave');},document.documentElement?.classList?.contains('glass')?260:0); document.body.classList.remove('has-update'); }
@@ -3449,35 +3458,33 @@ function bind() {
   });
   addEventListener('blur', () => document.documentElement.classList.add('win-blur'));
   addEventListener('focus', () => document.documentElement.classList.remove('win-blur'));
-  $('#btn-invite').innerHTML = icon('userPlus', 16) + '<span>Convidar</span>';
+  $('#btn-invite .nsb-ic').innerHTML = icon('userPlus', 16);
+  $('#side-home').innerHTML = icon('home', 17);
+  $('#room-header .nsb-chev').innerHTML = icon('chevronDown', 14);
   $('#btn-attach').innerHTML = icon('plus', 22);
   $('#btn-send').innerHTML = icon('send', 18);
   $('#btn-send').onclick = () => sendMessage();
-  $('#btn-code').onclick = () => { if (S.code) copy(fmtCode(S.code)); };
+  $('#btn-code').onclick = (e) => { e.stopPropagation(); if (S.code) copy(fmtCode(S.code)); };
   $('#btn-chat-toggle').innerHTML = icon('chat', 18);
   $('#btn-chat-toggle').onclick = () => { if ($('#main').dataset.rightOpen === 'true') roomUI?.close(); else roomUI?.open('chat'); };
-  $('#room-header').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); roomMenu(e); } };
-  $('#btn-settings').innerHTML = icon('settings');
-  $('#vp-leave').innerHTML = icon('phoneOff');
-  $('#vp-invite').innerHTML = icon('userPlus');
-  $('#vp-dj').innerHTML = icon('music');
-  $('#vp-signal').innerHTML = icon('signal', 20);
+  $('#btn-settings').innerHTML = icon('settings', 17);
   $$('.cat-add').forEach((b) => { b.innerHTML = icon('plusSmall', 16); b.onclick = () => createChannel(b.dataset.add); });
   $$('.ico-hash').forEach((e) => (e.outerHTML = icon('hash', 20)));
   $$('.ico-vol').forEach((e) => (e.outerHTML = icon('volume', 20)));
   $('#btn-invite').onclick = (e) => { e.stopPropagation(); openInvite(); };
   $('#room-header').onclick = roomMenu;
-  $('#btn-mute').onclick = $('#cc-mute').onclick = () => setMuted(!(V.muted || V.deafened));
-  $('#btn-deafen').onclick = $('#cc-deafen').onclick = () => setDeafened(!V.deafened);
-  $('#btn-mute').oncontextmenu = $('#cc-mute').oncontextmenu = (e) => deviceMenu(e, 'audioinput');
-  $('#btn-deafen').oncontextmenu = $('#cc-deafen').oncontextmenu = (e) => deviceMenu(e, 'audiooutput');
+  // Cada ação mora num lugar só (HIG): microfone, áudio, tela, DJ e sair ficam no dock da call.
+  $('#cc-mute').onclick = () => setMuted(!(V.muted || V.deafened));
+  $('#cc-deafen').onclick = () => setDeafened(!V.deafened);
+  $('#cc-mute').oncontextmenu = (e) => deviceMenu(e, 'audioinput');
+  $('#cc-deafen').oncontextmenu = (e) => deviceMenu(e, 'audiooutput');
   $('#btn-settings').onclick = () => openSettings();
   $('#up-user').onclick = () => openSettings('perfil');
-  $('#vp-leave').onclick = $('#cc-leave').onclick = () => leaveVoice();
-  $('#vp-share').onclick = $('#cc-share').onclick = toggleShare;
-  $('#vp-invite').onclick = openInvite;
-  $('#vp-dj').onclick = $('#btn-dj').onclick = openDJPanel;
-  $('#rail-home').onclick = () => toast('Pra sair, use o menu da sala (clique no nome dela).');
+  $('#up-user').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSettings('perfil'); } };
+  $('#cc-leave').onclick = () => leaveVoice();
+  $('#cc-share').onclick = toggleShare;
+  $('#btn-dj').onclick = openDJPanel;
+  $('#side-home').onclick = () => goHome();
   // Canais
   $('#text-channels').onclick = (e) => {
     const ed = e.target.closest('[data-edit]'); if (ed) { e.stopPropagation(); return channelMenu(e, ed.dataset.edit); }
@@ -3507,9 +3514,11 @@ function watchDevices() {
 }
 
 window.__resenha = { showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
-if (!LS.get('arcThemeMigrated', false)) { settings.theme = 'system'; saveSettings(); LS.set('arcThemeMigrated', true); }
-if (window.RETIRED_THEMES?.[settings.theme]) { settings.theme = window.RETIRED_THEMES[settings.theme]; saveSettings(); } // temas retirados na 2.1.5
+// 2.6: seis temas. Quem usava um tema antigo vai para o mais parecido; no Resenha, a paleta também vem dele.
+{ const now = window.savedTheme(settings.theme, settings.themeColor);
+  if (now.theme !== settings.theme || now.color !== settings.themeColor) { settings.theme = now.theme; settings.themeColor = now.color; saveSettings(); } }
 applyTheme(settings.theme,settings.themeColor);
+skinReady = true; syncSkin();
 // Janela translúcida: o vidro do sistema aparece atrás do fundo do tema (Windows 11 22H2+).
 async function applyWindowMaterial() {
   if (!native?.setWindowMaterial) return;
@@ -3551,10 +3560,7 @@ const WHATS_NEW = {
 const WN_STYLE = '3'; // 1 Cromado · 2 Bolha Aqua · 3 Adesivo holográfico
 function openWhatsNew(version) {
   const info = WHATS_NEW[version]; if (!info) return;
-  const themes = window.VISIBLE_THEMES.filter((k) => k !== 'arcLight' && k !== 'arcDark');
-  const card = (k) => { const v = themePreview(k), t = THEMES[k] || THEMES.system;
-    return `<button class="theme-card ${settings.theme === k ? 'sel' : ''}" data-theme="${k}"><div class="tc-prev" style="background:${v['bg-rail']}"><i style="background:${v['bg-side']}"></i><i style="background:${v['bg-main']}"><b style="background:${v.blurple}"></b><s style="background:${v.muted}"></s><s style="background:${v.muted}"></s></i></div><span>${esc(k === 'system' ? 'Resenha' : t.name)}</span></button>`; };
-  const pipoca = $('.side-brand > img')?.src || $('#rail-home img')?.src || '';
+  const pipoca = 'icon.png';
   // Destaque da 2.2: Resenha + Spotify. Marca do Spotify nas cores oficiais e aviso de que não há afiliação.
   const hero = info.hero === 'spotify' ? `<section class="wn-hero" aria-label="Resenha × Spotify">
       <div class="wn-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
@@ -3568,13 +3574,13 @@ function openWhatsNew(version) {
     <div class="body whats-new">${hero}
       <ul class="wn-list">${info.items.map(([ic, t, d]) => `<li><span class="wn-ic">${icon(ic, 18)}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></li>`).join('')}</ul>
       <div class="section-title">Experimente os temas</div>
-      <div class="theme-grid wn-themes">${themes.map(card).join('')}</div>
+      <div class="theme-grid wn-themes">${VISIBLE_THEMES.map((k) => themeCardHTML(k)).join('')}</div>
     </div>
     <footer><button class="btn" id="wn-more">Mais opções de aparência</button><span class="grow"></span>${info.hero === 'spotify' && native?.spotify ? '<button class="btn wn-spotify-btn" id="wn-spotify">Ir para a música</button>' : ''}<button class="btn primary" data-close>Bora!</button></footer>${info.hero === 'spotify' ? '<p class="wn-legal">O Resenha não é afiliado, patrocinado ou endossado pelo Spotify. Spotify é marca registrada da Spotify AB.</p>' : ''}`,
     { wide: true, cls: 'whats-new-modal wn-y2k', onClose: info.hero === 'spotify' && native?.spotify ? showMusicIntro : undefined });
   $('.whats-new-modal', m.el)?.setAttribute('data-wn', WN_STYLE); // estilo Y2K do destaque (glass.css)
   $('#wn-spotify', m.el)?.addEventListener('click', () => { music?.setEnabled(true); m.close(); });
-  $$('.theme-card', m.el).forEach((b) => b.onclick = () => { settings.theme = b.dataset.theme; saveSettings(); applyTheme(settings.theme, settings.themeColor); $$('.theme-card', m.el).forEach((x) => x.classList.toggle('sel', x === b)); });
+  bindAppearance(m.el);
   $('#wn-more', m.el).onclick = () => { m.close(); openSettings('aparencia'); };
 }
 // Mostra a aba de música agora, se já estiver numa sala; senão, na próxima vez que entrar numa.
@@ -3644,8 +3650,8 @@ if (WEB_VIEWER) {
   $('#join-hint').textContent = 'Você está no endereço da sala. Escolha seu nome e entre.';
   $('#btn-join').onclick = () => joinRoom(location.host, $('#join-pass').value);
   }
-  $('#cc-share').classList.add('hidden'); $('#vp-share').classList.add('hidden');
-  $('#btn-mute').disabled = !WEB_VOICE; $('#cc-mute').disabled = !WEB_VOICE;
+  $('#cc-share').classList.add('hidden');
+  $('#cc-mute').disabled = !WEB_VOICE;
   $('.home-brand p').textContent = 'Acompanhe a resenha pelo navegador.';
 }
 if (WEB_VIEWER) { import('./mobile.js').then(m=>m.initMobile(window.__resenha)); }

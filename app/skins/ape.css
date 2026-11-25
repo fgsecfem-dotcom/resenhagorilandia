@@ -1,0 +1,202 @@
+/* Apê: maquete noturna, papel creme e ferragens em laranja. */
+.ap {
+  --ap-night: #0b0638; --ap-cream: #fff3e3; --ap-orange: #ea5b1a; --ap-ink: #1b0d1f;
+  --ap-note: #b6b0d8; --ap-panel: #151043; --ap-high: #251d59; --ap-edge: #352c65;
+  --ap-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ap-hex: polygon(50% 0%, 98% 24%, 98% 76%, 50% 100%, 2% 76%, 2% 24%);
+  position: absolute; inset: 0; padding: 49px 24px 18px;
+  display: grid; grid-template-columns: clamp(176px, 16.2vw, 226px) minmax(0, 1fr); gap: 25px;
+  background: var(--ap-night); color: var(--ap-cream); font: 400 14px/1.35 Rubik, system-ui, sans-serif;
+  color-scheme: dark; scrollbar-color: #534681 transparent; scrollbar-width: thin;
+}
+.ap [hidden] { display: none; }
+.ap button { cursor: pointer; margin: 0; transition: background-color 120ms var(--ap-ease), color 120ms var(--ap-ease), transform 120ms var(--ap-ease), border-color 120ms var(--ap-ease); }
+.ap button:disabled { cursor: default; opacity: .46; }
+.ap :is(button, [tabindex], input):focus-visible { outline: 2px solid #ffcc91; outline-offset: 2px; }
+.ap button > .ic { flex: none; }
+.ap button:active:not(:disabled) { transform: scale(.97); }
+.ap-label { margin: 0; color: var(--ap-note); font-size: 10.5px; font-weight: 640; letter-spacing: .13em; text-transform: uppercase; }
+.ap-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; min-height: 36px; border: 1px solid var(--ap-edge); border-radius: 11px; background: var(--ap-panel); color: var(--ap-cream); font-size: 12px; font-weight: 570; }
+.ap-button:hover:not(:disabled), .ap-button[aria-expanded="true"] { background-color: var(--ap-high); border-color: #5d4b81; }
+.ap-square { width: 36px; padding: 0; }
+.ap-quiet { height: 38px; }
+.ap [data-ap-chat] { position: relative; }
+.ap [data-ap-chat].ap-unread::after { content: ''; position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; background: #ff9d66; border-radius: 50%; }
+.ap-avatar { position: relative; width: var(--ap-avatar-size, 32px); height: var(--ap-avatar-size, 32px); flex: none; display: grid; place-items: center; border-radius: 50%; overflow: hidden; background: var(--ap-avatar); color: var(--ap-ink); font-weight: 720; }
+.ap-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* Navegação: as miniaturas repetem a planta do cômodo, sem animar. */
+.ap-rail { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--ap-panel); border: 1px solid var(--ap-edge); border-radius: 23px; padding: 12px 10px 10px; }
+.ap-rail-head { display: flex; gap: 3px; align-items: center; padding: 2px 1px 11px; border-bottom: 1px solid var(--ap-edge); }
+.ap-room-button, .ap-profile, .ap-lobby-user { border: 0; color: inherit; background: transparent; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px; border-radius: 10px; text-align: left; }
+.ap-room-button:hover, .ap-profile:hover, .ap-lobby-user:hover { background: var(--ap-high); }
+.ap-room-button { flex: 1; padding-inline: 3px; }
+.ap-room-mark .ap-avatar { --ap-avatar-size: 35px; border-radius: 0; clip-path: var(--ap-hex); font-size: 12px; }
+.ap-room-label, .ap-profile-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ap-room-label strong, .ap-profile-copy strong { font-size: 13px; font-weight: 650; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-room-label small, .ap-profile-copy small { color: var(--ap-note); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-room-label strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.12; }
+.ap-room-label small { font-variant-numeric: tabular-nums; letter-spacing: .035em; }
+.ap-rail-head .ap-square, .ap-account .ap-square { background: transparent; border-color: transparent; color: var(--ap-note); flex: none; width: 31px; }
+.ap-rail-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 13px 2px 11px; }
+.ap-rail-scroll > section + section { margin-top: 16px; }
+.ap-rail-scroll .ap-label { padding: 0 4px; margin-bottom: 7px; }
+.ap-rooms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.ap-room-tile { min-width: 0; padding: 5px 2px 6px; min-height: 85px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; border-radius: 13px; border: 1px solid transparent; background: transparent; }
+.ap-room-tile:hover { background: var(--ap-high); }
+.ap-room-tile.ap-room-active { background: var(--ap-high); border-color: #625083; }
+.ap-room-tile strong, .ap-room-tile small { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.ap-room-tile strong { font-weight: 590; font-size: 11.5px; }
+.ap-room-tile small { color: var(--ap-note); font-size: 10.5px; }
+.ap-room-tile.ap-room-occupied small { color: #f4ba91; }
+.ap-mini { display: block; width: min(100%, 76px); height: 57px; overflow: hidden; opacity: .81; }
+.ap-mini-outline { stroke: #796ba6; }
+.ap-room-active .ap-mini, .ap-room-tile:hover .ap-mini { opacity: 1; }
+.ap-room-active .ap-mini-outline { stroke: #f0dbc5; }
+.ap-walls, .ap-lobby-people { display: grid; gap: 3px; }
+.ap-wall { display: flex; align-items: center; gap: 7px; padding: 5px 9px; min-height: 31px; min-width: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ap-note); text-align: left; font-size: 12px; }
+.ap-wall span, .ap-lobby-user > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-wall:hover, .ap-wall-active { background: var(--ap-high); color: var(--ap-cream); }
+.ap-wall i { display: none; flex: none; margin-left: auto; width: 6px; height: 6px; background: #ff9d66; border-radius: 50%; }
+.ap-wall.ap-unread i { display: block; }
+.ap-lobby-user { font-size: 12px; padding: 3px 5px; --ap-avatar-size: 23px; }
+.ap-account { padding: 7px 1px 0; border-top: 1px solid var(--ap-edge); display: flex; align-items: center; gap: 4px; }
+.ap-profile { flex: 1; }
+
+/* Área da sala e dock, deixando os 38 px da barra do app livres. */
+.ap-content { min-height: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.ap-heading { min-height: 61px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 2px 1px 7px; }
+.ap-heading-copy { min-width: 0; }
+.ap-heading h1 { color: var(--ap-cream); font-size: clamp(23px, 2.5vw, 36px); line-height: 1.04; font-weight: 770; letter-spacing: -.035em; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-heading p { color: var(--ap-note); font-size: 12.5px; line-height: 1.25; margin: 6px 0 0; }
+.ap-heading-actions { display: flex; gap: 7px; flex: none; }
+.ap-workarea { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; }
+.ap-chat-open .ap-workarea { grid-template-columns: minmax(0, 1fr) clamp(235px, 21vw, 310px); gap: 18px; }
+.ap-center { display: flex; flex-direction: column; align-items: stretch; min-width: 0; min-height: 0; }
+.ap-display { flex: 1; min-height: 0; position: relative; }
+.ap-roomstage, .ap-livestage { position: absolute; inset: 0; }
+.ap-roomstage { display: block; }
+.ap-scene-holder { display: flex; justify-content: center; height: 100%; }
+.ap-scene { display: block; width: 100%; height: 100%; max-width: 920px; overflow: visible; }
+.ap-tok, .ap-pet, .ap-tv-cat, .ap-tv-watch { cursor: pointer; }
+.ap-tv-watch rect { fill: #251b55; stroke: #b695c9; stroke-width: 1.3; }
+.ap-tv-watch :is(path, text) { fill: var(--ap-cream); }
+.ap-tv-watch text { font-size: 11px; font-weight: 670; }
+.ap-tv-watch:hover rect, .ap-tv-watch:focus-visible rect { fill: #45336f; stroke: #ffca8f; }
+.ap-tok .rings, .ap-face-live, .ap-face-silence, .ap-face-deaf { display: none; }
+.ap-is-speaking .rings, .ap-is-streaming .ap-face-live, .ap-is-muted .ap-face-silence, .ap-is-deaf .ap-face-deaf { display: inline; }
+.ap-is-deaf .ap-face-muted { display: none; }
+.ap-face-initial { font-weight: 690; }
+.ap-nameplate rect { fill: #120a3c; stroke: #615089; stroke-width: 1.1; }
+.ap-nameplate text { font-size: 11.75px; font-weight: 620; fill: var(--ap-cream); }
+.ap-tok:hover .ap-nameplate rect, .ap-tok:focus-visible .ap-nameplate rect { stroke: #ffcc91; }
+.ap-is-speaking .ap-nameplate rect { fill: #ffb477; stroke: #ffcb9e; }
+.ap-is-speaking .ap-nameplate text { fill: #301419; }
+.ap-tray { min-height: 67px; padding: 5px 0 3px; display: grid; place-items: center; flex: none; }
+.ap-dock { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.ap-hex-button { position: relative; border: none; padding: 0; width: 47px; height: 51px; border-radius: 15px; background: none; isolation: isolate; color: var(--ap-cream); }
+.ap-hex-button::before { content: ''; position: absolute; inset: 0; clip-path: var(--ap-hex); z-index: -1; background: #33256a; transition: background-color 120ms var(--ap-ease); }
+.ap-hex-button:hover:not(:disabled) { background: transparent; }
+.ap-hex-button:hover:not(:disabled)::before { background: #524084; }
+.ap-hex-button[aria-pressed="true"] { color: #722733; }
+.ap-hex-button[aria-pressed="true"]::before { background: var(--ap-cream); }
+.ap-dock [data-ap-dj][aria-pressed="true"] { color: #162f2b; }
+.ap-dock [data-ap-dj][aria-pressed="true"]::before { background: #b8e1bf; }
+.ap-hex-button.ap-share { width: 53px; height: 58px; color: var(--ap-ink); }
+.ap-hex-button.ap-share::before, .ap-join, .ap-submit { background: var(--ap-orange); color: var(--ap-ink); }
+.ap-hex-button.ap-share:hover:not(:disabled)::before, .ap-join:hover:not(:disabled), .ap-submit:hover:not(:disabled) { background: #ff8747; }
+.ap-hex-button.ap-share[aria-pressed="true"]::before { background: #ffb28c; }
+.ap-hex-button.ap-leave { margin-left: 6px; }
+.ap-hex-button.ap-leave::before { background: #a93445; }
+.ap-hex-button.ap-leave:hover::before { background: #bd4654; }
+.ap-join { border: 0; min-height: 43px; padding-inline: 17px; border-radius: 12px; min-width: 134px; font-size: 13px; font-weight: 690; }
+.ap-watch { display: flex; justify-content: center; min-width: 0; gap: 6px; flex-wrap: wrap; max-height: 90px; overflow: auto; padding: 3px 5px; }
+.ap-watch .ap-button { background: #2c2059; border-color: #614480; max-width: min(255px, 100%); }
+.ap-watch .ap-button:hover { background: #47316b; }
+.ap-watch .ap-button > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Telão frontal. A proporção é da superfície interna, não da moldura. */
+.ap-livestage { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; justify-items: center; }
+.ap-screen-space { container-type: size; width: 100%; height: 100%; display: grid; place-items: center; min-height: 0; min-width: 0; }
+.ap-screen {
+  --ap-ratio: 1.777777778; position: relative; box-sizing: content-box;
+  width: min(calc(100cqw - 60px), calc((100cqh - 64px) * var(--ap-ratio)));
+  border: 6px solid #29214f; border-radius: 8px; background: #201944;
+  box-shadow: 0 0 0 1px #5b4979, 7px 8px 0 #090529; margin-top: 26px;
+}
+.ap-picture { width: 100%; aspect-ratio: var(--ap-ratio); position: relative; display: grid; place-items: center; background: #160f3d; }
+.ap-picture video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+.ap-picture video:fullscreen { background: #000; }
+.ap-picture.ap-video-ready video, .ap-picture video:fullscreen { display: block; }
+.ap-picture.ap-video-ready .ap-connect { display: none; }
+.ap-connect { color: var(--ap-note); font-size: 12px; padding: 10px; text-align: center; }
+.ap-tv-cat { position: absolute; right: -17px; bottom: calc(100% - 2px); width: clamp(90px, 11vw, 136px); overflow: visible; }
+.ap-tail { transform-box: fill-box; transform-origin: 10% 5%; animation: ap-tail 4.6s var(--ap-ease) infinite; }
+.ap-live-info { min-width: 0; width: min(100% - 12px, 450px); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ap-live-line { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.ap-live-line strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 640; }
+.ap-live-flag { flex: none; color: #ffe7dc; background: #922d40; padding: 4px 7px; border-radius: 6px; font-size: 10px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+.ap-live-controls { display: flex; gap: 4px; }
+.ap-live-controls .ap-button { min-height: 30px; width: 31px; }
+.ap-live-controls .ic { width: 15px; height: 15px; }
+.ap-audience { width: min(100%, var(--ap-audience-width, 300px)); height: clamp(59px, 9.4vh, 86px); display: flex; justify-content: center; }
+.ap-audience svg { display: block; width: 100%; height: 100%; }
+
+/* Mural: poucas mensagens, recolhido por padrão. */
+.ap-chat { min-width: 0; min-height: 0; align-self: end; height: min(100%, 520px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; background: var(--ap-panel); border: 1px solid var(--ap-edge); border-radius: 20px; }
+.ap-chat > header { display: flex; justify-content: space-between; align-items: center; min-width: 0; gap: 6px; padding: 13px 12px 11px 15px; border-bottom: 1px solid var(--ap-edge); }
+.ap-chat > header > div { min-width: 0; }
+.ap-chat h2 { margin: 2px 0 0; font-size: 16px; font-weight: 650; line-height: 1.22; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ap-messages { overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 7px; }
+.ap-messages > :first-child { margin-top: auto; }
+.ap-message { align-self: start; min-width: 0; max-width: 91%; padding: 6px 10px 7px; border-radius: 11px 11px 11px 4px; background: #282053; }
+.ap-message strong { color: #dfccfb; font-size: 10.5px; font-weight: 650; display: block; margin-bottom: 2px; }
+.ap-message-text { font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ap-mine { align-self: end; border-radius: 11px 11px 4px 11px; color: #241335; background: var(--ap-cream); }
+.ap-mine strong { color: #6d4167; }
+.ap-system { align-self: center; padding: 4px 8px; text-align: center; color: var(--ap-note); background: transparent; }
+.ap-system strong { display: none; }
+.ap-chat-empty { margin: auto; color: var(--ap-note); text-align: center; font-size: 13px; }
+.ap-composer { display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--ap-edge); }
+.ap-composer input { color: var(--ap-cream); background: var(--ap-night); border: 1px solid #3d326a; border-radius: 9px; flex: 1; width: 0; min-width: 0; padding: 0 9px; height: 36px; font-size: 12.5px; }
+.ap-composer input::placeholder { color: var(--ap-note); }
+.ap-submit { width: 34px; min-width: 34px; padding: 0; border: 0; }
+
+/* Só os pequenos sinais luminosos e os bichos têm movimento. */
+.ap-scene .ap-bulb { opacity: .78; transition: opacity 200ms var(--ap-ease); }
+.ap-scene .ap-bulb-lit { opacity: 1; }
+.ap-ring { transform-box: fill-box; transform-origin: center; opacity: 0; }
+.ap-is-speaking .ap-ring { animation: ap-ring 700ms var(--ap-ease) both; }
+.ap-zz { fill: #e6daff; paint-order: stroke; stroke: #31234a; stroke-width: 2px; font-size: 12px; font-weight: 750; }
+.ap-pop { font-size: 17px; font-weight: 800; fill: #ff9d9f; paint-order: stroke; stroke: #391536; stroke-width: 2px; animation: ap-rise 850ms var(--ap-ease) forwards; }
+.ap-pet-cat .ap-pop, .ap-tv-cat .ap-pop { fill: #ffe197; font-size: 15px; }
+@keyframes ap-ring { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.28); } }
+@keyframes ap-rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-21px); } }
+@keyframes ap-tail { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(7deg); } }
+.ap.ap-no-motion *, html.bg-paused .ap * { transition-duration: 0s; animation: none; }
+.ap.ap-no-motion button:active:not(:disabled) { transform: none; }
+.ap.ap-no-motion .ap-ring { display: none; }
+
+@media (max-width: 1180px) {
+  .ap { gap: 17px; padding-inline: 16px; }
+  .ap-chat-open .ap-workarea { gap: 10px; }
+  .ap-rail { padding-inline: 8px; }
+}
+@media (max-width: 820px) {
+  .ap { grid-template-columns: 145px minmax(0, 1fr); gap: 11px; padding-inline: 10px; padding-bottom: 12px; }
+  .ap-chat-open .ap-workarea { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .ap-chat { position: absolute; right: 0; bottom: 65px; width: min(275px, 100%); height: min(85% - 65px, 440px); z-index: 2; }
+  .ap-quiet { width: 34px; padding: 0; }
+  .ap-quiet > span { display: none; }
+  .ap-room-mark .ap-avatar { --ap-avatar-size: 27px; }
+  .ap-room-button { gap: 4px; }
+  .ap-mini { height: 43px; }
+}
+@media (max-height: 720px) {
+  .ap { padding-top: 45px; }
+  .ap-rail-scroll { padding-top: 10px; }
+  .ap-rail-scroll > section + section { margin-top: 11px; }
+  .ap-tray { min-height: 60px; }
+  .ap-hex-button { width: 43px; height: 47px; }
+  .ap-hex-button.ap-share { width: 49px; height: 53px; }
+}

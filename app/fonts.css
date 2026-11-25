@@ -1,0 +1,22 @@
+/* Fontes embutidas (OFL, ver fonts/OFL-temas.txt). Cada tema só baixa a sua quando ela aparece na tela (font-display: swap). */
+@font-face { font-family: 'Space Grotesk'; src: url('fonts/SpaceGrotesk-variable.woff2') format('woff2'); font-weight: 300 700; font-display: swap; }
+/* Sintonia */
+@font-face { font-family: 'VT323'; src: url('fonts/VT323.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Krona One'; src: url('fonts/KronaOne.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Public Sans'; src: url('fonts/PublicSans-variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+/* Apê */
+@font-face { font-family: 'Rubik'; src: url('fonts/Rubik-variable.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
+/* Caderno */
+@font-face { font-family: 'Alegreya'; src: url('fonts/Alegreya-variable.woff2') format('woff2'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Alegreya'; src: url('fonts/Alegreya-italic-variable.woff2') format('woff2'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Alegreya SC'; src: url('fonts/AlegreyaSC-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Alegreya SC'; src: url('fonts/AlegreyaSC-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Pirata One'; src: url('fonts/PirataOne.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+/* Mergulho */
+@font-face { font-family: 'Barlow'; src: url('fonts/Barlow-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('fonts/Barlow-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('fonts/Barlow-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Barlow'; src: url('fonts/Barlow-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Barlow Condensed'; src: url('fonts/BarlowCondensed-italic-600.woff2') format('woff2'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Barlow Condensed'; src: url('fonts/BarlowCondensed-italic-800.woff2') format('woff2'); font-weight: 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Barlow Condensed'; src: url('fonts/BarlowCondensed-italic-900.woff2') format('woff2'); font-weight: 900; font-style: italic; font-display: swap; }

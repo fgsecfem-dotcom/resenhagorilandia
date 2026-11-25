@@ -1,1 +1,11 @@
-Fredoka, Instrument Serif e Space Grotesk: SIL Open Font License 1.1 (Google Fonts). Uso permitido em apps, inclusive embutidas.
+Fontes dos temas, todas sob a SIL Open Font License 1.1 (Google Fonts): uso permitido em apps, inclusive embutidas;
+não podem ser vendidas sozinhas. Texto da licença: https://openfontlicense.org/open-font-license-official-text/
+
+Space Grotesk ........ Florian Karsten (novidades)
+VT323 ................ Peter Hull (Sintonia)
+Krona One ............ Yvonne Schüttler (Sintonia)
+Public Sans .......... USWDS (Sintonia)
+Rubik ................ Hubert & Fischer, Meir Sadan, Cyreal (Apê)
+Alegreya, Alegreya SC  Huerta Tipográfica (Caderno)
+Pirata One ........... Rodrigo Fuenzalida, Nicolas Massi (Caderno)
+Barlow, Barlow Condensed  Jeremy Tribby (Mergulho)

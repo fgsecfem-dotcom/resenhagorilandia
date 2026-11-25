@@ -70,7 +70,9 @@ function fixture(options = {}) {
     let render; const context = { document: { getElementById: element, createElement: () => ({ style: { setProperty() {} }, append() {} }), documentElement: { dataset: {} }, body: { dataset: {} } },
       window: { addEventListener() {}, launcherNative: { onState: fn => { render = fn; return () => {}; }, ready: async () => ({ phase: 'checking' }), action: (action, payload) => actions.push([action, payload]), rooms: async () => rooms } },
       localStorage: { getItem: key => key === 'resenha.settings' ? '{"theme":"arcLight"}' : (store[key] ?? null), setItem: (key, value) => { store[key] = value; } } };
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/launcher.js'), 'utf8'), context); await new Promise(r => setImmediate(r));
+    context.matchMedia = () => ({ matches: true, addEventListener() {} }); context.document.documentElement.style = { setProperty() {} }; context.document.documentElement.classList = { toggle() {} };
+    vm.createContext(context); vm.runInContext(fs.readFileSync(path.join(__dirname, '../app/themes.js'), 'utf8'), context); // como no launcher.html
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../app/launcher.js'), 'utf8'), context); await new Promise(r => setImmediate(r));
     return { element, context, actions, render };
   };
   const base = await load(), { element, context } = base, render = base.render;
