@@ -80,7 +80,7 @@ const FX = {
 // ---------------- Estado ----------------
 const S = {
   ws: null, addr: null, base: '', token: '', myId: null, turn: null, isHost: false, hostKey: null, password: '',
-  users: new Map(), roomName: '', serverOffset: 0, closing: false, reconnectTries: 0, lastPing: null,
+  users: new Map(), roomName: '', serverOffset: 0, closing: false, reconnectTries: 0, lastPing: null, away: false,
   channels: [], history: {}, textChannel: null, unread: new Set(), typing: new Map(),
   replyTo: null, editing: null, dj: null, djAvailable: false,
 };
@@ -273,6 +273,7 @@ async function renderMyRooms(check=false) {
 }
 async function openStoredRoom(room, opts={}) {
   if(!checkName()||!room||!native)return;
+  if(!await awayGuard(room.code))return;
   const status=$('#home-error');status.textContent='Consultando a descoberta e verificando quem hospeda…';
   let password=$('#join-pass').value || $('#host-pass').value;
   if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){password=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});if(password===null)return;}
@@ -320,11 +321,58 @@ async function refreshStoredRooms(){
   if(!native?.rooms)return;
   try{storedRooms=await native.rooms.list();}catch{}
 }
+// Início (a casa) abre a tela inicial SEM derrubar a call nem a live: a sala continua conectada ("fora da tela"),
+// uma pílula "Na call · Lobby · Voltar" leva de volta e só "Sair da sala" desconecta de verdade.
 async function goHome(focus){
-  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e da sala. Continuar?','Sair',false))return;
+  if (S.away) return;
+  if ((S.myId || V.joined || S.addr) && !$('#main').classList.contains('hidden')) {
+    S.away = true;
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    if (!S.away) return;
+    closeRoomMenu();hideMenu();djPanel?.close();
+    $('#main').classList.add('hidden');$('#home').classList.remove('hidden');$('#web-nav').classList.add('hidden');
+    document.documentElement.classList.add('away');
+    syncSkinSoon();renderAwayPill();
+    if(native?.rooms)renderMyRooms(false);
+    setTimeout(()=>$(focus||'#join-addr')?.focus({preventScroll:true}),50);
+    return;
+  }
+  if (focus) $(focus)?.focus({preventScroll:true});
+}
+function backToRoom(){
+  if(!S.away)return;
+  S.away=false;document.documentElement.classList.remove('away');
+  $('#away-pill')?.remove();
+  $('#home').classList.add('hidden');$('#main').classList.remove('hidden');
+  renderAll();renderChatHeader();layoutGrid();requestAnimationFrame(()=>{layoutGrid();document.querySelectorAll('#call .tile.is-screen').forEach((t)=>t.refreshFrame?.());});
+}
+function exitAway(){S.away=false;document.documentElement.classList.remove('away');$('#away-pill')?.remove();}
+function renderAwayPill(){
+  if(!S.away)return;
+  let p=$('#away-pill');
+  if(!p){
+    p=document.createElement('div');p.id='away-pill';p.setAttribute('role','group');p.setAttribute('aria-label','Você continua na sala');
+    p.innerHTML=`<button type="button" class="away-back"><span class="away-dot" aria-hidden="true"></span><span class="away-txt"></span><b>Voltar</b></button><button type="button" class="away-leave" title="Sair da sala" aria-label="Sair da sala">${icon('logout',16)}</button>`;
+    document.body.append(p);
+    $('.away-back',p).onclick=backToRoom;
+    $('.away-leave',p).onclick=()=>leaveRoomAsked();
+  }
+  const where=V.joined?`Na call · ${chanById(V.channel)?.name||'call'}`:`Na sala · ${S.roomName||'sala'}`;
+  $('.away-txt',p).textContent=where+(V.screen?' · ao vivo':'')+' · ';
+  p.classList.toggle('in-call',!!V.joined);
+}
+// "Sair da sala" desconecta de verdade. Só pede confirmação (leve) quando você está na call.
+async function leaveRoomAsked(){
+  if(V.joined&&!await confirmModal('Sair da sala?','Você está na call. Sair da sala desconecta a call'+(V.screen?' e encerra sua live':'')+'.','Sair da sala',false))return;
   forgetLastRoom();
   await leaveRoom();
-  if(focus)setTimeout(()=>$(focus)?.focus(),50);
+}
+// Entrar em outra sala (ou na mesma) enquanto você está no Início: volta para a atual ou pede para sair dela.
+async function awayGuard(code){
+  if(!S.away)return true;
+  if(code&&normCode(code)===normCode(S.code)){backToRoom();return false;}
+  if(V.joined&&!await confirmModal('Trocar de sala?','Você está numa call. Entrar em outra sala sai dela.','Trocar',false))return false;
+  forgetLastRoom();await leaveRoom();return true;
 }
 async function switchServer(code){
   const room=storedRooms.find(r=>normCode(r.code)===code);
@@ -548,6 +596,7 @@ async function hostRoom() {
   const code = codes[roomName] || (codes[roomName] = newCode());
   const existing = storedRooms.find(r=>fmtCode(r.code)===fmtCode(code));
   if(existing){$('#btn-host').disabled=false;return openStoredRoom(existing);} 
+  if (!await awayGuard(null)) { $('#btn-host').disabled = false; return; }
   LS.set('roomCodes', codes);
   const r = await native.startHost({ roomName, port, password, code, rank: [0, Date.now(), CID] });
   $('#btn-host').disabled = false;
@@ -558,7 +607,6 @@ async function hostRoom() {
 
 async function joinRoom(addrText, password) {
   if (!checkName()) return;
-  S.viaCode = null;
   if (addrText && !looksLikeAddr(addrText)) return joinByCode(addrText, password);
   const a = parseAddr(addrText);
   if (!a) { $('#home-error').textContent = 'Código ou endereço inválido. Exemplo: K7P4-QX9M'; return; }
@@ -569,18 +617,20 @@ async function joinRoom(addrText, password) {
     clearTimeout(to);
     if (info.app !== 'resenha') throw new Error('não é sala do Resenha');
     if (info.needsPassword && !password) { $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
-    S.isHost = false; S.hostKey = null; S.code = null; S.joinedAt = Date.now(); S.forceGuest = false;
+    if (S.away && a.text === S.addr?.text) { backToRoom(); return; }
+    if (!await awayGuard(info.code)) return;
+    S.isHost = false; S.hostKey = null; S.code = null; S.viaCode = null; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(a.text, info.name);
     connect(a, password, true);
   } catch (e) {
     $('#home-error').textContent = `Não consegui chegar na sala ${a.text}.\nConfere se o IP e a porta estão certos, se a sala está aberta e se o anfitrião liberou a porta.`;
-  }
-  $('#btn-join').disabled = false;
+  } finally { $('#btn-join').disabled = false; }
 }
 
 async function joinByCode(codeText, password) {
   const code = fmtCode(codeText);
   if (code.replace('-', '').length !== 8) { $('#home-error').textContent = 'O código tem 8 letras/números, tipo K7P4-QX9M.'; return; }
+  if (!await awayGuard(code)) return;
   if (globalThis.RESENHA_PWA) return pwaJoin(code, password);
   if (!window.Tun) { $('#home-error').textContent = 'Entrar por código só funciona no app.'; return; }
   $('#btn-join').disabled = true; $('#home-error').textContent = 'Procurando a sala...';
@@ -985,6 +1035,7 @@ function handle(m) {
       cacheAttachments(msg);
       if (msg.channelId === S.textChannel) appendMessage(msg);
       else if (msg.userId !== S.myId) { S.unread.add(msg.channelId); renderChannels(); }
+      if (msg.userId !== S.myId && !roomUI?.isChatVisible()) { chatMissed++; updateChatBadge(); }
       if (msg.userId !== S.myId) {
         const ment = mentionsMe(msg);
         if (ment && !roomMuted()) sfx('mention');
@@ -1020,6 +1071,7 @@ function handle(m) {
 
 function showMain() {
   endBoot();
+  if (S.away) return; // você está no Início: a sala só reaparece em "Voltar"
   $('#home').classList.add('hidden');
   $('#main').classList.remove('hidden');
   $('#home-error').textContent = '';
@@ -1029,6 +1081,8 @@ async function leaveRoom(endForAll) {
   S.closing = true;
   if (dmPanel) dmPanel.close();
   dmUnread.clear();
+  exitAway();
+  chatMissed = 0; updateChatBadge();
   teardownVoice();
   hideBanner();
   try { if (S.ws) S.ws.close(); } catch {}
@@ -1104,10 +1158,11 @@ function renderSidebar() {
   renderHeader();
   renderChannels();
   const others = [...S.users.values()].filter((u) => !u.voiceChannel);
-  $('#online-cat').textContent = `Fora da call · ${others.length}`;
+  const texts = textChannels(), here = texts.length === 1 ? `no #${texts[0].name}` : 'na sala';
+  $('#online-cat').textContent = 'Na sala';
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${listName(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${listName(u)}${u.id === S.myId ? ' <span class="you">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span><span class="st-text">${esc(here)}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
   if (!V.joined) setConnStatus('idle', 'Online');
@@ -1170,7 +1225,7 @@ function makeTile(key) {
     if (!t.contains(e.target) || e.target.closest('.tile-tools, button, a, input') || document.fullscreenElement === t) return;
     if (key === 'user:' + DJ_ID) return openDJPanel();
     if (key.startsWith('screen:') && (key === 'screen:' + S.myId ? !V.previewHidden && V.windowVisible : V.watching.has(key.slice(7)))) { V.focus = V.focus === key ? null : key; renderCall(); }
-    // Clicar numa pessoa amplia o quadrado dela; os outros vão para a fileira de baixo.
+    // Clicar numa pessoa amplia o avatar dela; os outros vão para a fileira de baixo.
     else if (key.startsWith('user:') && (V.focus === key || $$('#call-stage .tile').length > 1)) { V.focus = V.focus === key ? null : key; renderCall(); }
   };
   t.oncontextmenu = (e) => { const uid = key.split(':')[1]; if (uid !== DJ_ID) userMenu(e, uid); }; // clique direito no quadro abre o card (também o seu)
@@ -1181,6 +1236,7 @@ function makeTile(key) {
 function updateTile(key, u, isScreen) {
   const t = tileCache.get(key) || makeTile(key);
   t.classList.toggle('is-screen', isScreen);
+  t.classList.toggle('is-voice', !isScreen);
   t.dataset.tone = String([...u.id].reduce((sum, c) => sum + c.charCodeAt(0), 0) % 4);
   t.classList.toggle('speaking', !isScreen && isSpeaking(u.id));
   const body = t.firstElementChild;
@@ -1194,8 +1250,9 @@ function updateTile(key, u, isScreen) {
       if (v.srcObject !== stream) { v.srcObject = stream; v.play().catch(() => {}); }
     } else {
       if (v) { v.pause(); v.srcObject = null; }
-      body.innerHTML = `<div class="stream-invite">${icon('screen', 28)}<strong>${self ? 'Você está transmitindo' : esc(u.name) + ' está ao vivo'}</strong><span class="muted small">${self ? 'A prévia está pausada. Seus amigos continuam assistindo.' : watching ? 'Conectando à transmissão…' : 'Assista quando quiser.'}</span><button class="btn primary" data-watch>${self ? 'Mostrar prévia' : watching ? 'Cancelar' : 'Entrar na transmissão'}</button></div>`;
-      $('[data-watch]', body).onclick = (e) => { e.stopPropagation(); if (self) { V.previewHidden = false; renderCall(); } else setWatching(u.id, !watching); };
+      body.innerHTML = `<div class="stream-invite">${icon('screen', 28)}<strong>${self ? 'Você está transmitindo' : esc(u.name) + ' está ao vivo'}</strong><span class="muted small">${self ? 'A prévia está pausada. Seus amigos continuam assistindo.' : watching ? 'Conectando à transmissão…' : 'Assista quando quiser.'}</span>${watching ? '' : `<button class="btn primary" data-watch>${self ? 'Mostrar prévia' : 'Assistir'}</button>`}</div>`;
+      const watchButton = $('[data-watch]', body);
+      if (watchButton) watchButton.onclick = (e) => { e.stopPropagation(); if (self) { V.previewHidden = false; renderCall(); } else setWatching(u.id, !watching); };
     }
     const tools = t.querySelector('.tile-tools');
     const full = document.fullscreenElement === t;
@@ -1203,7 +1260,7 @@ function updateTile(key, u, isScreen) {
     const toolsSig = [watching, micMuted(), settings.keyLiveFull, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
     if (tools.dataset.sig !== toolsSig) {
     tools.dataset.sig = toolsSig;
-    tools.innerHTML = watching ? `<button class="live-call-control ${micMuted() ? 'off' : ''}" title="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${micMuted()}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(micMuted() ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${esc(shortcutTip(full ? 'Sair da tela cheia' : 'Tela cheia', 'liveFull'))}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
+    tools.innerHTML = watching ? `<button class="live-call-control ${micMuted() ? 'off' : ''}" title="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${micMuted()}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(micMuted() ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Parar de assistir'}" aria-label="${self ? 'Ocultar prévia' : 'Parar de assistir'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Parar de assistir'}</span></button>${stream ? `<button title="${full ? 'Sair da tela cheia' : 'Tela cheia'}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
     $('[data-stop]', tools)?.addEventListener('click', async (e) => {
       e?.stopPropagation();
       if (document.fullscreenElement === t) await document.exitFullscreen().catch(() => {});
@@ -1228,12 +1285,19 @@ function updateTile(key, u, isScreen) {
   } else {
     const sig = (u.avatar || '') + u.color + u.name;
     if (body.dataset.sig !== sig) { body.dataset.sig = sig; body.innerHTML = avatarHTML(u); }
-    t.querySelector('.label').innerHTML = (u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
-    const tools = t.querySelector('.tile-tools');
     const self = u.id === S.myId, live = self ? !!V.screen : u.sharing;
+    const muted = self ? V.muted || V.deafened : u.muted || u.deafened;
+    t.querySelector('.label').innerHTML = (self && muted ? '<span class="mute-tag">mudo</span>' : u.deafened ? icon('headphonesOff', 14) : u.muted ? icon('micOff', 14) : '') + `<span>${nameHTML(u)}</span>`;
     const watching = self ? !V.previewHidden : V.watching.has(u.id);
-    tools.innerHTML = live ? `<button class="live-join" title="${self ? (watching ? 'Ocultar prévia' : 'Mostrar prévia') : (watching ? 'Sair da transmissão' : 'Entrar na transmissão')}">${icon('screen', 14)}<span>${self ? (watching ? 'Ocultar prévia' : 'Mostrar prévia') : (watching ? 'Sair da transmissão' : 'Entrar na transmissão')}</span></button>` : '';
-    $('.live-join', tools)?.addEventListener('click', (e) => { e.stopPropagation(); if (self) { V.previewHidden = !V.previewHidden; V.focus = null; renderCall(); } else setWatching(u.id, !watching); });
+    const tools = t.querySelector('.tile-tools');
+    // Quem está ao vivo: "Assistir" (botão) antes de entrar; "Assistindo" (selo, sem ação) depois. Sair é só na barra da live.
+    const liveSig = [live, watching, self, u.name].join();
+    if (tools.dataset.sig !== liveSig) {
+      tools.dataset.sig = liveSig;
+      tools.innerHTML = !live ? '' : watching ? `<span class="watch-chip watch-seal">${self ? 'Ao vivo' : 'Assistindo'}</span>`
+        : `<button class="watch-chip" title="${self ? 'Mostrar prévia' : 'Assistir — ' + esc(u.name) + ' ao vivo'}"><span>${self ? 'Mostrar prévia' : 'Assistir'}</span></button>`;
+      $('button.watch-chip', tools)?.addEventListener('click', (e) => { e.stopPropagation(); if (self) { V.previewHidden = !V.previewHidden; V.focus = null; renderCall(); } else setWatching(u.id, !watching); });
+    }
   }
   return t;
 }
@@ -1252,7 +1316,25 @@ function setWatching(uid, active) {
   applyUserVolume(uid);
   renderCall();
 }
+// A fileira de pessoas debaixo da live herda a largura da live (que muda com a proporção do vídeo e com a janela).
+let focusFrame = null;
+let focusRO = null;
+const focusObserver = () => focusRO ||= new ResizeObserver(([entry]) => {
+  const wrap = entry.target.closest('.focus-wrap');
+  if (entry.target === focusFrame && wrap && entry.target.offsetWidth) wrap.style.setProperty('--live-w', entry.target.offsetWidth + 'px');
+});
+function watchFocusWidth(wrap, el) {
+  const live = el?.classList.contains('is-screen') ? el : null;
+  if (focusFrame !== live) {
+    focusRO?.disconnect(); focusFrame = live;
+    if (live) focusObserver().observe(live);
+  }
+  if (live?.offsetWidth && wrap) wrap.style.setProperty('--live-w', live.offsetWidth + 'px');
+  else wrap?.style.removeProperty('--live-w');
+}
+
 function detachTile(tile) {
+  if (tile === focusFrame) watchFocusWidth(null, null);
   tile.disposeOverlay?.();
   tile.disposeFrame?.();
   const video = tile.querySelector('video');
@@ -1270,25 +1352,30 @@ function renderCall() {
   const stage = $('#call-stage');
   const vcId = V.joined ? V.channel : voiceChannels()[0]?.id;
   const vc = chanById(vcId);
-  $('#call-title').textContent = vc ? vc.name : 'Call';
   const vu = V.joined ? myVoiceUsers() : [];
-  $('#call-count').textContent = vu.length ? `${vu.length} na call` : V.joined ? '' : 'Escolha um canal para entrar';
+  const voices = voiceChannels(), nVoice = voices.length;
+  const nInCall = [...S.users.values()].filter((u) => u.voiceChannel && u.id !== DJ_ID).length;
+  $('#call-title').textContent = V.joined ? (vc ? vc.name : 'Call') : 'Canais de voz';
+  $('#call-count').textContent = V.joined ? (vu.length ? `${vu.length} na call` : '')
+    : `${nVoice} ${nVoice === 1 ? 'canal' : 'canais'} · ${nInCall ? `${nInCall} ${nInCall === 1 ? 'pessoa' : 'pessoas'} na call` : 'ninguém na call'}`;
   $('#call-controls').classList.toggle('hidden', !V.joined);
+  renderPerfNotice();
   const djHere = S.dj && S.dj.active && S.dj.channelId === V.channel;
   $('#btn-dj').classList.toggle('hidden', !V.joined || !S.djAvailable);
   $('#btn-dj').classList.toggle('on', !!djHere);
   $('#btn-dj').innerHTML = `${icon('music', 20)}<span class="sr-only">${djHere ? 'DJ Resenha' : 'Chamar DJ'}</span>`;
   $('#btn-dj').title = djHere ? 'Abrir o DJ Resenha' : 'Chamar o DJ Resenha';
   if (!V.joined) {
+    roomUI?.setLive(false);
     for (const tile of tileCache.values()) detachTile(tile); tileCache.clear(); $('#pips').innerHTML = '';
-    const blocks = voiceChannels().map((c) => {
+    const blocks = voices.map((c, i) => {
       const us = usersIn(c.id);
       return `<div class="vc-card" data-join="${esc(c.id)}"><div class="vc-name">${icon('volume', 18)} ${esc(c.name)}</div>
         <div class="avatars">${us.slice(0, 6).map((u) => avatarHTML(u)).join('')}</div>
         <div class="muted small">${us.length ? us.map((u) => esc(u.name)).join(', ') : 'Ninguém aqui ainda'}</div>
-        <button class="btn green">Entrar</button></div>`;
+        <button class="btn vc-join ${i === 0 ? 'main' : ''}">Entrar</button></div>`;
     }).join('');
-    stage.innerHTML = `<div class="call-empty"><h2>Canais de voz</h2><div class="vc-cards">${blocks}</div></div>`;
+    stage.innerHTML = `<div class="call-empty"><div class="vc-cards">${blocks}</div></div>`;
     $$('[data-join]', stage).forEach((el) => el.onclick = () => joinVoice(el.dataset.join));
     return;
   }
@@ -1296,6 +1383,7 @@ function renderCall() {
   const people = sortByTileOrder(vu).map((u) => ({ key: 'user:' + u.id, u, screen: false }));
   const screens = vu.filter((u) => u.id === S.myId ? V.screen && !V.previewHidden && V.windowVisible : u.sharing && V.watching.has(u.id)).map((u) => ({ key: 'screen:' + u.id, u, screen: true }));
   const keys = new Set([...people, ...screens].map((t) => t.key));
+  roomUI?.setLive(!!V.screen || screens.length > 0);
   for (const k of [...tileCache.keys()]) if (!keys.has(k)) { detachTile(tileCache.get(k)); tileCache.delete(k); }
   if (V.focus && !keys.has(V.focus)) V.focus = null;
   const flip = globalThis.resenhaMotion?.capture(stage, (V.focus || '') + '|' + [...keys].join(','));
@@ -1311,6 +1399,7 @@ function renderCall() {
     const main = wrap.firstChild, strip = wrap.lastChild;
     const fEl = tileCache.get(V.focus);
     if (main.firstChild !== fEl) main.replaceChildren(fEl);
+    watchFocusWidth(wrap, fEl);
     const stripEls = pEls.filter((e) => e !== fEl);
     stripEls.forEach((e, i) => { if (strip.children[i] !== e) strip.insertBefore(e, strip.children[i] || null); });
     while (strip.children.length > stripEls.length) strip.lastChild.remove();
@@ -1318,6 +1407,7 @@ function renderCall() {
     rest.forEach((e, i) => { if (pips.children[i] !== e) pips.insertBefore(e, pips.children[i] || null); });
     while (pips.children.length > rest.length) pips.lastChild.remove();
   } else {
+    watchFocusWidth(null, null);
     let grid = stage.querySelector('.grid');
     if (!grid) { stage.innerHTML = '<div class="grid"></div>'; grid = stage.firstChild; }
     pEls.forEach((e, i) => { if (grid.children[i] !== e) grid.insertBefore(e, grid.children[i] || null); });
@@ -1341,22 +1431,36 @@ function renderCall() {
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
 function layoutGrid() {
-  const grid = $('#call-stage .grid'); if (!grid) return;
-  const n = grid.children.length || 1;
-  const W = grid.clientWidth, H = grid.clientHeight, gap = 10;
-  let best = { cols: 1, w: 0, h: 0, rows: 1 };
+  const grid = $('#call-stage .grid'); if (!grid || WEB_VIEWER) return;
+  const fit = avatarGrid(grid.children.length, grid.clientWidth, grid.clientHeight);
+  if (!fit) return;
+  grid.style.setProperty('--av', fit.d + 'px');
+  grid.style.setProperty('--cell-w', fit.width + 'px');
+  grid.style.setProperty('--cell-h', fit.height + 'px');
+}
+// Maximiza o círculo. Em empate escolhe a grade com menos vazios;
+// o flex centraliza a última fileira sem forçar um lugar vazio.
+function avatarGrid(n, w, h) {
+  if (!n || !w || !h) return null;
+  const gap = 8, trim = 56, max = 224;
+  let best = null;
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
-    let w = (W - gap * (cols - 1)) / cols; let h = w * 9 / 16;
-    if (h * rows + gap * (rows - 1) > H) { h = (H - gap * (rows - 1)) / rows; w = h * 16 / 9; }
-    if (w > best.w) best = { cols, w, h, rows };
+    const cw = Math.floor((w - gap * (cols - 1)) / cols);
+    const ch = Math.floor((h - gap * (rows - 1)) / rows);
+    if (cw < 32 || ch < trim + 16) continue;
+    const d = Math.floor(Math.min(cw * .8, ch - trim, max));
+    const empty = cols * rows - n;
+    const score = d - Math.max(0, cols - rows - 2) * 4;
+    if (!best || score > best.score || (score === best.score && (empty < best.empty || (empty === best.empty && cols > best.cols)))) {
+      best = {cols, d, empty, score, width: Math.min(cw, 328), height: d + trim};
+    }
   }
-  grid.style.gridTemplateColumns = `repeat(${best.cols}, ${Math.floor(best.w)}px)`;
-  grid.style.gridTemplateRows = `repeat(${best.rows}, ${Math.floor(best.h)}px)`;
+  return best;
 }
 new ResizeObserver(() => layoutGrid()).observe(document.getElementById('call-stage'));
 addEventListener('resenha-theme', () => requestAnimationFrame(layoutGrid));
-function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); syncSkinSoon(); }
+function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); renderDM(); renderChatOnline(); pushTray(); $('#web-nav').classList.toggle('hidden', $('#main').classList.contains('hidden')); renderAwayPill(); syncSkinSoon(); }
 
 // ---------------- Temas com sala própria (2.6) ----------------
 // Sintonia, Apê, Caderno e Mergulho desenham a sala inteira (app/skins/<tema>.js, registrados em window.ResenhaSkins).
@@ -1641,6 +1745,7 @@ function leaveVoice(silentSwitch) {
 function teardownVoice() {
   if (perf.timer) perfStop();
   clearTimeout(pttTimer); pttPressed = false; updatePttTrack();
+  djPanel?.close();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -1961,6 +2066,16 @@ async function captureNativeScreen(sourceId, Q, audio) {
   }
   return stream;
 }
+function chooseShareSource(sources, tab, saved, { fallback = true, active = false } = {}) {
+  const available = sources.filter((s) => s.screen === (tab === 'screen'));
+  if (saved) {
+    const same = available.find((s) => s.id === saved.id && (s.screen || active || s.name === saved.name));
+    if (same) return same;
+    const byTitle = available.filter((s) => s.name === saved.name && s.screen === saved.screen);
+    if (byTitle.length === 1) return byTitle[0];
+  }
+  return available[0] ?? (fallback ? sources[0] ?? null : null);
+}
 async function toggleShare() {
   // While live on the desktop app, the button opens the same picker to change the live instead of ending it.
   if (V.screen && !native) return stopShare();
@@ -1969,18 +2084,23 @@ async function toggleShare() {
     try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { restrictOwnAudio: true } }); if (stripUnisolatedAudio(stream)) toast('Som desativado: não foi possível excluir o áudio da call.'); startShareWithStream(stream, '1080p30'); } catch {}
     return;
   }
-  const live = !!V.screen;
+  const activeStream = V.screen, attempt = V.voiceAttempt;
+  const live = !!activeStream;
   const captureInfo = await native.captureInfo();
+  if (!V.joined || V.voiceAttempt !== attempt) return;
   // A janela abre na hora; as miniaturas das telas (que o Windows demora para gerar) chegam logo depois.
   const sourcesReady = native.screenSources();
-  let sources = [], sel = null;
-  let tab = live && String(V.screenSourceId || '').startsWith('window:') ? 'window' : 'screen';
-  const quality = captureInfo.compatibility ? '720p30' : live && V.screenQName ? V.screenQName : LS.get('shareQuality', '720p30');
-  const audioOn = live ? V.screen.getAudioTracks().length > 0 : LS.get('shareAudioV2', false);
+  let sources = null, sel = null, tabChanged = false;
+  const lastSource = live ? { id: V.screenSourceId } : LS.get('shareSource', null);
+  const windowSource = live ? String(lastSource.id).startsWith('window:') : lastSource?.screen === false;
+  let tab = windowSource ? 'window' : 'screen';
+  const savedQuality = live ? V.screenQName : LS.get('shareQuality', '720p30');
+  const quality = captureInfo.compatibility || !Object.hasOwn(QUALITY, savedQuality) ? '720p30' : savedQuality;
+  const audioOn = live ? (V.screenAudioRequested ?? activeStream.getAudioTracks().length > 0) : LS.get('shareAudioV2', false);
   const m = openModal(`
     <header><div><h2>${live ? 'Alterar transmissão' : 'Compartilhar tela'}</h2><p>${live ? 'A live continua no ar enquanto você troca' : 'Escolha o que a galera vai ver'}</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
     <div class="body">
-      <div class="tabs"><div class="tab ${tab === 'screen' ? 'active' : ''}" data-tab="screen">Telas</div><div class="tab ${tab === 'window' ? 'active' : ''}" data-tab="window">Janelas / jogos</div></div>
+      <div class="tabs"><button type="button" class="tab ${tab === 'screen' ? 'active' : ''}" data-tab="screen">Telas</button><button type="button" class="tab ${tab === 'window' ? 'active' : ''}" data-tab="window">Janelas / jogos</button></div>
       <div class="sources"></div>
       <div class="opts">
         <div class="field"><label>Qualidade</label><select id="sh-q">${Object.keys(QUALITY).filter((k) => !captureInfo.compatibility || k === '720p30').map((k) => `<option ${k === quality ? 'selected' : ''} value="${k}">${k.replace('p', 'p ').replace(/(\d+)$/, '$1 fps')}</option>`).join('')}</select></div>
@@ -1988,24 +2108,44 @@ async function toggleShare() {
       </div>
       <p class="muted small" style="margin:10px 0 0">${captureInfo.compatibility ? 'Modo de compatibilidade ativo: 720p a 30 fps, sem som do PC.' : captureInfo.audioSupported ? 'O som do PC é opcional. Se não for possível excluir o áudio da call, a transmissão segue apenas com vídeo.' : 'Som do PC requer Windows 10 versão 2004 ou posterior, ou macOS 14.2 ou posterior.'}</p>
       ${live ? '<p class="live-encoder" id="sh-enc">Verificando como a live está sendo codificada…</p>' : ''}
-      <div class="capture-help"><span>Problema para transmitir?</span>${captureInfo.compatibility ? '<button class="btn" id="sh-compat">Voltar ao modo normal</button>' : ''}<button class="btn" id="sh-log">Abrir diagnóstico</button></div>
+      <p class="capture-help muted small">Problema para transmitir? <button type="button" class="link-btn" id="sh-log">Ver diagnóstico</button>${captureInfo.compatibility ? ' · <button type="button" class="link-btn" id="sh-compat">Voltar ao modo normal</button>' : ''}</p>
     </div>
     <footer>${live ? '<button class="btn danger" id="sh-stop">Parar transmissão</button><span class="grow"></span>' : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" id="sh-go">${live ? 'Aplicar' : 'Transmitir'}</button></footer>`, { wide: true });
+  const go = $('#sh-go', m.el);
+  const syncTabs = () => $$('.tab', m.el).forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
   const renderSrc = () => {
-    if (!sources.length) { $('.sources', m.el).innerHTML = '<div class="src loading"><div class="th"></div><div class="nm">&nbsp;</div></div>'.repeat(tab === 'screen' ? 2 : 4); return; }
+    if (!sources) { $('.sources', m.el).innerHTML = '<div class="src loading"><div class="th"></div><div class="nm">&nbsp;</div></div>'.repeat(tab === 'screen' ? 2 : 4); return; }
     const list = sources.filter((s) => (tab === 'screen') === s.screen);
-    if (!list.includes(sel)) sel = list[0];
-    $('.sources', m.el).innerHTML = list.map((s) => `<div class="src ${s === sel ? 'sel' : ''}" data-id="${esc(s.id)}"><div class="th" style="${s.thumb ? `background-image:url(${s.thumb})` : ''}"></div><div class="nm">${s.icon ? `<img src="${s.icon}">` : ''}<span>${esc(s.name)}</span></div></div>`).join('') || '<div class="muted">Nada encontrado</div>';
-    $$('.src', m.el).forEach((el) => { el.onclick = () => { sel = sources.find((s) => s.id === el.dataset.id); renderSrc(); }; el.ondblclick = () => $('#sh-go').click(); });
+    if (!list.includes(sel)) sel = list[0] ?? null;
+    $('.sources', m.el).innerHTML = list.map((s) => `<button type="button" class="src ${s === sel ? 'sel' : ''}" data-id="${esc(s.id)}" aria-pressed="${s === sel}"><span class="th" style="${s.thumb ? `background-image:url(${s.thumb})` : ''}"></span><span class="nm">${s.icon ? `<img src="${s.icon}" alt="">` : ''}<span>${esc(s.name)}</span></span></button>`).join('') || '<div class="muted">Nada encontrado</div>';
+    const buttons = $$('.src', m.el);
+    buttons.forEach((el) => {
+      el.onclick = () => {
+        sel = list.find((s) => s.id === el.dataset.id);
+        buttons.forEach((b) => { b.classList.toggle('sel', b === el); b.setAttribute('aria-pressed', String(b === el)); });
+      };
+      el.ondblclick = () => go.click();
+    });
   };
-  $$('.tab', m.el).forEach((t) => t.onclick = () => { tab = t.dataset.tab; $$('.tab', m.el).forEach((x) => x.classList.toggle('active', x === t)); renderSrc(); });
+  $$('.tab', m.el).forEach((t) => t.onclick = () => { tab = t.dataset.tab; tabChanged = true; syncTabs(); renderSrc(); });
   renderSrc();
   sourcesReady.then((list) => {
     if (!m.el.isConnected) return;
-    sources = list; sel = (live && sources.find((s) => s.id === V.screenSourceId)) || sources.find((s) => (tab === 'screen') === s.screen) || sources[0];
+    sources = list;
+    sel = chooseShareSource(sources, tab, lastSource, { fallback: !tabChanged, active: live });
+    if (sel) { tab = sel.screen ? 'screen' : 'window'; syncTabs(); }
     renderSrc();
   }).catch(() => { if (m.el.isConnected) $('.sources', m.el).innerHTML = '<p class="muted small">Não consegui listar as telas. Feche e tente de novo.</p>'; });
   $('#sh-log', m.el).onclick = () => native.captureDiagnostics();
+  m.el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    const src = e.target.closest('.src[data-id]');
+    if (!src && e.target !== go && e.target.closest('button, select, a')) return;
+    e.preventDefault();
+    if (src) src.click();
+    go.click();
+  });
+  go.focus();
   // Compatibility mode now only comes from the emergency launcher (--compatibility); this is the way back.
   const compat = $('#sh-compat', m.el);
   if (compat) compat.onclick = async () => {
@@ -2022,19 +2162,23 @@ async function toggleShare() {
     el.textContent = `${viewers} assistindo · codificando ${e.copies === 1 ? '1 vez' : e.copies + ' vezes'} ${where}${e.fps ? ` · ${e.fps} fps` : ''}${limit}${e.impl ? ` (${e.impl})` : ''}`;
     el.classList.toggle('warn', e.limit === 'cpu' || (e.impl && !e.gpu));
   });
-  $('#sh-go').onclick = async () => {
-    if (!sel) return;
-    const q = $('#sh-q').value, audio = $('#sh-audio').checked;
-    LS.set('shareQuality', q); LS.set('shareAudioV2', audio);
+  go.onclick = async () => {
+    if (!sel || !m.el.isConnected || go.disabled || !V.joined || V.voiceAttempt !== attempt) return;
+    go.disabled = true;
+    const selected = sel, q = $('#sh-q', m.el).value, audio = $('#sh-audio', m.el).checked;
     m.close();
-    if (live && V.screen && sel.id === V.screenSourceId && q === V.screenQName && audio === audioOn) return;
+    if (live && V.screen && sel.id === V.screenSourceId && q === V.screenQName && audio === (activeStream.getAudioTracks().length > 0)) return;
     const Q = QUALITY[q];
     let captured = null;
     try {
-      const stream = captured = await captureNativeScreen(sel.id, Q, audio);
-      if (live && V.screen) { swapShareStream(stream, q); toast('Transmissão atualizada.'); }
+      const stream = captured = await captureNativeScreen(selected.id, Q, audio);
+      if (!V.joined || V.voiceAttempt !== attempt || V.screen !== activeStream) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (live) { swapShareStream(stream, q); toast('Transmissão atualizada.'); }
       else startShareWithStream(stream, q, !captureInfo.compatibility);
-      V.screenSourceId = sel.id;
+      V.screenSourceId = selected.id; V.screenAudioRequested = audio;
+      LS.set('shareSource', { id: selected.id, name: selected.name, screen: !!selected.screen });
+      if (!captureInfo.compatibility) LS.set('shareQuality', q);
+      if (captureInfo.audioSupported) LS.set('shareAudioV2', audio);
     } catch (e) {
       captured?.getTracks().forEach((t) => t.stop());
       if (live && V.screen) { toast('Não deu pra trocar: ' + e.message + '. A live segue como estava.', 'err'); return; }
@@ -2336,13 +2480,25 @@ function toggleFriend(u) {
   else friends[u.id] = { id: u.id, name: u.name, color: u.color, avatar: u.avatar };
   LS.set('friends', friends); renderFriends();
 }
-function renderFriends() {
-  const list = $('#friends-list'); if (!list) return;
+// Aba DMs: contatos antigos, favoritos e quem está na sala, com a última mensagem, a hora e se há algo novo.
+function dmContacts() {
   const entries = new Map([...Object.values(LS.get(dmStorageKey() + '.contacts', {})), ...Object.values(friends)].map((u) => [u.id, u]));
   for (const u of S.users.values()) if (u.id !== S.myId && u.id !== DJ_ID) entries.set(u.id, u);
-  list.innerHTML = [...entries.values()].map((u) => `<button class="friend-row" data-friend="${esc(u.id)}">${avatarHTML(u)}<span>${friends[u.id] ? '☆ ' : ''}${esc(u.name)}<br><small class="muted">${S.users.has(u.id) ? 'Na sala' : 'Fora da sala'}</small></span>${dmUnread.has(u.id) ? '<span class="badge">Novo</span>' : ''}</button>`).join('') || '<div class="muted small">Seus amigos aparecem aqui.</div>';
-  $$('[data-friend]', list).forEach((b) => b.onclick = () => openDM(b.dataset.friend));
-  roomUI?.updateUnread(dmUnread);
+  const hist = dmHistory();
+  return [...entries.values()].map((u) => { const l = (hist[u.id] || []).slice(-1)[0]; return { id: u.id, name: u.name, color: u.color, avatar: u.avatar, online: S.users.has(u.id), fav: !!friends[u.id], unread: dmUnread.has(u.id), last: l ? { text: l.text, ts: l.ts, mine: l.from === S.myId } : null }; })
+    .sort((a, b) => (b.unread - a.unread) || ((b.last?.ts || 0) - (a.last?.ts || 0)) || (b.online - a.online) || String(a.name).localeCompare(b.name));
+}
+function renderFriends() { roomUI?.updateUnread(dmUnread); updateChatBadge(); }
+// Contador no botão do chat quando a conversa está fechada (janela pequena, chat flutuando): mensagens novas + DMs não lidas.
+let chatMissed = 0;
+function updateChatBadge() {
+  const b = $('#btn-chat-toggle'); if (!b) return;
+  const n = chatMissed + dmUnread.size;
+  let el = $('.chat-badge', b);
+  if (!n) { el?.remove(); b.setAttribute('aria-label', 'Mostrar ou esconder a conversa'); return; }
+  if (!el) { el = document.createElement('span'); el.className = 'chat-badge'; b.append(el); }
+  el.textContent = n > 99 ? '99+' : String(n);
+  b.setAttribute('aria-label', `Mostrar ou esconder a conversa, ${n} ${n === 1 ? 'não lida' : 'não lidas'}`);
 }
 function receiveDM(msg) {
   const HISTORY_LIMIT = 300;
@@ -2865,6 +3021,7 @@ function summonDJ() {
 }
 let djPanel = null;
 function openDJPanel() {
+  if (!V.joined || S.away) return;
   if (!S.dj || !S.dj.active) return summonDJ();
   if (djPanel) return;
   djPanel = openModal(`<header><div><h2>${icon('music', 20)} DJ Resenha</h2><p>Cole um link do YouTube ou Spotify (música, playlist ou álbum), ou o nome da música.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
@@ -2956,10 +3113,20 @@ async function perfTick() {
     if (perf.samples.length > 240) perf.samples.splice(1, 1); // call de mais de 2 h: fica com as leituras mais recentes
   } catch {}
 }
+// Continua fora do fluxo e some ao entrar na call.
+function renderPerfNotice() {
+  const note = $('#perf-note');
+  if (V.joined || !perfOn() || window.ResenhaSkins?.has(settings.theme)) { note?.remove(); return; }
+  if (note || S.away || $('#main').classList.contains('hidden') || LS.get('perfNotice', false)) return;
+  const el = document.createElement('aside'); el.id = 'perf-note';
+  el.innerHTML = '<span>Enviamos dados anônimos de desempenho. Desative em Configurações › Voz.</span><button type="button" class="btn">Entendi</button>';
+  $('button', el).onclick = () => el.remove();
+  $('#call').append(el);
+  LS.set('perfNotice', true);
+}
 function perfStart() {
   perfStop(false);
   if (!perfOn()) return;
-  if (!LS.get('perfNotice', false)) { LS.set('perfNotice', true); toast('O Resenha envia dados anônimos de desempenho (CPU, memória e qualidade da call) para ficar mais leve. Dá para desligar em Configurações > Voz.', '', 10000); }
   perf.startedAt = Date.now(); perf.timer = setInterval(perfTick, 30000); perfTick(); perfWatchJank(true);
 }
 function perfStop(send = true) {
@@ -3464,10 +3631,16 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
     ${S.isHost ? it('look', 'Personalizar sala', 'image') + it('icon', S.roomIcon ? 'Trocar ícone da sala' : 'Pôr ícone na sala', 'upload') + (S.roomIcon ? it('noicon', 'Tirar ícone da sala', 'trash') : '') + (S.code && people.some((u) => u.id !== S.myId && u.canHost) ? it('transfer', 'Transferir anfitrião', 'crown') : '') : ''}
     ${it('mute', muted ? 'Ativar avisos da sala' : 'Silenciar a sala', muted ? 'bell' : 'bellOff')}${fav !== null ? it('fav', fav ? 'Não abrir ao iniciar' : 'Abrir esta sala ao iniciar', 'star', '', fav ? 'is-on' : '') : ''}
     ${native?.rooms ? `<hr><div class="n-label">Suas salas</div>${others.map((r) => `<div class="n-it" role="menuitem" tabindex="-1" data-a="room" data-code="${esc(normCode(r.code))}">${roomAv(r.name, r.look?.color || serverColor(r.code), r.icon, 20)}<span class="n-lb">${esc(r.name)}</span>${normCode(r.code) === favoriteCode() ? icon('star', 12, 'n-fav') : ''}</div>`).join('')}${it('home', 'Entrar ou criar sala', 'plus')}` : ''}
-    <hr>${it('leave', S.isHost ? 'Fechar sala' : 'Sair da sala', 'logout', '', 'danger')}`;
+    <hr>${it('leave', 'Sair da sala', 'logout', '', 'danger')}`;
   if (menu.parentElement !== document.body) document.body.append(menu); // fora da barra lateral, que corta o que transborda
   const r = (anchor?.isConnected ? anchor : btn).getBoundingClientRect();
-  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
+  const sidebar = $('#sidebar');
+  const side = !anchor?.isConnected && sidebar?.offsetParent ? sidebar.getBoundingClientRect() : null;
+  const compact = $('#main').dataset.sidebarCompact === 'true';
+  const w = side && !compact ? side.width : Math.min(272, innerWidth - 16);
+  menu.style.width = w + 'px';
+  menu.style.left = Math.max(6, Math.min(side?.left ?? r.left, innerWidth - w - 6)) + 'px';
+  menu.style.top = (r.bottom + 6) + 'px';
   menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px';
   menu.classList.remove('hidden'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
   globalThis.resenhaMotion?.popIn(menu);
@@ -3502,11 +3675,7 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
       const n = await native.hostNetwork();
       copy(n.publicV4 && !n.cgnat ? `${n.publicV4}:${n.port}` : `${n.lan[0]}:${n.port}`);
     }
-    if (a === 'leave') {
-      if (S.isHost && S.users.size > 1 && !await confirmModal('Fechar a sala', 'Fechar a sala desconecta todo mundo. Continuar?', 'Fechar sala')) return;
-      forgetLastRoom();
-      leaveRoom();
-    }
+    if (a === 'leave') return leaveRoomAsked();
   });
 }
 function closeRoomMenu() {
@@ -3854,7 +4023,7 @@ document.addEventListener('visibilitychange', () => { if (!native) { V.windowVis
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
 native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
-roomUI = createRoomUI({icon,openDM,contacts:()=>[...new Map([...Object.values(LS.get(dmStorageKey()+'.contacts',{})),...Object.values(friends),...[...S.users.values()].filter(u=>u.id!==S.myId&&u.id!==DJ_ID)].map(u=>[u.id,u])).values()],onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
+roomUI = createRoomUI({icon,openDM,contacts:dmContacts,avatar:avatarHTML,time:fmtTime,responsive:!WEB_VIEWER,onPanel:(view)=>{if(view==='chat'){chatMissed=0;updateChatBadge();}},onDMVisible:()=>{if(dmPeer){dmUnread.delete(dmPeer);renderFriends();}},onResize:layoutGrid,liveVolume:u=>settings.streamVolumes[u.name]??100,setLiveVolume:(u,value)=>{settings.streamVolumes[u.name]=value;applyUserVolume(u.id);saveSettings();}});
 // Volumes em pílula (item 8): mantém --p (preenchimento) em dia e deixa a rodinha do mouse ajustar.
 const PILL = '#call .live-volume input[type=range], #ctx-menu .ctx-row input[type=range], .dj-vol input[type=range]';
 const pillFill = (el) => el.style.setProperty('--p', ((el.value - el.min) / ((el.max - el.min) || 1) * 100) + '%');
@@ -3872,7 +4041,7 @@ const music = createMusic({ settings, saveSettings, icon, toast, roomUI, native,
   room: { users: () => [...S.users.values()].filter((u) => u.id !== DJ_ID), me: () => S.myId, now: serverNow, send: (to, data) => sig(to, { listen: data }) } }); window.__resenha.music = music;
 overlayClient = createOverlayClient({ native, settings, saveSettings, S, V, DJ_ID, isSpeaking, setMuted, setDeafened, applyUserVolume, renderAll, music, initials, openModal, openSettings, icon, esc, $, $$, toast }); // ilha por cima do jogo (opcional)
 // Wide windows show the conversation next to the call; narrower ones open it on demand.
-if (innerWidth >= 1280) roomUI.open('chat');
+if (innerWidth >= 1180) roomUI.open('chat');
 initHome();
 overlayClient.start();
 $('#main').dataset.mobilePane = 'call';

@@ -42,7 +42,7 @@ export function installLiveFrame(tile) {
   refresh();
 }
 
-export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, liveVolume, setLiveVolume }) {
+export function createRoomUI({ icon, openDM, contacts, avatar, time, responsive, onPanel, onDMVisible, onResize, liveVolume, setLiveVolume }) {
   const $ = (s, r = document) => r.querySelector(s);
   const main = $('#main'), chat = $('#chat');
   document.body.classList.add('layout-next');
@@ -56,10 +56,33 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   const sidebarButton = document.createElement('button'); sidebarButton.id = 'sidebar-toggle'; sidebarButton.className = 'icon-btn';
   sidebarButton.setAttribute('aria-controls','channels'); sidebarButton.setAttribute('aria-expanded','true'); sidebarButton.setAttribute('aria-label','Recolher canais e pessoas'); sidebarButton.title='Recolher canais e pessoas'; sidebarButton.textContent='‹';
   $('.nsb-top').append(sidebarButton);
-  sidebarButton.onclick=()=>{
-    const compact=main.dataset.sidebarCompact!=='true'; main.dataset.sidebarCompact=String(compact);
+  const setCompact=compact=>{
+    main.dataset.sidebarCompact=String(compact);
     sidebarButton.setAttribute('aria-expanded',String(!compact));sidebarButton.setAttribute('aria-label',compact?'Expandir canais e pessoas':'Recolher canais e pessoas');sidebarButton.title=sidebarButton.getAttribute('aria-label');sidebarButton.textContent=compact?'›':'‹';onResize();
   };
+  let preferCompact=false, wasSmall=null, wasFloat=false, hasLive=false;
+  sidebarButton.onclick=()=>{
+    const compact=main.dataset.sidebarCompact!=='true';
+    if(!wasSmall) preferCompact=compact;
+    setCompact(compact);
+  };
+  function fitWindow(){
+    if(!responsive) return;
+    const small=innerWidth<1100, float=innerWidth<1180;
+    main.dataset.chatFloat=String(float);
+    if(small!==wasSmall){wasSmall=small;setCompact(small || preferCompact);}
+    if(float && !wasFloat && hasLive && main.dataset.rightOpen==='true') close();
+    wasFloat=float;
+    syncChatAccess();
+  }
+  function setLive(active){
+    const entering=active&&!hasLive;
+    hasLive=active;
+    if(entering && main.dataset.chatFloat==='true' && main.dataset.rightOpen==='true') close();
+  }
+  function syncChatAccess(){
+    chat.inert=main.dataset.chatFloat==='true' && main.dataset.rightOpen!=='true';
+  }
   const peopleButton=document.createElement('button');peopleButton.id='participants-toggle';peopleButton.className='participants-toggle hidden';peopleButton.setAttribute('aria-expanded','true');
   $('#call-stage').after(peopleButton);
   let peopleHidden=false;
@@ -70,23 +93,34 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
   function open(view='chat'){
     main.dataset.rightOpen='true';chat.dataset.view=view;
     nav.querySelectorAll('[data-right]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.right===view)));
+    syncChatAccess();onPanel?.(view);
     if(view==='dm')onDMVisible();onResize();
   }
-  function close(){main.dataset.rightOpen='false';onResize();}
+  function close(){main.dataset.rightOpen='false';syncChatAccess();onResize();}
   nav.querySelectorAll('[data-right]').forEach(b=>b.onclick=()=>open(b.dataset.right));$('.right-close',nav).onclick=close;
-  function isDMVisible(){return main.dataset.rightOpen==='true'&&chat.dataset.view==='dm'&&!main.classList.contains('hidden');}
+  const visible = view => main.dataset.rightOpen==='true' && chat.dataset.view===view && !main.classList.contains('hidden');
+  const isDMVisible = () => visible('dm'), isChatVisible = () => visible('chat');
   function updateUnread(unread){
     const count=$('.dm-count',nav); count.textContent=String(unread.size);count.classList.toggle('hidden',!unread.size);
     $('[data-right="dm"]',nav).setAttribute('aria-label',unread.size?`DMs, ${unread.size} conversas não lidas`:'DMs');
-    // Also visible with the right panel closed.
-    const shortcut=$('#sidebar-dms');if(shortcut){shortcut.title=unread.size?`Mensagens privadas · ${unread.size} conversas não lidas`:'Mensagens privadas';shortcut.setAttribute('aria-label',shortcut.title);$('.dm-count',shortcut).textContent=unread.size||'';$('.dm-count',shortcut).classList.toggle('hidden',!unread.size);}
+    // Lista da aba DMs: avatar, nome, prévia da última mensagem, hora e bolinha de não lida.
     const list=$('.dm-contacts',dmHost);list.replaceChildren();
     for(const u of contacts()){
-      const b=document.createElement('button');b.className='dm-contact';b.textContent=u.name+(unread.has(u.id)?' · Nova':'');b.onclick=()=>openDM(u.id);list.append(b);
+      const b=document.createElement('button');b.className='dm-contact'+(u.unread?' unread':'')+(u.online?' online':'');b.dataset.uid=u.id;
+      const av=document.createElement('span');av.className='dm-av';av.innerHTML=avatar(u);
+      const mid=document.createElement('span');mid.className='dm-main';
+      const top=document.createElement('span');top.className='dm-top';
+      const name=document.createElement('b');name.className='dm-name';name.textContent=(u.fav ? '☆ ' : '') + u.name;
+      const when=document.createElement('time');when.className='dm-time';when.textContent=u.last?time(u.last.ts):'';
+      top.append(name,when);
+      const prev=document.createElement('span');prev.className='dm-preview';
+      prev.textContent=u.last?(u.last.mine?'Você: ':'')+u.last.text:(u.online?'Na sala · diga oi':'Fora da sala');
+      mid.append(top,prev);b.append(av,mid);
+      if(u.unread){const dot=document.createElement('i');dot.className='dm-dot';dot.setAttribute('aria-label','mensagem nova');b.append(dot);}
+      b.onclick=()=>openDM(u.id);list.append(b);
     }
-    if(!list.children.length)list.textContent='Seus amigos aparecem aqui enquanto estiverem na sala.';
+    if(!list.children.length)list.textContent='As conversas privadas aparecem aqui.';
   }
-  const dmShortcut=document.createElement('button');dmShortcut.id='sidebar-dms';dmShortcut.className='friend-row';dmShortcut.innerHTML=`${icon('chat',20)}<span class="side-dm-label">Mensagens privadas</span><span class="dm-count hidden"></span>`;dmShortcut.onclick=()=>open('dm');$('#friends-list').before(dmShortcut);
   function dmModal(html,{onClose}={}){
     const el=document.createElement('section');el.className='dm-view';el.innerHTML=html;
     const host=$('.dm-view-host',dmHost);host.replaceChildren(el);dmHost.classList.add('has-conversation');open('dm');
@@ -100,8 +134,16 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
     const el=document.createElement('section');el.className='floating-dj modal dj-modal';el.setAttribute('role','dialog');el.setAttribute('aria-modal','false');el.setAttribute('aria-label','DJ Resenha');el.innerHTML=html;document.body.append(el);
     const header=$('header',el);header.tabIndex=0;header.title='Arraste para mover · setas ajustam · Home restaura';header.setAttribute('aria-label',header.title);
     let drag=null,positioned=false,closed=false;
-    const place=(x,y)=>{const r=el.getBoundingClientRect(),p=boundedPosition(x,y,r.width,r.height,innerWidth,innerHeight);Object.assign(el.style,{left:p.x+'px',top:p.y+'px',right:'auto',bottom:'auto'});positioned=true;};
-    const reset=()=>{for(const k of ['left','top','right','bottom'])el.style[k]='';positioned=false;};
+    const place=(x,y)=>{const r=el.getBoundingClientRect(),p=boundedPosition(x,y,r.width,r.height,innerWidth,dockRect()?.top ?? innerHeight);Object.assign(el.style,{left:p.x+'px',top:p.y+'px',right:'auto',bottom:'auto'});positioned=true;};
+    // A área acima do dock é o limite inferior do painel, também quando reposicionado.
+    const dock=$('#call-controls');
+    const dockRect=()=>dock?.offsetParent ? dock.getBoundingClientRect() : null;
+    const anchor=()=>{
+      const d=dockRect(); if(!d || positioned) return;
+      const w=el.offsetWidth,left=Math.max(12,Math.min(d.left+(d.width-w)/2,innerWidth-w-12));
+      Object.assign(el.style,{left:left+'px',right:'auto',top:'auto',bottom:(innerHeight-d.top+12)+'px',maxHeight:Math.max(0,d.top-24)+'px'});
+    };
+    const reset=()=>{for(const k of ['left','top','right','bottom','maxHeight'])el.style[k]='';positioned=false;anchor();};
     const resetButton=document.createElement('button');resetButton.className='icon-btn';resetButton.innerHTML=icon('maximize',16);resetButton.title='Restaurar posição do DJ';resetButton.setAttribute('aria-label',resetButton.title);resetButton.onclick=()=>{floatingState.position=null;reset();};header.insertBefore(resetButton,$('[data-close]',header));
     if($('#dj-in',el))$('#dj-in',el).value=floatingState.draft;
     if(floatingState.position)place(floatingState.position.x,floatingState.position.y);
@@ -109,17 +151,20 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
     header.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button,input,a'))return;e.preventDefault();const r=el.getBoundingClientRect();drag={id:e.pointerId,x:e.clientX-r.left,y:e.clientY-r.top};header.setPointerCapture(e.pointerId);el.dataset.dragging='true';header.focus();});
     header.addEventListener('pointermove',e=>{if(drag?.id===e.pointerId)place(e.clientX-drag.x,e.clientY-drag.y);});
     for(const type of ['pointerup','pointercancel','lostpointercapture'])header.addEventListener(type,release);
-    const resize=()=>{if(positioned){const r=el.getBoundingClientRect();place(r.left,r.top);}};window.addEventListener('resize',resize);
-    const contentResize=new ResizeObserver(resize);contentResize.observe(el);
+    const resize=()=>{if(positioned){const r=el.getBoundingClientRect();place(r.left,r.top);}else anchor();};window.addEventListener('resize',resize);
+    const contentResize=new ResizeObserver(resize);contentResize.observe(el);if(dock)contentResize.observe(dock);anchor();
+    // Esc fecha de onde estiver o foco, a menos que um menu ou janela esteja por cima.
+    const escClose=e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('#modal-root .overlay')||document.querySelector('#room-menu:not(.hidden), #ctx-menu:not(.hidden)'))return;close();};
+    document.addEventListener('keydown',escClose);
     const previous=document.activeElement;
-    const close=()=>{if(closed)return;closed=true;const r=el.getBoundingClientRect();floatingState.position=positioned?{x:r.left,y:r.top}:null;floatingState.draft=$('#dj-in',el)?.value||'';const restore=el.contains(document.activeElement);window.removeEventListener('resize',resize);contentResize.disconnect();el.remove();onClose?.();if(previous?.isConnected&&restore)previous.focus();};
+    const close=()=>{if(closed)return;closed=true;const r=el.getBoundingClientRect();floatingState.position=positioned?{x:r.left,y:r.top}:null;floatingState.draft=$('#dj-in',el)?.value||'';const restore=el.contains(document.activeElement);window.removeEventListener('resize',resize);document.removeEventListener('keydown',escClose);contentResize.disconnect();el.remove();onClose?.();if(previous?.isConnected&&restore)previous.focus();};
     el.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
     el.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();close();return;}if(e.target!==header)return;if(e.key==='Home'){e.preventDefault();reset();return;}const n=e.shiftKey?40:16,d={ArrowLeft:[-n,0],ArrowRight:[n,0],ArrowUp:[0,-n],ArrowDown:[0,n]}[e.key];if(d){e.preventDefault();const r=el.getBoundingClientRect();place(r.left+d[0],r.top+d[1]);}});
     return {el,close};
   }
   // Side names remain discoverable when compact; never expand on hover.
   const titles=new MutationObserver(()=>{
-    $('#channels').querySelectorAll('.channel,.vu,.ou,.friend-row').forEach(el=>{el.title=el.textContent.trim();});
+    $('#channels').querySelectorAll('.channel,.vu,.ou').forEach(el=>{el.title=el.textContent.trim();});
   });titles.observe($('#channels'),{childList:true,subtree:true});
   function updateLive(tile,u,self,watching,people=[]){
     if(!tile.refreshFrame)installLiveFrame(tile);
@@ -137,5 +182,6 @@ export function createRoomUI({ icon, openDM, contacts, onDMVisible, onResize, li
     const name=$('.streamer-name',tools)||tools.insertBefore(Object.assign(document.createElement('span'),{className:'streamer-name'}),tools.firstChild);name.textContent=u.name;
     if(!self&&!$('.live-volume',tools)){const volume=document.createElement('label');volume.className='live-volume';volume.innerHTML=icon('volume',16)+'<input type="range" min="0" max="200" step="1" aria-label="Volume da transmissão"><output></output>';const input=$('input',volume),output=$('output',volume);input.value=liveVolume(u);output.textContent=input.value+'%';const fill=()=>volume.style.setProperty('--p',(input.value/2)+'%');fill();input.oninput=()=>{output.textContent=input.value+'%';fill();setLiveVolume(u,Number(input.value));};volume.addEventListener('pointerdown',e=>e.stopPropagation());volume.addEventListener('click',e=>e.stopPropagation());tools.insertBefore(volume,$('[data-stop]',tools));}
   }
-  return {open,close,isDMVisible,dmModal,floatingModal,updateUnread,updatePeople,updateLive,reset(){close();},dispose(){stageObserver.disconnect();titles.disconnect();}};
+  addEventListener('resize',fitWindow);fitWindow();
+  return {open,close,isDMVisible,isChatVisible,dmModal,floatingModal,updateUnread,updatePeople,updateLive,setLive,reset(){hasLive=false;close();},dispose(){stageObserver.disconnect();titles.disconnect();removeEventListener('resize',fitWindow);}};
 }

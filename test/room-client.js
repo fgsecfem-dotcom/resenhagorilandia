@@ -11,3 +11,23 @@ const source=fs.readFileSync(require.resolve('../app/client.js'),'utf8');const c
  }
  console.log('PASS: resume winner keeps code/snapshot, loser and existing-host join instead of hosting, unknown discovery does not start host');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+
+;(async () => {
+  const section = source.slice(source.indexOf('async function goHome('), source.indexOf('async function switchServer('));
+  const el = hidden => ({classList: {contains: () => hidden, add: () => { hidden = true; }, remove: () => { hidden = false; }}});
+  const fields = {'#main': el(false), '#home': el(true), '#web-nav': el(false)};
+  const S = {myId: 'a', code: 'TEST-1234'}, V = {joined: true, screen: {}};
+  let leaves = 0, confirmations = 0, confirmed = false;
+  const ctx = vm.createContext({S, V, document: {documentElement: el(false)}, native: null, $: s => fields[s], closeRoomMenu(){}, hideMenu(){}, djPanel:null, syncSkinSoon(){}, setTimeout(){}, renderAll(){}, renderChatHeader(){}, layoutGrid(){}, requestAnimationFrame(){}, forgetLastRoom(){}, leaveRoom(){ leaves++; }, confirmModal(){ confirmations++; return confirmed; }});
+  vm.runInContext(section, ctx); ctx.renderAwayPill = () => {};
+  const screen = V.screen;
+  await ctx.goHome(); await ctx.goHome();
+  assert.equal(S.away, true); assert.equal(fields['#main'].classList.contains('hidden'), true);
+  assert.equal(leaves, 0, 'Início é navegação, mesmo se acionado duas vezes'); assert.equal(V.screen, screen);
+  ctx.backToRoom(); assert.equal(fields['#main'].classList.contains('hidden'), false);
+  await ctx.leaveRoomAsked(); assert.equal(leaves, 0); assert.equal(confirmations, 1);
+  confirmed = true; await ctx.leaveRoomAsked(); assert.equal(leaves, 1);
+  V.joined = false; await ctx.leaveRoomAsked(); assert.equal(leaves, 2); assert.equal(confirmations, 2);
+  console.log('PASS: Início preserva a call e a live; só sair na call pede confirmação');
+})().catch(e => {console.error(e); process.exitCode = 1;});

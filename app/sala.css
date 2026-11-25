@@ -1,0 +1,122 @@
+/* Início não encerra a sala; o retorno fica separado do conteúdo da tela. */
+#away-pill { position: fixed; z-index: 55; inset: auto 16px 16px auto; display: flex; align-items: center; max-width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 24px; background: var(--bg-float); color: var(--text-hi); box-shadow: 0 8px 24px #0002; }
+#away-pill button { display: flex; align-items: center; gap: 8px; min-height: 40px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+#away-pill button:hover { background: var(--hover); }
+#away-pill .away-back { min-width: 0; padding: 0 12px; }
+#away-pill .away-leave { flex: none; width: 40px; justify-content: center; }
+#away-pill .away-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#away-pill .away-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+#away-pill.in-call .away-dot { background: var(--green); }
+
+/* O selo tem seu próprio canto. A saída do espectador só existe nos controles da live. */
+#call .tile:not(.is-screen) .tile-tools:has(.watch-chip) { top: 4px; right: 4px; opacity: 1; }
+#call .tile .watch-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: auto; height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-float); color: var(--text-hi); white-space: nowrap; font-size: 11px; font-weight: 600; }
+#call .tile button.watch-chip:hover { background: var(--active); }
+#call .tile .watch-seal { pointer-events: none; }
+#call .tile button.watch-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+#call .tile.is-screen .live-exit-label { white-space: nowrap; }
+#call .focus-strip { --strip-h: 96px; width: min(100%, var(--live-w, 100%)); align-self: center; height: var(--strip-h); gap: 8px; justify-content: safe center; overflow: auto hidden; scrollbar-width: thin; }
+#call .focus-strip > .tile { flex: 1 0 116px; max-width: 152px; }
+@media (height < 720px) {
+  #call .focus-strip { --strip-h: 80px; }
+  #call .focus-strip > .tile { flex-basis: 100px; max-width: 128px; }
+}
+
+/* Voz é gente: círculo, nome embaixo e anel de fala, sem fundo de vídeo. */
+body:not(.web-viewer) #call #call-stage .grid { display: flex; flex-wrap: wrap; align-content: safe center; justify-content: center; align-items: center; gap: 8px; overflow-y: auto; scrollbar-width: thin; }
+body:not(.web-viewer) #call #call-stage .grid > .tile.is-voice { flex: 0 0 var(--cell-w, 144px); width: var(--cell-w, 144px); height: var(--cell-h, 112px); --voice-size: var(--av, 56px); }
+html #call #call-stage .tile.is-voice { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 24px 4px 4px; background: transparent; box-shadow: none; overflow: visible; }
+html #call #call-stage .tile.is-voice::after { content: none; }
+html #call #call-stage .tile.is-voice .tile-body { position: static; flex: none; width: auto; height: auto; }
+html #call #call-stage .tile.is-voice .avatar { width: var(--voice-size, 64px); height: var(--voice-size, 64px); font-size: calc(var(--voice-size, 64px) * .35); border-radius: 50%; transform: none; }
+html #call #call-stage .tile.is-voice.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-rail), 0 0 0 4px var(--green); }
+html #call #call-stage .tile.is-voice .label { position: static; max-width: calc(100% - 8px); padding: 0; background: transparent; color: var(--text-hi); backdrop-filter: none; white-space: nowrap; }
+#call #call-stage .focus-main > .tile.is-voice { --voice-size: min(38cqh, 224px); }
+#call #call-stage .focus-strip > .tile.is-voice { --voice-size: 40px; }
+#call #call-stage .focus-strip > .tile.is-voice .label { font-size: 12px; }
+@media (height < 720px) {
+  #call #call-stage .focus-strip > .tile.is-voice { --voice-size: 32px; }
+}
+
+/* Nota única e não modal; não participa da altura do palco. */
+#perf-note { position: absolute; z-index: 4; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-float); color: var(--text); font-size: 12px; }
+#perf-note span { line-height: 1.3; }
+#perf-note button { min-height: 28px; padding: 0 8px; white-space: nowrap; }
+
+/* Duas hierarquias visuais, nenhuma confunde entrar com conectado. */
+#call .vc-card .vc-join { min-height: 36px; padding-inline: 16px; border-color: var(--line); background: var(--bg-panel); color: var(--text-hi); }
+#call .vc-card .vc-join:hover { background: var(--active); }
+#call .vc-card .vc-join.main { border-color: transparent; background: #f6f6f6; color: #202127; }
+#call .vc-card .vc-join.main:hover { background: #e5e5e5; }
+
+/* Barra lateral: a mesma coluna de ícones e de texto nos canais e nas pessoas. */
+html[data-tk] #main #sidebar { --rail-item: 40px; }
+html[data-tk] #main #sidebar #channels { padding-bottom: 16px; mask-image: linear-gradient(#000 calc(100% - 12px), transparent); }
+html[data-tk] #main #sidebar :is(.channel, .vu, .ou) { gap: 8px; height: 28px; min-height: 28px; padding: 0 8px; margin-bottom: 0; }
+html[data-tk] #main #sidebar .channel > .ic { width: 20px; padding-inline: 2px; box-sizing: border-box; }
+html[data-tk] #main #sidebar .nsb-who { margin: 0 0 4px; padding: 0; border: 0; }
+#sidebar .ou .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sidebar .ou .st-text { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+#sidebar .ou .you { color: var(--muted); font-size: 11px; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar #channels { display: block !important; width: 100%; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-sec { font-size: 0; height: 12px; margin: 4px 0; justify-content: center; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-sec.hidden { display: none; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-sec::before { content: ''; width: 20px; height: 1px; background: var(--line); }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.channel, .ou, .vu) { justify-content: center; margin-inline: auto; padding: 0; width: var(--rail-item); height: var(--rail-item); min-height: var(--rail-item); }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.cat-add, .vu .st, .channel .ch-edit, .channel .n-dot) { display: none; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.nsb-ib, #sidebar-toggle, #btn-invite, #up-user, #btn-settings) { width: var(--rail-item); min-width: var(--rail-item); height: var(--rail-item); min-height: var(--rail-item); padding: 0; justify-content: center; box-sizing: border-box; }
+
+/* Contatos e histórico privado só na aba DMs. */
+#chat .dm-contacts { padding-block: 8px; gap: 4px; }
+#chat .dm-contact { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 48px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; }
+#chat .dm-contact:hover { background: var(--hover); }
+#chat .dm-av, #chat .dm-dot, #chat .dm-time { flex: none; }
+#chat .dm-av .avatar { width: 32px; height: 32px; }
+#chat .dm-main { flex: 1; min-width: 0; }
+#chat .dm-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#chat .dm-name, #chat .dm-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#chat .dm-name { font-size: 13px; color: var(--text-hi); }
+#chat .dm-preview, #chat .dm-time { font-size: 11px; color: var(--muted); }
+#chat .dm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--link); }
+#chat .dm-contact.unread .dm-preview { color: var(--text-hi); font-weight: 600; }
+
+/* Em janela estreita a conversa não modifica a largura do palco. */
+#main[data-chat-float=true] > .splitter:is([data-left=chat], [data-right=chat]) { display: none; }
+#main[data-chat-float=true] > #chat { display: flex; position: absolute; z-index: 15; top: 72px; right: 16px; bottom: 92px; width: min(320px, calc(100% - 32px)); min-width: 0; height: auto; margin: 0; background: var(--bg-float); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px #0004; transition: transform 250ms var(--ease-out), opacity 250ms var(--ease-out), visibility 250ms; }
+#main[data-chat-float=true][data-right-open=false] > #chat { display: flex; visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(12px); }
+:is(.os-win32,.os-linux) #main[data-chat-float=true] #chat .right-nav { padding-inline: 12px; }
+:is(.os-win32,.os-linux) #main[data-chat-float=true] #call .pane-header { padding-right: 112px; }
+#main[data-chat-float=true] #call .chat-toggle { display: grid; }
+#call #btn-chat-toggle { position: relative; }
+#call .chat-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 2px 4px; border-radius: 12px; background: var(--text-hi); color: var(--bg-side); font-size: 10px; font-weight: 700; line-height: 14px; white-space: nowrap; pointer-events: none; }
+html.reduce-motion #main[data-chat-float=true] > #chat { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  #main[data-chat-float=true] > #chat { transition: none; }
+}
+
+/* A call mantém alvos de 48 px e um estado de mudo com texto no quadro. */
+html #call #call-controls .cc-btn { width: 48px; min-width: 48px; height: 48px; flex-shrink: 0; }
+html #call #call-controls #cc-leave { width: auto; min-width: 48px; justify-content: center; white-space: nowrap; }
+html #call #call-controls #cc-mute.off, html[data-tk=vidro] #call #call-controls #cc-mute.off { background: color-mix(in srgb, #dc2626 18%, transparent) !important; color: #f87171 !important; }
+html.light:not([data-tk=vidro]) #call #call-controls #cc-mute.off { color: #b91c1c !important; }
+html #call #call-stage .mute-tag { order: 2; flex: none; padding: 1px 6px; border-radius: 8px; background: color-mix(in srgb, #dc2626 18%, transparent); font-size: 11px; font-weight: 600; }
+@media (width < 1100px) {
+  html #call #call-controls #cc-leave { width: 48px; padding: 0; }
+  #call #call-controls #cc-leave > span { display: none; }
+}
+
+/* O diagnóstico fica em segundo plano e não tem moldura de ação principal. */
+.modal p.capture-help { display: block; margin: 12px 0 0; padding: 0; background: transparent; }
+.modal .capture-help .link-btn { border: 0; padding: 0; background: transparent; color: var(--link); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.modal .sources button.src { font: inherit; text-align: left; }
+.modal .sources .src .th { display: block; }
+
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu .nm, .vu .st, .ou .nm, .ou .st-text, .channel .cn, .channel .timer) { display: none; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar :is(.vu, .ou) .avatar { width: 24px; height: 24px; min-width: 24px; }
+body:not(.web-viewer) #main[data-sidebar-compact=true] #sidebar .nsb-who { margin: 0; }
+
+/* Sem fundo de vídeo, o nome usa a cor do texto do tema (nada de etiqueta escura sobre fundo claro). */
+html #call #call-stage .tile.is-voice .label { background: transparent !important; backdrop-filter: none !important; color: var(--text-hi) !important; box-shadow: none; }
+html #call #call-stage .tile.is-voice .label .ic { color: var(--muted); }
+html #call #call-stage .tile.is-voice .mute-tag { color: #b91c1c; }
+html:not(.light) #call #call-stage .tile.is-voice .mute-tag { color: #fca5a5; }

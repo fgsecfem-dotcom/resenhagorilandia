@@ -3,14 +3,14 @@ const src=fs.readFileSync(require.resolve('../app/client.js'),'utf8');
 const part=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
 (async()=>{
  for(const web of [false,true]){
-  let mic=0,peer=0;const track={enabled:true},V={joined:false,muted:false,deafened:false,raw:{getAudioTracks:()=>[track]},gate:{gain:{value:0}},peers:new Map()};
-  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,micMuted:()=>V.muted||V.deafened,updatePttTrack:()=>{},clearTimeout,pttTimer:null,pttPressed:false,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},closePeer:()=>{},perfStart:()=>{},perfStop:()=>{},perf:{timer:null},watchDevices:()=>{}});
+  let mic=0,peer=0,djClosed=0;const track={enabled:true},V={joined:false,muted:false,deafened:false,raw:{getAudioTracks:()=>[track]},gate:{gain:{value:0}},peers:new Map()};
+  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,micMuted:()=>V.muted||V.deafened,updatePttTrack:()=>{},clearTimeout,pttTimer:null,pttPressed:false,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},djPanel:{close:()=>djClosed++},closePeer:()=>{},perfStart:()=>{},perfStop:()=>{},perf:{timer:null},watchDevices:()=>{}});
   vm.runInContext(part('async function joinVoice(','// Laço: portão'),ctx);
   await ctx.joinVoice('lobby');assert.equal(mic,1);assert.equal(peer,1);assert(V.joined);
   ctx.setMuted(true);assert(V.muted);if(web)assert.equal(track.enabled,false);
   ctx.setMuted(false);ctx.setDeafened(true);assert(V.muted&&V.deafened);if(web)assert.equal(track.enabled,false);
   ctx.setDeafened(false);assert(!V.muted&&!V.deafened);if(web)assert.equal(track.enabled,true);
-  V.raw={getTracks:()=>[{stop(){}}]};V.speaking=new Set();ctx.leaveVoice();assert(!V.joined);assert.equal(V.channel,null);
+  V.raw={getTracks:()=>[{stop(){}}]};V.speaking=new Set();ctx.leaveVoice();assert.equal(djClosed,1);assert(!V.joined);assert.equal(V.channel,null);
  }
  for(const fail of [false,true]){
   const input={value:'mensagem'},pending=[];let resolveAck,called=0;

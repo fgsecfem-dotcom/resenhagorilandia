@@ -31,3 +31,16 @@ const code=source.slice(source.indexOf('function updateTile('),source.indexOf('f
  tile.disposeOverlay();assert.equal(pending,null);
  console.log('PASS: fullscreen overlay idle timer, pointer/keyboard reveal, hover hold and cleanup');
 }
+
+
+{
+ const from = source.indexOf('function layoutGrid()');
+ const ctx = vm.createContext({});
+ const helpers = source.slice(from, source.indexOf('new ResizeObserver(() => layoutGrid()', from));
+ vm.runInContext(helpers, ctx);
+ assert.equal(ctx.avatarGrid(5, 1050, 435).cols, 3, 'cinco pessoas ficam em duas fileiras equilibradas');
+ assert.equal(ctx.avatarGrid(3, 1000, 460).cols, 3, 'três pessoas cabem lado a lado');
+ assert.equal(ctx.avatarGrid(4, 590, 600).cols, 2, 'quatro pessoas em uma área mais estreita formam 2×2');
+ assert.equal(ctx.avatarGrid(1, 0, 400), null, 'não mede quadros enquanto a sala está escondida');
+ console.log('PASS: grade de avatares maximiza os círculos e equilibra fileiras');
+}
