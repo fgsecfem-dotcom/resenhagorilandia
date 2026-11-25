@@ -35,10 +35,13 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
-document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
+const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const applyReduceMotion = () => document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion === 'auto' ? systemReducedMotion.matches : settings.reduceMotion === true);
+applyReduceMotion();
+systemReducedMotion.addEventListener('change', applyReduceMotion);
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
 const saveSettings = () => LS.set('settings', settings);
@@ -1340,7 +1343,7 @@ function skinModel() {
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
       messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
-    reduceMotion: document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'),
   };
 }
 const skinActions = {
@@ -1356,8 +1359,9 @@ const skinActions = {
 let skinSpeakSig = '', skinReady = false, skinQueued = false; // skinReady: só depois que o módulo inteiro rodou (curMessages, input… já existem)
 function syncSkin() {
   const skins = window.ResenhaSkins; if (!skinReady || !skins) return;
-  if (!skins.active && !skins.has(settings.theme)) return; // tema sem sala própria: nem monta o retrato
-  skins.sync(settings.theme, skinModel(), skinActions); skinSpeakSig = '';
+  const theme = document.documentElement.dataset.tk || settings.theme;
+  if (!skins.active && !skins.has(theme)) return; // tema sem sala própria: nem monta o retrato
+  skins.sync(theme, skinModel(), skinActions); skinSpeakSig = '';
 }
 // Várias mudanças seguidas (trilha da live chegando, gente entrando) viram um retrato só, no fim da tarefa atual.
 function syncSkinSoon() { if (skinQueued) return; skinQueued = true; queueMicrotask(() => { skinQueued = false; syncSkin(); }); }
@@ -2914,7 +2918,7 @@ function perfStop(send = true) {
     install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
     noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
     theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
-    reduceMotion: !!settings.reduceMotion, overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'), overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
   };
   const report = window.ResenhaPerf.summarize(samples, meta);
   if (report) try { navigator.sendBeacon(PERF_URL, new Blob([JSON.stringify(report)], { type: 'text/plain' })); } catch {}
@@ -2991,29 +2995,88 @@ function addrBlock(title, value, note, cls = '') {
 function bindCopy(root) { $$('[data-copy]', root).forEach((b) => b.onclick = () => { copy(b.dataset.copy); b.textContent = 'Copiado'; setTimeout(() => (b.textContent = 'Copiar'), 1500); }); }
 
 // ---------------- Configurações ----------------
-// Aparência (2.6): seis temas em cartões e, no Resenha, as paletas 60/30/10 (faixas na proporção real de cada cor).
+// A prévia muda o tema efetivo, sem tocar na preferência salva.
 function themeCardHTML(k, attr = 'data-theme') {
-  const t = THEMES[k], v = themePreview(k, k === 'resenha' ? settings.themeColor : undefined);
-  return `<button class="theme-card tc-${k} ${settings.theme === k ? 'sel' : ''}" ${attr}="${k}" aria-pressed="${settings.theme === k}"><div class="tc-prev" style="--p60:${v.c60 || v['bg-main']};--p30:${v.c30 || v.text};--p10:${v.accent}"><i></i><i></i><b></b></div><span class="tc-name">${esc(t.name)}</span><span class="tc-hint">${esc(t.hint)}</span></button>`;
+  const t = THEMES[k], on = settings.theme === k;
+  return `<button type="button" class="theme-card tc-${k} ${on ? 'sel' : ''}" ${attr}="${k}" aria-pressed="${on}" title="${esc(t.hint)}"><img class="settings-theme-thumb" src="skins/thumb-${k}.webp" alt="" width="288" height="150"><span class="tc-name">${esc(t.name)}</span></button>`;
 }
 function paletteRowHTML() {
-  const auto = `<button class="pal ${settings.themeColor === 'auto' ? 'sel' : ''}" data-palette="auto" title="Segue o Windows: Pipoca no escuro, Lona no claro"><span class="pal-sw auto"><i style="--c:${RESENHA_PALETTES.pipoca.c[0]}"></i><i style="--c:${RESENHA_PALETTES.lona.c[0]}"></i></span><span>Automático</span></button>`;
-  return auto + Object.entries(RESENHA_PALETTES).map(([k, p]) => `<button class="pal ${settings.themeColor === k ? 'sel' : ''}" data-palette="${k}" title="${esc(p.n.join(' · '))}"><span class="pal-sw">${p.c.map((x, i) => `<i style="--c:${x};flex:${[6, 3, 1][i]}"></i>`).join('')}</span><span>${esc(p.name)}</span></button>`).join('');
+  const swatch = (k, name, inside, title = name) => `<button type="button" class="settings-palette" data-palette="${k}" aria-label="${esc(name)}" aria-pressed="${settings.themeColor === k}" title="${esc(title)}">${inside}</button>`;
+  return swatch('auto', 'Automático', `<span class="settings-auto" aria-hidden="true">${icon('sun', 13)}${icon('moon', 10)}</span>`, 'Automático · segue o Windows')
+    + Object.entries(RESENHA_PALETTES).map(([k, p]) => swatch(k, p.name, `<span class="settings-swatch" style="--p60:${p.c[0]};--p30:${p.c[1]};--p10:${p.c[2]}"></span>`)).join('');
 }
 function appearanceHTML(attr = 'data-theme') {
-  return `<div class="section-title" style="margin-top:0">Tema</div><div class="theme-grid">${VISIBLE_THEMES.map((k) => themeCardHTML(k, attr)).join('')}</div>
-    <div class="pal-block ${settings.theme === 'resenha' ? '' : 'hidden'}"><div class="section-title">Cores do Resenha</div><p class="muted small pal-note">Fundo, texto e destaque na proporção 60 · 30 · 10. O contraste é ajustado sozinho.</p><div class="pal-grid">${paletteRowHTML()}</div></div>`;
+  const group = (name, keys) => `<div class="section-title">${name}</div><div class="theme-grid settings-theme-grid">${keys.map((k) => themeCardHTML(k, attr)).join('')}</div>`;
+  return `${group('Só visual', VISIBLE_THEMES.filter((k) => !THEMES[k].skin))}${group('Sala inteira', VISIBLE_THEMES.filter((k) => THEMES[k].skin))}
+    <div class="pal-block" ${settings.theme === 'resenha' ? '' : 'hidden'}><div class="section-title" id="st-palette-title">Cores do Resenha</div><p class="muted small pal-note">As cores se ajustam para o texto ficar legível</p><div class="settings-palettes" role="group" aria-labelledby="st-palette-title">${paletteRowHTML()}</div></div>`;
+}
+let appearanceTransition, appearanceRevision = 0;
+function displayAppearance(theme, color) {
+  const root = document.documentElement, revision = ++appearanceRevision;
+  appearanceTransition?.skipTransition();
+  const change = () => { if (revision === appearanceRevision) applyTheme(theme, color); };
+  if (root.classList.contains('reduce-motion') || !document.startViewTransition || document.hidden) { change(); return; }
+  root.classList.add('settings-crossfade');
+  const transition = appearanceTransition = document.startViewTransition(change);
+  transition.finished.finally(() => {
+    if (appearanceTransition === transition) { appearanceTransition = null; root.classList.remove('settings-crossfade'); }
+  }).catch(() => {});
 }
 function bindAppearance(el, attr = 'data-theme') {
-  const key = attr.replace(/^data-/, '').replace(/-(\w)/g, (_, x) => x.toUpperCase());
-  const refresh = () => { $$(`[${attr}]`, el).forEach((x) => { const on = x.dataset[key] === settings.theme; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); }); $('.pal-block', el)?.classList.toggle('hidden', settings.theme !== 'resenha'); };
-  $$(`[${attr}]`, el).forEach((b) => b.onclick = () => { settings.theme = b.dataset[key]; saveSettings(); applyTheme(settings.theme, settings.themeColor); refresh(); });
-  $$('[data-palette]', el).forEach((b) => b.onclick = () => {
-    settings.themeColor = b.dataset.palette; saveSettings(); applyTheme(settings.theme, settings.themeColor);
-    $$('[data-palette]', el).forEach((x) => x.classList.toggle('sel', x === b));
-    const card = $(`[${attr}="resenha"] .tc-prev`, el), v = themePreview('resenha', settings.themeColor);
-    if (card) { card.style.setProperty('--p60', v.c60); card.style.setProperty('--p30', v.c30); card.style.setProperty('--p10', v.accent); }
-  });
+  const themes = $$(`[${attr}]`, el), palettes = $$('[data-palette]', el), block = $('.pal-block', el);
+  let preview = null, hoverTimer, hovered, undoTimer;
+  const refresh = () => {
+    for (const x of themes) { const on = x.getAttribute(attr) === settings.theme; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); }
+    for (const x of palettes) x.setAttribute('aria-pressed', String(x.dataset.palette === settings.themeColor));
+    if (block) block.hidden = settings.theme !== 'resenha';
+  };
+  const stopHover = () => { clearTimeout(hoverTimer); hovered = null; };
+  const cancel = () => {
+    stopHover();
+    if (!preview) return;
+    preview = null; displayAppearance(settings.theme, settings.themeColor);
+  };
+  const assign = (theme, color) => {
+    const alreadyShowing = preview?.theme === theme && preview?.color === color;
+    stopHover(); preview = null; settings.theme = theme; settings.themeColor = color;
+    saveSettings(); if (!alreadyShowing) displayAppearance(theme, color); refresh();
+  };
+  const choice = (b) => ({ theme: b.getAttribute(attr) || 'resenha', color: b.dataset.palette || settings.themeColor });
+  const updatePreview = (e) => {
+    if (e.pointerType !== 'mouse' || el.inert || !el.classList.contains('with-appearance')) return;
+    // View Transitions retarget synthetic enter/leave while snapshotting; real motion keeps the preview stable.
+    const b = e.target.closest?.(`[${attr}], [data-palette]`);
+    if (!b || !el.contains(b)) { cancel(); return; }
+    const next = choice(b);
+    if (next.theme === settings.theme && next.color === settings.themeColor) { cancel(); return; }
+    if (hovered === b) return;
+    stopHover(); hovered = b;
+    // Dá ao clique direto prioridade sobre a captura da prévia.
+    hoverTimer = setTimeout(() => { preview = next; displayAppearance(next.theme, next.color); }, 70);
+  };
+  const outside = (e) => {
+    if (e.clientX < 0 || e.clientY < 0 || e.clientX >= innerWidth || e.clientY >= innerHeight) cancel();
+  };
+  el.addEventListener('pointermove', updatePreview);
+  el.addEventListener('pointerout', outside);
+  el.addEventListener('pointerdown', () => { stopHover(); appearanceTransition?.skipTransition(); });
+  for (const b of [...themes, ...palettes]) {
+    b.onclick = () => {
+      const { theme, color } = choice(b), before = { theme: settings.theme, color: settings.themeColor };
+      if (theme === before.theme && color === before.color) return;
+      assign(theme, color);
+      const area = $('.settings-undo', el);
+      const message = b.dataset.palette ? `Paleta ${b.getAttribute('aria-label')} aplicada` : `Tema ${THEMES[theme].name} aplicado`;
+      if (!area) { toast(message, 'ok'); return; }
+      const undo = $('button', area);
+      $('span', area).textContent = message + ' · ';
+      area.hidden = false;
+      const dismiss = () => { if (document.activeElement === undo) $('[data-close]', el).focus(); area.hidden = true; };
+      undo.onclick = () => { assign(before.theme, before.color); dismiss(); };
+      clearTimeout(undoTimer); undoTimer = setTimeout(dismiss, 6500);
+    };
+  }
+  return () => { cancel(); if (el.inert) clearTimeout(undoTimer); };
 }
 function openViewerSettings() {
   const m = openModal(`<header><div><h2>Seu Resenha</h2><p>Aparência e perfil</p></div><button class="icon-btn" data-close>${icon('x')}</button></header><div class="body"><div class="field"><label>Seu nome</label><input id="web-name" maxlength="32" value="${esc(me.name)}"></div><div class="field"><label>Cor</label><input id="web-color" type="color" value="${esc(me.color)}"></div>${appearanceHTML('data-web-theme')}</div><footer><button class="btn primary" data-close>Pronto</button></footer>`);
@@ -3033,12 +3096,14 @@ async function openSettings(tab = 'voz') {
   if ($('.overlay:not([inert]) > .settings-dialog')) return;
   const tabButton = ([id, name]) => `<button type="button" class="tab" data-t="${id}" id="st-tab-${id}" role="tab" aria-controls="st-panel-${id}" tabindex="-1">${name}</button>`;
   const tabs = [['voz', 'Voz'], ['filtros', 'Filtros de voz'], ['aparencia', 'Aparência'], ['perfil', 'Perfil'], ...(native ? [['atalhos', 'Atalhos']] : [])];
+  let cancelAppearance;
   const closeSettingsMic = () => { if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } };
   const m = openModal(`<header><h2 id="st-title">Configurações</h2><button class="icon-btn" data-close aria-label="Fechar configurações">${icon('x')}</button></header>
     <div class="tabs" role="tablist" aria-label="Seções de configurações">${tabs.map(tabButton).join('')}${overlayClient ? overlayClient.tabHTML() : ''}</div>
     <div class="body">
       <div class="tp" data-p="aparencia">
         ${appearanceHTML()}
+        <details class="settings-more"><summary>Mais opções</summary>
         <div class="section-title">Ícone do app</div>
         <div class="icon-grid">${globalThis.PIPOCA ? Object.entries(PIPOCA.VARIANTS).map(([k, v]) => `<button class="icon-card ${settings.appIcon === k ? 'sel' : ''}" data-app-icon="${k}"><img src="${PIPOCA.dataURL(k, 64)}" alt=""><span>${esc(v.name)}</span></button>`).join('') : ''}</div>
         <div class="section-title">Layout</div>
@@ -3047,10 +3112,10 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
-          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${settings.reduceMotion ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
+          <div class="field"><label for="st-motion">Reduzir animações</label><select id="st-motion">${[['auto','Seguir o Windows'], ['true','Ligado'], ['false','Desligado']].map(([v, name]) => `<option value="${v}" ${String(settings.reduceMotion) === v ? 'selected' : ''}>${name}</option>`).join('')}</select></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
-        <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button>
+        <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button></details>
       </div>
       <div class="tp" data-p="perfil">
         <div class="home-profile" style="margin:0">
@@ -3112,7 +3177,8 @@ async function openSettings(tab = 'voz') {
       </div>
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { V.testing = false; setMonitor(false); closeSettingsMic(); } });
+    <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
   const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
@@ -3121,6 +3187,8 @@ async function openSettings(tab = 'voz') {
     panel.setAttribute('aria-labelledby', 'st-tab-' + panel.dataset.p);
   }
   const showTab = (t) => {
+    if (t !== 'aparencia') cancelAppearance?.();
+    el.classList.toggle('with-appearance', t === 'aparencia');
     for (const x of tabEls) {
       const on = x.dataset.t === t;
       x.classList.toggle('active', on); x.tabIndex = on ? 0 : -1; x.setAttribute('aria-selected', String(on));
@@ -3183,10 +3251,8 @@ async function openSettings(tab = 'voz') {
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
-  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
-  // Aparência
-  
-  bindAppearance(el);
+  $('#st-motion', el).onchange = (e) => { const v = e.target.value; settings.reduceMotion = v === 'auto' ? v : v === 'true'; saveSettings(); applyReduceMotion(); syncSkinSoon(); };
+  cancelAppearance = bindAppearance(el);
   $('#st-fs', el).onchange = (e) => { settings.fontScale = +e.target.value; saveSettings(); applyLayout(); };
   $('#st-fs', el).oninput = (e) => { $('#st-fs-v', el).textContent = e.target.value + '%'; };
   $('#st-compact', el).onchange = (e) => { settings.compact = e.target.checked; saveSettings(); applyLayout(); };
