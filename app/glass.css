@@ -510,22 +510,10 @@ html.glass #room-menu.server-menu { padding: 0 0 6px; overflow: hidden auto; max
 
 /* ---------- 2.1.5: nome com cor e efeito do perfil ---------- */
 .uname { color: var(--nc, inherit); }
-.uname[class*="fx-"] { display: inline-block; font-weight: 700; background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; background-repeat: repeat; } /* sem filtros nem sombras largas: o efeito fica só na letra */
-.uname.fx-holo { color: transparent; background-image: linear-gradient(100deg, #9be7ff, #c4b5fd, #ff9be4, #fff3a6, #9be7ff, #c4b5fd); animation: nfx-slide 4s linear infinite; }
-.uname.fx-rainbow { color: transparent; background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #f9f871, #5ef38c, #4fc3ff, #a78bfa, #ff5f6d); animation: nfx-slide 3s linear infinite; }
-.uname.fx-neon { color: color-mix(in srgb, var(--nc, #7df9ff) 55%, #fff); text-shadow: 0 0 1px var(--nc, #7df9ff), 0 0 3px color-mix(in srgb, var(--nc, #7df9ff) 75%, transparent); animation: nfx-flicker 5s infinite; }
-.uname.fx-ouro { color: transparent; background-image: linear-gradient(100deg, #8a6420 0%, #f6d77a 25%, #fff6d5 35%, #d4a43a 50%, #8a6420 70%, #f6d77a 90%); animation: nfx-slide 3.2s linear infinite; }
-.uname.fx-fogo { color: transparent; background-image: linear-gradient(0deg, #ff3d00, #ff9100, #ffd54f, #ff9100, #ff3d00); background-size: 100% 260%; animation: nfx-rise 1.6s ease-in-out infinite alternate; }
-.uname.fx-gelo { color: transparent; background-image: linear-gradient(100deg, #e0f7ff, #7dd3fc, #ffffff, #93c5fd, #e0f7ff); animation: nfx-slide 4.5s linear infinite; }
-.uname.fx-glitch { position: relative; color: var(--nc, var(--text-hi)); }
-.uname.fx-glitch::before, .uname.fx-glitch::after { content: attr(data-text); position: absolute; inset: 0; pointer-events: none; }
-.uname.fx-glitch::before { color: #ff2bd6; animation: nfx-glitch 2.4s steps(1) infinite; mix-blend-mode: screen; }
-.uname.fx-glitch::after { color: #22e4ff; animation: nfx-glitch 2.4s steps(1) infinite reverse; mix-blend-mode: screen; }
-@keyframes nfx-slide { to { background-position: -220% 0; } }
-@keyframes nfx-rise { to { background-position: 0 100%; } }
-@keyframes nfx-flicker { 0%, 92%, 100% { opacity: 1; } 93% { opacity: .55; } 95% { opacity: 1; } 96% { opacity: .7; } }
-@keyframes nfx-glitch { 0%, 86%, 100% { translate: 0 0; opacity: 0; } 87% { translate: -2px 0; opacity: .9; clip-path: inset(10% 0 55% 0); } 90% { translate: 2px 0; opacity: .9; clip-path: inset(55% 0 10% 0); } 93% { translate: -1px 0; opacity: .8; clip-path: inset(30% 0 35% 0); } }
-html.glass.light .uname.fx-neon { color: var(--nc, #0369a1); text-shadow: 0 0 2px color-mix(in srgb, var(--nc, #0ea5e9) 50%, transparent); }
+.uname.fx-ouro { color: color-mix(in oklab, var(--text-hi) 72%, #ad782b); font-weight: 700; }
+.uname.fx-gelo { color: color-mix(in oklab, var(--text-hi) 72%, #5795b5); font-weight: 700; }
+.profile-image-actions { gap: 8px; margin-bottom: 12px; }
+#st-banner-x { margin-top: 8px; }
 /* Escolha no perfil */
 .nfx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
 .nfx-grid .nfx { white-space: nowrap; }

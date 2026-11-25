@@ -737,11 +737,14 @@ function sendProfile(extra = {}) { wsSend({ t: 'profile', name: me.name, color: 
 const BANNER_COLORS = ['#d6402b', '#0369a1', '#047857', '#b45309', '#6a4bb3', '#be185d', '#26282f'];
 const NAME_COLORS = ['', '#fbbf24', '#f5b1d4', '#80e1bc', '#a4d9ff', '#fca5a5'];
 const MAX_BANNER = 8 * 1024 * 1024;
-const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: me.nameFx || '', bannerColor: me.bannerColor || '' });
 // Nome com cor e efeito do perfil (2.1.5): aparece na lista da esquerda, na call, no chat e no cartão.
-const NAME_FX = { '': 'Nenhum', holo: 'Holográfico', rainbow: 'Arco-íris', neon: 'Neon', ouro: 'Ouro', fogo: 'Fogo', gelo: 'Gelo', glitch: 'Glitch' };
+// 3.0: só dois efeitos sutis. Holográfico, Arco-íris, Neon, Fogo e Glitch saíram: quem usava volta para Nenhum.
+const NAME_FX = { '': 'Nenhum', ouro: 'Ouro', gelo: 'Gelo' };
+const cleanNameFx = (v) => (typeof v === 'string' && v && Object.hasOwn(NAME_FX, v) ? v : ''); // valor antigo (nosso ou de outra pessoa) vira Nenhum
+if (me.nameFx && cleanNameFx(me.nameFx) !== me.nameFx) { me.nameFx = ''; LS.set('profile', me); }
+const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: cleanNameFx(me.nameFx), bannerColor: me.bannerColor || '' });
 function nameHTML(u, text = u?.name) {
-  const fx = u?.nameFx && NAME_FX[u.nameFx] ? u.nameFx : '', c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
+  const fx = cleanNameFx(u?.nameFx), c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
   if (!fx && !c) return esc(text);
   return `<span class="uname${fx ? ' fx-' + fx : ''}"${c ? ` style="--nc:${c}"` : ''} data-text="${esc(text)}">${esc(text)}</span>`;
 }
@@ -3019,15 +3022,16 @@ async function openSettings(tab = 'voz') {
       </div>
       <div class="tp" data-p="perfil">
         <div class="home-profile" style="margin:0">
-          <div class="avatar avatar-edit" id="st-av"></div>
+          <div class="avatar" id="st-av" aria-hidden="true"></div>
           <div class="field grow"><label>Nome</label><input id="st-name" maxlength="32" value="${esc(me.name)}"></div>
           <div class="field"><label>Cor</label><input type="color" id="st-color" value="${esc(me.color)}"></div>
         </div>
         <div class="profile-editor">
           <div class="profile-fields">
+            <div class="row profile-image-actions"><button class="btn" id="st-photo">Escolher foto</button><button class="btn" id="st-banner">Escolher banner</button></div>
             <div class="field"><label>Banner</label>
               <div class="swatches" id="st-bcolors">${BANNER_COLORS.map((c) => `<button class="swatch ${me.bannerColor === c ? 'sel' : ''}" data-c="${c}" style="background:${c}" aria-label="Cor do banner ${c}"></button>`).join('')}</div>
-              <div class="row" style="gap:8px;margin-top:8px"><button class="btn" id="st-banner">Escolher foto ou GIF</button><button class="btn" id="st-banner-x">Remover imagem</button></div>
+              <button class="btn" id="st-banner-x">Remover banner</button>
               <p class="muted small" style="margin:6px 0 0">Até 8 MB. GIFs ficam animados.</p></div>
             <div class="field"><label>Cor do nome</label>
               <div class="swatches" id="st-ncolors">${NAME_COLORS.map((c) => `<button class="swatch ${(me.nameColor || '') === c ? 'sel' : ''} ${c ? '' : 'none'}" data-c="${c}" style="background:${c || 'transparent'}" aria-label="${c ? 'Cor do nome ' + c : 'Cor padrão'}">${c ? '' : 'Aa'}</button>`).join('')}</div></div>
@@ -3084,14 +3088,14 @@ async function openSettings(tab = 'voz') {
   showTab(tab);
   if(native){native.version().then(v=>$('#st-ver',el).textContent='Resenha v'+v);$('#st-updates',el).onclick=openUpdateSettings;}
   setAvatarEl($('#st-av', el), me);
-  $('#st-av', el).onclick = () => pickAvatar(() => { setAvatarEl($('#st-av', el), me); renderAll(); });
+  $('#st-photo', el).onclick = () => pickAvatar(() => { setAvatarEl($('#st-av', el), me); renderAll(); previewCard(); });
   $('#st-name', el).onchange = () => { const v = $('#st-name', el).value.trim(); if (v) { me.name = v; LS.set('profile', me); $('#home-name').value = v; sendProfile(); renderAll(); } };
   $('#st-color', el).oninput = () => { me.color = $('#st-color', el).value; LS.set('profile', me); sendProfile(); setAvatarEl($('#st-av', el), me); renderSidebar(); previewCard(); };
   // Profile card preview: the server copy once connected (it knows the banner), otherwise a local one.
   let localBanner = '';
   const previewCard = async () => {
     const live = S.users.get(S.myId);
-    const u = { ...(live || { id: 'me', name: me.name, color: me.color, avatar: me.avatar }), ...profileExtras(), name: me.name || 'Você' };
+    const u = { id: 'me', ...live, ...profileExtras(), name: me.name || 'Você', color: me.color, avatar: me.avatar };
     $('#st-card', el).innerHTML = profileCardHTML({ ...u, banner: live?.banner || '' });
     const blob = !live?.banner && await bannerStore();
     if (blob) { if (localBanner) URL.revokeObjectURL(localBanner); localBanner = URL.createObjectURL(blob); $('#st-card .pcard-banner', el).innerHTML = `<img src="${localBanner}" alt="">`; }
@@ -3562,7 +3566,7 @@ const WHATS_NEW = {
       ['image', 'Temas caprichados', 'Âmbar, Noturno, Ametista, Fúcsia, Horizonte e Titânio: cada um com fundo, movimento e cores próprios.'],
       ['screen', 'Janela de vidro', 'No Windows 11 com transparência ligada, o papel de parede aparece desfocado atrás do Resenha.'],
       ['hash', 'Menu do servidor e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
-      ['edit', 'Nome com efeito', 'Holográfico, neon, ouro, fogo… em Configurações > Perfil.'],
+      ['edit', 'Nome com efeito', 'Escolha um efeito discreto em Configurações > Perfil.'],
       ['download', 'Atualização mais leve', 'O atualizador não usa mais PowerShell e não deixa pasta para trás.'],
     ],
   },

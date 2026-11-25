@@ -7,8 +7,8 @@ const path = require('path');
 const MAX_BANNER = 8 * 1024 * 1024;
 const BANNER_TYPES = { 'image/gif': 'gif', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 const hex = (v) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : '');
-// 2.1.5: efeito animado do nome (holográfico, neon…). Só nomes da lista; o resto vira ''.
-const NAME_FX = ['holo', 'rainbow', 'neon', 'ouro', 'fogo', 'gelo', 'glitch'];
+// Efeito do nome: na 3.0 só os sutis (ouro e gelo). Os antigos (holo, rainbow, neon, fogo, glitch) viram '' e o app mostra o nome normal.
+const NAME_FX = ['ouro', 'gelo'];
 const line = (v, n) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
 
 // Copies the optional extras from a hello/profile message onto the user (only keys that are present).
