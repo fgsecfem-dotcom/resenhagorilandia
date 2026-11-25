@@ -1,6 +1,8 @@
 // Resenha · animações no estilo Apple TV: molas e troca de layout fluida (FLIP).
 // Roda mesmo com "Efeitos de animação" desligado no Windows: são curtas e só movem camadas.
 // Só anima translate/scale/rotate/opacity, que a placa de vídeo compõe sem repintar a tela.
+// Padrão de movimento (2.6): uma curva só (ease-out forte) e durações curtas por tipo de ação.
+// Anima só o que explica algo (de onde veio, para onde foi); o que se usa o dia todo é rápido.
 (() => {
   // Mola amortecida (resposta em segundos, fração de amortecimento < 1 dá um leve "passar do ponto").
   function spring(response = 0.42, damping = 0.8) {
@@ -10,11 +12,18 @@
     const samples = []; for (let t = 0; t <= dur; t += 1 / 60) samples.push(at(t)); samples.push(1);
     return { at, dur: dur * 1000, samples, css: `linear(${samples.map((v) => +v.toFixed(4)).join(', ')})` };
   }
-  const LAYOUT = spring(0.46, 0.86), PRESS = spring(0.24, 0.9);
-  // Configurações > Aparência > "Reduzir animações": tudo muda na hora, sem movimento.
-  const calm = () => document.documentElement.classList.contains('reduce-motion');
+  // Curva padrão para tudo que entra ou sai: começa rápido, então a tela reage na hora.
+  const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)';
+  const DUR = { press: 120, menu: 150, exit: 200, modal: 250, enter: 250, layout: 350 };
+  // Mudança de layout (quadros da call, gaveta do chat, tela cheia): mola sem quique, ~350 ms.
+  const LAYOUT = spring(0.3, 0.95);
+  // "Reduzir animações": a opção do app (Configurações > Aparência) ou a do sistema. Tudo muda na hora.
+  const osCalm = matchMedia('(prefers-reduced-motion: reduce)');
+  const calm = () => document.documentElement.classList.contains('reduce-motion') || osCalm.matches;
   const root = document.documentElement.style;
-  root.setProperty('--spring-press', PRESS.css); root.setProperty('--spring-press-dur', PRESS.dur + 'ms');
+  root.setProperty('--ease-out', EASE);
+  for (const [k, v] of Object.entries(DUR)) root.setProperty('--dur-' + k, v + 'ms');
+  root.setProperty('--spring-press', EASE); root.setProperty('--spring-press-dur', DUR.press + 'ms');
 
   // ---------- FLIP: guarda onde cada quadrado estava e anima até onde ficou ----------
   let lastSig = '', fsAt = -1e9;
@@ -41,8 +50,8 @@
     for (const t of stage.closest('#call')?.querySelectorAll('.tile') || []) {
       const L = t.getBoundingClientRect(); if (!L.width || !L.height) continue;
       const F = first.get(t);
-      if (!F || !F.width) { // quadrado novo: surge crescendo
-        t.animate(frames.map((p) => ({ opacity: Math.min(1, p * 1.6), scale: String(0.86 + 0.14 * p) })), opts);
+      if (!F || !F.width) { // quadrado novo: surge crescendo de leve (nunca do zero)
+        t.animate([{ opacity: 0, scale: '0.94' }, { opacity: 1, scale: '1' }], { duration: DUR.enter, easing: EASE });
         continue;
       }
       // O quadro que entra ou sai da ampliação passa por cima dos outros durante o movimento.
@@ -86,78 +95,67 @@
     }
   }));
 
-  // ---------- Janelas e card do perfil: nascem de onde você clicou e voltam para lá ao fechar ----------
-  const OPEN = spring(0.42, 0.86), CLOSE = spring(0.3, 0.99), POP = spring(0.32, 0.84);
+  // ---------- Janelas e menus: crescem de leve a partir do ponto clicado e somem rápido ----------
   let origin = null;
-  const TARGETS = 'button, [role=button], .channel, .tile, .vu, .ou, .msg .author, .msg .avatar, .server-dot, .ctx-item, .friend-row, .code-chip, .vc-card';
-  addEventListener('pointerdown', (e) => {
-    const el = e.target.closest?.(TARGETS);
-    origin = { x: e.clientX, y: e.clientY, rect: el?.getBoundingClientRect(), t: performance.now() };
-  }, true);
+  addEventListener('pointerdown', (e) => { origin = { x: e.clientX, y: e.clientY, t: performance.now() }; }, true);
   const fresh = () => (origin && performance.now() - origin.t < 900 ? origin : null);
-
-  // Quanto deslocar e encolher el para que ele pareça sair do elemento clicado (escala igual nos dois eixos: nada estica).
-  function fromOrigin(el, o, minScale) {
-    const r = el.getBoundingClientRect();
-    if (!o || !r.width) return { dx: 0, dy: 14, s: 0.94 };
-    const src = o.rect?.width ? o.rect : { left: o.x - 16, top: o.y - 16, width: 32, height: 32 };
-    const s = Math.max(minScale, Math.min(0.92, Math.min(src.width / r.width, src.height / r.height)));
-    return { dx: src.left + src.width / 2 - (r.left + r.width / 2), dy: src.top + src.height / 2 - (r.top + r.height / 2), s };
+  // Ponto de origem da escala: onde a pessoa clicou, preso dentro do próprio elemento.
+  function originOf(el) {
+    const o = fresh(), r = el.getBoundingClientRect();
+    if (!o || !r.width) return '50% 50%';
+    const x = Math.max(0, Math.min(r.width, o.x - r.left)), y = Math.max(0, Math.min(r.height, o.y - r.top));
+    return `${Math.round(x)}px ${Math.round(y)}px`;
   }
-  function zoomIn(el, from, curve) {
+  // Entra de 96% (nunca do zero) com opacidade; sai para 98% mais rápido do que entrou.
+  function popEnter(el, duration, from = 0.96) {
     if (calm()) return;
     el.getAnimations().forEach((a) => a.cancel());
-    const { dx, dy, s } = from;
-    el.animate(curve.samples.map((p) => ({ translate: `${dx * (1 - p)}px ${dy * (1 - p)}px`, scale: String(s + (1 - s) * p), opacity: Math.min(1, p * 2.4) })), { duration: curve.dur, easing: 'linear' });
+    const transformOrigin = originOf(el);
+    el.animate([{ opacity: 0, scale: String(from), transformOrigin }, { opacity: 1, scale: '1', transformOrigin }], { duration, easing: EASE });
   }
-  function zoomOut(el, from, done) {
+  function popExit(el, duration, done) {
     if (calm()) return done();
-    const { dx, dy, s } = from || { dx: 0, dy: 14, s: 0.94 };
-    const a = el.animate(CLOSE.samples.map((p) => ({ translate: `${dx * p}px ${dy * p}px`, scale: String(1 - (1 - s) * p), opacity: Math.max(0, 1 - p * 1.5) })), { duration: CLOSE.dur, easing: 'linear', fill: 'forwards' });
-    a.onfinish = done;
+    el.getAnimations().forEach((a) => a.cancel());
+    const a = el.animate([{ opacity: 1, scale: '1' }, { opacity: 0, scale: '0.98' }], { duration, easing: EASE, fill: 'forwards' });
+    a.onfinish = done; a.oncancel = done;
   }
 
-  // Janelas (#modal-root): o fundo escurece em 0,2 s e a janela cresce a partir do botão clicado.
+  // Janelas (#modal-root): o fundo escurece e a janela cresce de leve a partir do clique.
   function watchModals() {
     const rootEl = document.getElementById('modal-root'); if (!rootEl) return;
     new MutationObserver((list) => {
       for (const m of list) for (const ov of m.addedNodes) {
         if (!ov.classList?.contains('overlay')) continue;
         const modal = ov.querySelector(':scope > .modal'); if (!modal) continue;
-        ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
-        ov.__from = fromOrigin(modal, fresh(), 0.42);
-        zoomIn(modal, ov.__from, OPEN);
+        if (!calm()) ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.modal, easing: EASE });
+        popEnter(modal, DUR.modal);
       }
     }).observe(rootEl, { childList: true });
   }
   function closeOverlay(ov) {
     if (ov.__closing) return; ov.__closing = true;
     const modal = ov.querySelector(':scope > .modal');
-    if (!modal || !ov.isConnected) return ov.remove();
+    if (!modal || !ov.isConnected || calm()) return ov.remove();
     ov.style.pointerEvents = 'none';
-    ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE.dur, easing: 'ease-in', fill: 'forwards' });
+    ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.exit, easing: EASE, fill: 'forwards' });
     const end = () => ov.remove();
-    zoomOut(modal, ov.__from, end); setTimeout(end, CLOSE.dur + 250);
+    popExit(modal, DUR.exit, end); setTimeout(end, DUR.exit + 150);
   }
 
-  // Card do perfil e menus (#ctx-menu): saem do nome ou avatar clicado e somem rápido.
-  let menuFrom = null;
-  function popIn(menu) { menuFrom = fromOrigin(menu, fresh(), 0.3); zoomIn(menu, menuFrom, POP); }
+  // Card do perfil e menus (#ctx-menu): usados o tempo todo, então são rápidos e sem etapas.
+  function popIn(menu) { popEnter(menu, DUR.menu); }
   function popOut(menu, done) {
-    if (menu.classList.contains('hidden') || calm()) return done();
-    menu.getAnimations().forEach((a) => a.cancel());
-    const { dx, dy, s } = menuFrom || { dx: 0, dy: 0, s: 0.94 }, k = 0.35; // volta só um pouco na direção do clique
-    const a = menu.animate([{ opacity: 1 }, { opacity: 0, translate: `${dx * k}px ${dy * k}px`, scale: String(1 - (1 - s) * k) }], { duration: 140, easing: 'ease-in' });
-    a.onfinish = () => { done(); };
+    if (menu.classList.contains('hidden')) return done();
+    popExit(menu, DUR.exit - 60, done);
   }
 
   // ---------- Conteúdo entrando em etapas (como a página do Apple TV: imagem, título, depois botões) ----------
-  const RISE = spring(0.5, 0.88);
-  function stagger(els, { start = 0, step = 32, dy = 10, max = 14 } = {}) {
+  // Sequência curta: no máximo 6 itens visíveis, 40 ms entre eles (a sequência toda fica perto de 400 ms).
+  function stagger(els, { start = 0, step = 40, dy = 8, max = 6, duration = DUR.enter } = {}) {
     if (calm()) return;
     els.filter((el) => el && el.isConnected && el.offsetParent !== null).slice(0, max).forEach((el, i) => {
-      el.animate(RISE.samples.map((p) => ({ opacity: Math.min(1, Math.max(0, p * 1.3)), translate: `0 ${dy * (1 - p)}px` })),
-        { duration: RISE.dur, delay: start + i * step, easing: 'linear', fill: 'backwards' });
+      el.animate([{ opacity: 0, translate: `0 ${dy}px` }, { opacity: 1, translate: '0 0' }],
+        { duration, delay: start + i * step, easing: EASE, fill: 'backwards' });
     });
   }
   const kids = (root, sel) => (root ? [...root.querySelectorAll(sel)] : []);
@@ -179,22 +177,21 @@
     // Fica parada sobre o card enquanto o app monta a sala (quadro pesado) e só depois começa a crescer.
     d.style.translate = `${r.left}px ${r.top}px`; d.style.scale = `${sx} ${sy}`;
     requestAnimationFrame(() => requestAnimationFrame(() => grow(d, r, sx, sy)));
-    setTimeout(() => d.remove(), LAYOUT.dur + 1100);
-    return LAYOUT.dur * 0.7 + 40; // a sala entra em etapas quando a camada começa a sumir
+    setTimeout(() => d.remove(), DUR.layout + DUR.menu + 800);
+    return DUR.layout - 100; // as colunas da sala aparecem enquanto a camada some
   }
   function grow(d, r, sx, sy) {
-    const a = d.animate(LAYOUT.samples.map((p) => ({ translate: `${r.left * (1 - p)}px ${r.top * (1 - p)}px`, scale: `${sx + (1 - sx) * p} ${sy + (1 - sy) * p}`, borderRadius: `${20 * (1 - p)}px` })), { duration: LAYOUT.dur, easing: 'linear', fill: 'forwards' });
-    a.onfinish = () => { const b = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 280, easing: 'ease-out', fill: 'forwards' }); b.onfinish = () => d.remove(); };
+    const a = d.animate([{ translate: `${r.left}px ${r.top}px`, scale: `${sx} ${sy}`, borderRadius: '20px' }, { translate: '0px 0px', scale: '1 1', borderRadius: '0px' }], { duration: DUR.layout, easing: EASE, fill: 'forwards' });
+    a.onfinish = () => { const b = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.menu, easing: EASE, fill: 'forwards' }); b.onfinish = () => d.remove(); };
   }
   function enterRoom() {
     const q = (s) => document.querySelector(s), base = expandFromCard();
-    stagger([q('#sidebar .server-row'), q('#sidebar .side-brand'), q('#sidebar .side-actions'), ...kids(q('#sidebar #channels'), '.cat, .channel'), q('#sidebar #user-panel')], { start: base, step: 26 });
-    stagger([q('#call .pane-header'), ...kids(q('#call-stage'), '.tile, .vc-card'), q('#call-controls')], { start: base + 90, step: 40, dy: 14 });
-    stagger([q('#chat .right-nav'), q('#chat .pane-header'), q('#chat #composer')], { start: base + 140, step: 40 });
+    // Três colunas, da esquerda para a direita (sem item por item: entrar na sala é coisa de todo dia).
+    stagger([q('#sidebar'), q('#call'), q('#chat')], { start: base });
   }
   function enterHome() {
     const h = document.getElementById('home');
-    stagger([...kids(h, '.home-brand, .home-main > .card, .home-main > section, .home-side > *')], { step: 45, dy: 14 });
+    stagger([...kids(h, '.home-brand, .home-main > .card, .home-main > section, .home-side > *')]);
   }
   function watchScreens() {
     for (const [id, fn] of [['main', enterRoom], ['home', enterHome]]) {
@@ -203,12 +200,9 @@
       new MutationObserver(() => { const h = el.classList.contains('hidden'); if (hidden && !h) requestAnimationFrame(fn); hidden = h; }).observe(el, { attributes: true, attributeFilter: ['class'] });
     }
   }
-  const modalParts = (modal) => [modal.querySelector(':scope > header'), ...kids(modal, ':scope > .body > *, :scope > nav, :scope > .tabs'), modal.querySelector(':scope > footer')];
-  const menuParts = (menu) => [...kids(menu, '.pcard-banner, .pcard-av, .pcard-body > *'), ...kids(menu, ':scope > *:not(.pcard)')];
 
   // ---------- Destaque deslizante (dock e abas): uma pílula que corre até o item, com mola ----------
-  const MOVE = spring(0.38, 0.82);
-  root.setProperty('--spring-move', MOVE.css); root.setProperty('--spring-move-dur', MOVE.dur + 'ms');
+  root.setProperty('--spring-move', EASE); root.setProperty('--spring-move-dur', DUR.modal + 'ms');
   function slider(box, { items, active, hover = false, kind }) {
     if (!box || box.__slider) return; box.__slider = true;
     const pill = document.createElement('span'); pill.className = 'm-slider m-slider-' + kind; pill.setAttribute('aria-hidden', 'true');
@@ -260,7 +254,7 @@
       requestAnimationFrame(() => {
         for (const [t, F] of f.tiles) if (t.isConnected) moveTile(t, F, t.getBoundingClientRect(), 2);
         const chat = document.getElementById('chat');
-        if (open === 'true' && chat) chat.animate(LAYOUT.samples.map((p) => ({ translate: `${48 * (1 - p)}px 0`, opacity: Math.min(1, p * 1.8) })), { duration: LAYOUT.dur, easing: 'linear' });
+        if (open === 'true' && chat) chat.animate([{ translate: '48px 0', opacity: 0 }, { translate: '0 0', opacity: 1 }], { duration: DUR.layout, easing: EASE });
       });
     }).observe(main, { attributes: true, attributeFilter: ['data-right-open'] });
     const list = document.getElementById('msg-list'); if (!list) return;
@@ -268,7 +262,7 @@
       if (calm() || open !== 'true') return;
       const added = muts.flatMap((m) => [...m.addedNodes]).filter((n) => n.nodeType === 1);
       if (!added.length || added.length > 3) return; // histórico carregando: entra direto
-      stagger(added, { step: 40, dy: 8 });
+      stagger(added, { step: 40, dy: 4, duration: DUR.menu }); // mensagem nova: surge em 150 ms, sem quicar
     }).observe(list, { childList: true });
   }
 
@@ -279,17 +273,13 @@
   }
   document.addEventListener('loadedmetadata', liveRatio, true); document.addEventListener('resize', liveRatio, true);
 
-  const popInMenu = popIn;
-  function popInStaged(menu) { popInMenu(menu); stagger(menuParts(menu), { start: 40, step: 26, dy: 8, max: 12 }); }
-  window.resenhaMotion = { spring, capture, closeOverlay, popIn: popInStaged, popOut, stagger };
+  window.resenhaMotion = { spring, capture, closeOverlay, popIn, popOut, stagger, EASE, DUR };
 
   // Cada parte liga sozinha: se uma falhar, as outras animações continuam (o erro fica em window.__motionErrors).
   const safe = (name, fn) => { try { fn(); } catch (e) { (window.__motionErrors ||= []).push(name + ': ' + e.message); console.error('[motion]', name, e); } };
   function start() {
     safe('janelas', watchModals); safe('telas', watchScreens); safe('destaque', watchSliders); safe('chat', watchChat);
     safe('inicio', () => { if (!document.getElementById('home')?.classList.contains('hidden')) requestAnimationFrame(enterHome); });
-    safe('etapas', () => new MutationObserver((list) => { for (const m of list) for (const ov of m.addedNodes) { const md = ov.querySelector?.(':scope > .modal'); if (md) stagger(modalParts(md), { start: 70, step: 30, max: 10 }); } })
-      .observe(document.getElementById('modal-root'), { childList: true }));
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
