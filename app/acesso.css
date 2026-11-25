@@ -75,3 +75,7 @@ html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.
   --dur-click: 120ms; --dur-menu: 150ms; --dur-exit: 200ms; --dur-window: 250ms; --dur-layout: 350ms;
   --ease-out: cubic-bezier(.23, 1, .32, 1);
 }
+
+:where(small) { font-size: max(11px, .83em); } /* o padrão do navegador cai para 10,8 px */
+
+.mg-telemetry > span[hidden] { display: none; }

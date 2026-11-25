@@ -227,7 +227,7 @@
 .sn .sn-video:fullscreen { position: static; background: var(--sn-ink); }
 .sn .sn-live-details { width: min(100cqw, max(min(468px, 100cqw), var(--sn-live-width))); }
 .sn .sn-live-roster { --sn-av-size: clamp(16px, 2vw, 26px); display: flex; gap: clamp(2px, .45vw, 6px); }
-.sn .sn-live-roster .sn-av { font-size: clamp(9px, .9vw, 11px); }
+.sn .sn-live-roster .sn-av { font-size: 11px; }
 .sn .sn-live-roster .is-speaking .sn-av { box-shadow: 0 0 0 2px var(--sn-yellow); }
 .sn .sn-live-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex: none; }
 .sn .sn-live-actions select { max-width: min(140px, 13vw); min-height: 25px; padding: 1px 2px; border: 1px solid var(--sn-ink); border-radius: 3px; background: var(--sn-cream); color: var(--sn-ink); font: 700 11px/1 var(--sn-body); }
