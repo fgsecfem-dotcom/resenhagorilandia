@@ -8,15 +8,16 @@ const motion = read('motion.js'), glass = read('glass.css'), pro = read('themes-
 // Roda o motion.js num navegador falso e devolve o que ele expõe.
 function load(osReduce) {
   const props = {}, classes = new Set();
+  const media = { matches: osReduce, addEventListener: (type, fn) => { media[type] = fn; } };
   const el = () => ({ classList: { contains: (c) => classes.has(c), add() {}, remove() {}, toggle() {} }, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] });
   const document = {
-    readyState: 'complete', documentElement: { style: { setProperty: (k, v) => { props[k] = v; } }, classList: { contains: (c) => classes.has(c) } },
+    readyState: 'complete', documentElement: { style: { setProperty: (k, v) => { props[k] = v; } }, classList: { contains: (c) => classes.has(c), toggle: (k, v) => v ? classes.add(k) : classes.delete(k) } },
     addEventListener() {}, getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
   };
-  const ctx = { window: {}, document, matchMedia: (q) => ({ matches: osReduce && /reduced-motion/.test(q), addEventListener() {} }), addEventListener() {},
+  const ctx = { window: {}, document, matchMedia: () => media, addEventListener() {},
     MutationObserver: class { observe() {} }, ResizeObserver: class { observe() {} }, requestAnimationFrame: () => 0, performance: { now: () => 0 }, setTimeout, console, el };
   vm.runInNewContext(motion, ctx);
-  return { api: ctx.window.resenhaMotion, props };
+  return { api: ctx.window.resenhaMotion, props, classes, media };
 }
 
 {
@@ -36,7 +37,7 @@ console.log('PASS: padrão de movimento com durações curtas');
   // "Reduzir animações" do sistema: o motion.js e o CSS desligam o movimento sem depender da opção do app.
   assert.match(motion, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);
   assert.match(motion, /const calm = \(\) => [^;]*osCalm\.matches/);
-  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{[^\n]*\r?\n\s*\*, \*::before, \*::after \{[^}]*animation-duration: \.01ms/.test(glass), 'CSS respeita o sistema');
+  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{[^\n]*\r?\n\s*html:not\(\.motion-full\)[^{]+\{[^}]*animation-duration: \.01ms/.test(glass), 'CSS respeita o sistema');
 }
 console.log('PASS: "Reduzir animações" do sistema vale no app inteiro');
 
@@ -55,3 +56,20 @@ console.log('PASS: "Reduzir animações" do sistema vale no app inteiro');
   assert.ok(!/rotate\(-?8deg\)/.test(glass), '"O que há de novo" sem giro');
 }
 console.log('PASS: sem ease-in, quique ou zoom no hover');
+
+{
+  const { api, props, classes, media } = load(false);
+  for (const [k, v] of Object.entries({click:120, menu:150, exit:200, window:250, layout:350})) assert.equal(props['--dur-' + k], v + 'ms');
+  api.setPreference('auto');
+  assert.equal(classes.has('reduce-motion'), false);
+  media.matches = true; media.change();
+  assert.equal(classes.has('reduce-motion'), true);
+  api.setPreference(false);
+  assert.equal(classes.has('reduce-motion'), false);
+  assert.equal(classes.has('motion-full'), true);
+  media.matches = false; media.change();
+  assert.equal(classes.has('motion-full'), true);
+  api.setPreference(true);
+  assert.equal(classes.has('reduce-motion'), true);
+}
+console.log('PASS: Reduzir animações aceita auto, ligado e desligado, e acompanha o Windows');

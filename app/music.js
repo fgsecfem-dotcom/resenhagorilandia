@@ -560,7 +560,7 @@ export function createMusic({ settings, saveSettings, icon, toast: showToast, ro
     if (st.jam.role === 'guest') return jamLeave();
     const box = $('.mu-jam-pick', st.els.panel); if (!box.classList.contains('hidden')) return box.classList.add('hidden');
     const me = room?.me(), people = (room?.users() || []).filter((u) => u.id !== me && !u.bot && u.id !== 'dj');
-    box.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
+    box.innerHTML = people.length ? people.map((u) => `<button class="mu-item mu-jam-person" data-id="${esc(u.id)}"><span class="mu-jam-av" style="background:${esc(u.color || '#555')};color:${window.avatarInk?.(u.color || '#555555') || '#fff'}">${esc((u.name || '?')[0].toUpperCase())}</span><b>${esc(u.name)}</b><span class="mu-item-dur">${st.jam.guests.has(u.id) ? 'Ouvindo' : st.jam.invites.has(u.id) ? 'Convidado' : 'Convidar'}</span></button>`).join('')
       + (st.jam.role === 'host' ? '<button class="btn mu-jam-end">Encerrar sessão</button>' : '') : '<p class="mu-empty">Ninguém mais na sala agora.</p>';
     box.querySelectorAll('.mu-jam-person').forEach((b) => b.onclick = () => jamInvite(b.dataset.id, b));
     box.querySelector('.mu-jam-end')?.addEventListener('click', () => { jamLeave(); box.classList.add('hidden'); });

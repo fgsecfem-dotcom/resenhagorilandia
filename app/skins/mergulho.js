@@ -102,13 +102,13 @@
             ${btn('Menu da sala (Tab)', 'cascade', 'mg-cmd mg-open-menu')}${btn('Silenciar microfone', 'mic', 'mg-cmd mg-mute')}${btn('Desativar áudio', 'headphones', 'mg-cmd mg-deafen')}${btn('Transmitir tela', 'screen', 'mg-cmd mg-share')}${btn('Abrir DJ', 'music', 'mg-cmd mg-music')}${btn('Sair da call', 'phoneOff', 'mg-cmd mg-leave')}
           </div>
           <button type="button" class="mg-strip" aria-expanded="false" aria-controls="mg-chat" title="Conversa (C)">${glyph('chat', 17)}<b></b><span></span><em hidden></em></button>
-          <div class="mg-guide" aria-label="Atalhos"><b>Guia de atalhos</b><span class="mg-shortcuts"><span><kbd>Tab</kbd> Menu</span><span><kbd>C</kbd> Conversa</span><span class="mg-live-key" hidden><kbd>F</kbd> <span>Ver grande</span></span></span></div>
+          <div class="mg-guide" aria-label="Atalhos"><b>Guia de atalhos</b><span class="mg-shortcuts"><span><kbd>M</kbd> Menu</span><span><kbd>C</kbd> Conversa</span><span class="mg-live-key" hidden><kbd>F</kbd> <span>Ver grande</span></span></span></div>
         </footer>
       </div>
       <aside class="mg-chat" id="mg-chat" aria-labelledby="mg-chat-title" hidden>
         <div class="mg-chat-head"><div><small>CANAIS DE TEXTO</small><h2 id="mg-chat-title">Conversa</h2></div>${btn('Fechar conversa (Esc)', 'x', 'mg-chat-close')}</div>
         <div class="mg-chat-tabs" role="group" aria-label="Canais de texto"></div>
-        <div class="mg-chat-scroll" role="log" aria-label="Mensagens" tabindex="0"><div class="mg-messages"></div><p class="mg-empty mg-empty-chat"></p></div>
+        <div class="mg-chat-scroll" role="log" aria-live="polite" aria-label="Mensagens" tabindex="0"><div class="mg-messages"></div><p class="mg-empty mg-empty-chat"></p></div>
         <form class="mg-composer"><textarea rows="1" aria-label="Mensagem" maxlength="8000"></textarea><button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem">${glyph('send', 19)}</button></form>
         <small class="mg-chat-error" role="status" hidden>Não foi possível enviar a mensagem.</small>
       </aside>
@@ -145,10 +145,14 @@
       const status = user.sharing ? 'Ao vivo' : user.deafened ? 'Sem áudio' : user.muted ? 'Mudo' : user.me ? 'Você' : user.bot ? 'DJ' : user.host ? 'Anfitrião' : user.voice ? 'Na call' : 'Na sala';
       const hasPing = Number.isFinite(user.ping) && user.ping >= 0;
       avatar(av, user.name, user.color, user.avatar);
-      label(el, `${user.name} · ${status}${face ? '' : hasPing ? ` · ${Math.round(user.ping)} ms` : ' · Latência indisponível'}`);
-      if (!face) { text(seal, status); text(name, user.name); text(ping, hasPing ? `${Math.round(user.ping)} ms` : '—'); }
+      label(el, `${user.name} · ${status}${!face && hasPing ? ` · ${Math.round(user.ping)} ms` : ''}`);
+      if (!face) { text(seal, status); text(name, user.name); show(ping.parentElement, hasPing); text(ping, hasPing ? `${Math.round(user.ping)} ms` : ''); }
       el.classList.toggle('is-live', !!user.sharing);
       el.classList.toggle('is-muted', !!(user.muted || user.deafened));
+      if (name) {
+        name.style.setProperty('--mg-name', window.readableColor?.(user.nameColor || user.color, ['#0a0a0c', '#202127']) || '');
+        name.style.setProperty('--mg-name-speaking', window.readableColor?.(user.nameColor || user.color, '#fbfcff') || '');
+      }
       el.classList.toggle('is-speaking', speakingIds.has(user.id));
     }
     function setBig(on) {
@@ -247,6 +251,7 @@
       avatar(record.av, msg.name, msg.color || user?.color, user?.avatar);
       const ts = msg.ts ? new Date(msg.ts) : null;
       text(record.author, msg.system ? 'Sistema' : msg.name);
+      record.author.style.color = msg.system ? '' : window.readableColor?.(msg.nameColor || msg.color, '#0a0a0c') || '';
       text(record.stamp, ts && Number.isFinite(ts.getTime()) ? clock.format(ts) : '');
       text(record.badge, msg.bot ? 'DJ' : msg.me ? 'Você' : '');
       show(record.badge, msg.bot || msg.me);
@@ -274,7 +279,7 @@
       keyed($('.mg-chat-tabs'), chatTabs, model.text, (c) => c.id, (c) => {
         const el = node('button', 'mg-text-tab'); el.type = 'button'; el.onclick = () => actions.selectText(c.id); return { el };
       }, ({ el }, c) => {
-        text(el, `#${c.name}`); attr(el, 'aria-pressed', !!c.active); attr(el, 'title', c.unread ? `#${c.name} · Não lido` : `#${c.name}`);
+        text(el, `#${c.name}`); attr(el, 'aria-current', !!c.active); label(el, `Canal de texto ${c.name}${c.unread ? ', mensagens novas' : ''}`); attr(el, 'title', c.unread ? `#${c.name} · Não lido` : `#${c.name}`);
         el.classList.toggle('is-unread', !!c.unread);
       });
       const changed = chatChannel !== id, latest = lines.at(-1)?.id;
@@ -437,7 +442,7 @@
       }
       if (e.key === 'Escape' && chatOpen) { e.preventDefault(); showChat(false); return; }
       if (target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || e.shiftKey || e.repeat) return;
-      if (e.key === 'Tab' && !chatOpen && !target.closest?.('button, a, [tabindex="0"]')) { e.preventDefault(); showMenu(true); }
+      if (e.key.toLowerCase() === 'm' && !chatOpen) { e.preventDefault(); showMenu(true); }
       else if (e.key.toLowerCase() === 'c') { e.preventDefault(); showChat(!chatOpen); }
       else if (e.key === 'Escape' && big) { e.preventDefault(); setBig(false); }
       else if (e.key.toLowerCase() === 'f' && !chatOpen && lives.get(activeLive)?.ready) { e.preventDefault(); if (big) requestFull(lives.get(activeLive)); else setBig(true); }

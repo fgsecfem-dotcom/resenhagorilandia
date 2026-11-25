@@ -42,7 +42,7 @@ html #chat .right-music .mu-searchbox .mu-search, html #chat .right-music .mu-se
   background: var(--mu-track); transition: transform .45s var(--mu-spring), width .3s var(--mu-spring); will-change: transform; }
 .mu-vol:hover, .mu-vol:focus-visible, .mu-vol.drag { width: 38px; }
 .mu-vol:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--mu-accent) 60%, transparent); }
-.mu-vol-fill { position: absolute; inset: auto 0 0 0; height: 100%; background: var(--mu-fill); opacity: .92; transform-origin: 50% 100%; transform: scaleY(var(--v, .6)); transition: transform .16s cubic-bezier(.2,.8,.2,1); will-change: transform; }
+.mu-vol-fill { position: absolute; inset: auto 0 0 0; height: 100%; background: var(--mu-fill); opacity: .92; transform-origin: 50% 100%; transform: scaleY(var(--v, .6)); transition: transform .16s var(--ease-out); will-change: transform; }
 .mu-vol.drag .mu-vol-fill { transition: transform .05s linear; }
 .mu-vol-ic { position: absolute; left: 0; right: 0; bottom: 9px; display: grid; place-items: center; color: var(--text-hi); transition: color .2s; }
 .mu-vol.dark-ic .mu-vol-ic { color: var(--bg-main, #111); }
@@ -69,7 +69,7 @@ html #chat .right-music .mu-searchbox .mu-search, html #chat .right-music .mu-se
 /* Fila: arrastar pela alça, deslizar para remover, clicar para tocar */
 .mu-queue { border-top: 1px solid var(--g-edge, var(--line)); padding-top: 10px; }
 .mu-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
-.mu-count:not(:empty) { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--g-fill, var(--hover)); letter-spacing: 0; }
+.mu-count:not(:empty) { font-size: 11px; padding: 1px 6px; border-radius: 99px; background: var(--g-fill, var(--hover)); letter-spacing: 0; }
 .mu-list { display: flex; flex-direction: column; gap: 2px; }
 .mu-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 10px; min-width: 0; transition: background .15s, transform .25s var(--mu-spring), opacity .2s; }
 .mu-item:hover { background: var(--g-fill, var(--hover)); }
@@ -196,13 +196,13 @@ html #chat .right-music .mu-pl-msg .btn.primary { background: #1ed760 !important
 .mu-after:empty { display: none; }
 
 /* 2.2: mini player = a aba de música recolhida. Some com a aba aberta; volta com a capa voando (music.js). */
-#music-mini { max-height: 84px; gap: 6px; padding: 8px 8px 12px 8px; transition: opacity .25s ease-out, transform .35s var(--mu-spring), max-height .35s var(--mu-spring), margin .35s var(--mu-spring), padding .35s var(--mu-spring); }
+#music-mini { max-height: 84px; gap: 6px; padding: 8px 8px 12px 8px; transition: opacity .25s var(--ease-out), transform .35s var(--mu-spring), max-height .35s var(--mu-spring), margin .35s var(--mu-spring), padding .35s var(--mu-spring); }
 #music-mini.mm-away { opacity: 0; max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; transform: translateY(10px) scale(.94); pointer-events: none; }
 #music-mini .mu-cover { width: 40px; height: 40px; box-shadow: 0 6px 16px -6px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); transition: transform .35s var(--mu-spring), opacity .15s; }
 #music-mini .mm-open:hover .mu-cover { transform: scale(1.06) rotate(-2deg); }
 #music-mini .mm-open:active .mu-cover { transform: scale(.96); }
 #music-mini .mm-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-left: auto; padding: 0 4px; flex: none; opacity: 0; transition: opacity .3s; }
-#music-mini .mm-eq b { width: 2.5px; height: 30%; border-radius: 2px; background: var(--mu-accent); animation: mm-eq 1s ease-in-out infinite; animation-play-state: paused; }
+#music-mini .mm-eq b { width: 2.5px; height: 30%; border-radius: 2px; background: var(--mu-accent); animation: mm-eq 1s var(--ease-out) infinite; animation-play-state: paused; }
 #music-mini .mm-eq b:nth-child(2) { animation-delay: -.35s; } #music-mini .mm-eq b:nth-child(3) { animation-delay: -.7s; }
 #music-mini.playing .mm-eq { opacity: .9; } #music-mini.playing .mm-eq b { animation-play-state: running; }
 @keyframes mm-eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }

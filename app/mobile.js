@@ -105,7 +105,7 @@ export function initMobile(R) {
  setInterval(()=>{
   people();lives();updateWake();
   for(const b of document.querySelectorAll('[data-mobile-pane]'))b.classList.toggle('active',b.dataset.mobilePane===$('#main').dataset.mobilePane);
-  for(const el of document.querySelectorAll('.channel,.vu,.ou'))if(!el.dataset.webKeyboard){el.dataset.webKeyboard='1';el.tabIndex=0;el.setAttribute('role','button');el.addEventListener('keydown',e=>{if(e.target===el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();el.click();}});}
+  // Os canais usam o mesmo teclado e foco da versão desktop.
 
   if(!V.joined){previous.clear();$('#web-quality').textContent='Fora do canal · entre para ouvir e assistir.';return;}
   for(const t of V.raw?.getAudioTracks()||[])if(!watchedTracks.has(t)){watchedTracks.add(t);t.addEventListener('ended',()=>{interrupted=true;});t.addEventListener('mute',()=>{interrupted=true;});t.addEventListener('unmute',()=>{interrupted=false;});}
@@ -135,8 +135,8 @@ export function initMobile(R) {
  setInterval(()=>{syncMediaSession();for(const v of document.querySelectorAll('#call-stage .tile.is-screen video'))if('autoPictureInPicture' in v&&!v.autoPictureInPicture)v.autoPictureInPicture=true;},1000);
 
  // ---------- Pessoa na call: tocar abre uma folha com volume, live e mensagem ----------
- let sheet=null;
- function closeSheet(){if(!sheet)return;const s=sheet;sheet=null;s.classList.remove('open');setTimeout(()=>s.remove(),220);}
+ let sheet=null, sheetOrigin=null;
+ function closeSheet(){if(!sheet)return;const s=sheet;sheet=null;s.inert=true;s.classList.remove('open');window.ResenhaA11y?.restore(sheetOrigin);setTimeout(()=>s.remove(),200);}
  function openPerson(uid){
   const u=S.users.get(uid);if(!u||uid===S.myId)return;
   closeSheet();
@@ -154,8 +154,9 @@ export function initMobile(R) {
   }
   if(uid!=='dj-resenha')panel.appendChild(button('Mensagem privada',()=>{closeSheet();R.openDM(uid);}));
   panel.appendChild(button('Fechar',closeSheet));
-  root.append(back,panel);document.body.appendChild(root);sheet=root;
-  requestAnimationFrame(()=>root.classList.add('open'));
+  root.append(back,panel);document.body.appendChild(root);sheet=root;sheetOrigin=document.activeElement;
+  root.addEventListener('keydown',e=>{if(e.key==='Tab')window.ResenhaA11y?.cycle(root,e,e.shiftKey?-1:1);});
+  requestAnimationFrame(()=>{root.classList.add('open');window.ResenhaA11y?.controls(root)[0]?.focus();});
  }
  // Captura antes do clique normal do quadro (que no PC foca a pessoa).
  document.addEventListener('click',e=>{

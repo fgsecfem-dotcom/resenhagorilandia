@@ -35,10 +35,13 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: false, appIcon: 'quentinha', translucent: true,
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
-document.documentElement.classList.toggle('reduce-motion', !!settings.reduceMotion); // Configurações > Aparência > Reduzir animações
+// 3.0: quem nunca escolheu "Reduzir animações" passa a seguir o Windows ("auto"); quem ligou continua ligado.
+if (!LS.get('motionAuto', false)) { if (settings.reduceMotion === false) settings.reduceMotion = 'auto'; LS.set('settings', settings); LS.set('motionAuto', true); }
+const applyReduceMotion = () => window.resenhaMotion?.setPreference(settings.reduceMotion);
+applyReduceMotion();
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
 const saveSettings = () => LS.set('settings', settings);
@@ -87,19 +90,26 @@ const semisToRatio = (s) => Math.pow(2, s / 12);
 function toast(msg, type = '', ms = 3500) {
   for (const old of $$('#toasts .toast')) if (old.textContent === msg) old.remove();
   const t = document.createElement('div');
-  t.className = 'toast ' + type; t.textContent = msg;
+  t.className = 'toast ' + type; t.setAttribute('role', 'status');
   $('#toasts').appendChild(t);
-  setTimeout(() => t.remove(), ms);
+  t.textContent = msg;
+  globalThis.ResenhaA11y?.announce(msg);
+  let remaining = ms, started = 0, timer;
+  const resume = () => { started = performance.now(); timer = setTimeout(() => t.remove(), remaining); };
+  t.addEventListener('pointerenter', () => { clearTimeout(timer); remaining = Math.max(0, remaining - (performance.now() - started)); });
+  t.addEventListener('pointerleave', resume);
+  resume();
 }
 function initials(name) { return (name || '?').trim().split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?'; }
 function avatarHTML(u, cls = '') {
   if (u.bot || u.id === DJ_ID) return `<div class="avatar dj-av ${cls}">${icon('music', 18)}</div>`;
-  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'}`;
+  const bg = u.avatar ? `background-image:url(${u.avatar})` : `background-color:${u.color || '#5865f2'};color:${window.avatarInk?.(u.color || '#5865f2') || '#fff'}`; // inicial escura em fundo claro (amarelo, menta)
   return `<div class="avatar ${cls}" style="${esc(bg)}">${u.avatar ? '' : esc(initials(u.name))}</div>`;
 }
 function setAvatarEl(el, u) {
   el.style.backgroundImage = u.avatar ? `url(${u.avatar})` : '';
   el.style.backgroundColor = u.avatar ? '' : (u.color || '#5865f2');
+  el.style.color = u.avatar ? '' : (window.avatarInk?.(u.color || '#5865f2') || '');
   el.textContent = u.avatar ? '' : initials(u.name);
 }
 function fmtSize(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB'; return (b / 1073741824).toFixed(2) + ' GB'; }
@@ -151,9 +161,13 @@ function confirmModal(title, text, ok = 'Confirmar', danger = true) {
 }
 
 // Menu de contexto genérico
+let ctxOrigin, ctxRevision = 0;
 function showMenu(e, html, bindFn) {
+  ctxRevision++;
+  ctxOrigin = e.origin || window.ResenhaA11y.originFor(e.target);
   e.preventDefault(); e.stopPropagation();
   const menu = $('#ctx-menu');
+  menu.inert = false;
   menu.innerHTML = html;
   menu.classList.toggle('has-card', !!menu.querySelector('.pcard')); // size the profile card before placing it
   menu.classList.remove('hidden');
@@ -162,8 +176,16 @@ function showMenu(e, html, bindFn) {
   menu.style.top = clamp(e.clientY, 4, innerHeight - r.height - 4) + 'px';
   globalThis.resenhaMotion?.popIn(menu); // nasce do nome ou avatar clicado
   bindFn && bindFn(menu);
+  window.ResenhaA11y.contextMenu(menu, hideMenu);
 }
-const hideMenu = () => { const m = $('#ctx-menu'), hide = () => m.classList.add('hidden'); if (globalThis.resenhaMotion?.popOut) globalThis.resenhaMotion.popOut(m, hide); else hide(); };
+function hideMenu(restoreFocus = false) {
+  const menu = $('#ctx-menu'); if (menu.classList.contains('hidden')) return;
+  const revision = ++ctxRevision, origin = ctxOrigin;
+  if (restoreFocus || menu.contains(document.activeElement)) window.ResenhaA11y.restore(origin);
+  menu.inert = true;
+  const hide = () => { if (revision === ctxRevision) menu.classList.add('hidden'); };
+  if (globalThis.resenhaMotion?.popOut) globalThis.resenhaMotion.popOut(menu, hide); else hide();
+}
 
 // ---------------- Sons (sintetizados) ----------------
 let sfxCtx = null;
@@ -740,6 +762,11 @@ const MAX_BANNER = 8 * 1024 * 1024;
 const profileExtras = () => ({ status: me.status || '', bio: me.bio || '', nameColor: me.nameColor || '', nameFx: me.nameFx || '', bannerColor: me.bannerColor || '' });
 // Nome com cor e efeito do perfil (2.1.5): aparece na lista da esquerda, na call, no chat e no cartão.
 const NAME_FX = { '': 'Nenhum', holo: 'Holográfico', rainbow: 'Arco-íris', neon: 'Neon', ouro: 'Ouro', fogo: 'Fogo', gelo: 'Gelo', glitch: 'Glitch' };
+function personInk(color, surface = '') {
+  if (!/^#[0-9a-f]{6}$/i.test(color || '')) return '';
+  return `data-person-color="${color}"${surface ? ` data-person-surface="${surface}"` : ''} style="color:${window.readableColor(color, surface)}"`;
+}
+const listName = (u) => `<span ${personInk(u.nameColor || u.color, 'sidebar')}>${esc(u.name)}</span>`;
 function nameHTML(u, text = u?.name) {
   const fx = u?.nameFx && NAME_FX[u.nameFx] ? u.nameFx : '', c = /^#[0-9a-f]{6}$/i.test(u?.nameColor || '') ? u.nameColor : '';
   if (!fx && !c) return esc(text);
@@ -868,7 +895,7 @@ function handle(m) {
     case 'command-result': finishCommand(m); break;
     case 'dm': receiveDM(m.msg); break;
     case 'error': toast(m.msg, 'err', 5000); break;
-    case 'user-join': S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
+    case 'user-join': if (m.user.id !== DJ_ID && m.user.id !== S.myId) globalThis.ResenhaA11y?.announce(`${m.user.name} entrou na sala.`); S.users.set(m.user.id, m.user); refreshAuthor(m.user.id); if (m.user.id === DJ_ID && V.joined && m.user.voiceChannel === V.channel) sfx('join'); renderAll(); break;
     case 'user-leave': {
       music?.userLeft(m.id);
       const u = S.users.get(m.id);
@@ -886,7 +913,8 @@ function handle(m) {
         if (!wasHere && isHere && !quiet) { sfx('join'); if (m.user.id !== DJ_ID) { toast(m.user.name + ' entrou na call', '', 2600); if (!roomMuted() && (document.hidden || !document.hasFocus())) native?.notify?.({ title: m.user.name + ' entrou na call', body: (chanById(V.channel)?.name || 'Call') + ' · ' + (S.roomName || 'Resenha') }); } }
         if (wasHere && !isHere) { if (!quiet) sfx('leave'); closePeer(m.user.id); }
         // Som quando um amigo da call começa (sobe) ou encerra (desce) uma live.
-        if (wasHere && isHere && !quiet && !prev.sharing && m.user.sharing) sfx('share');
+        if (wasHere && isHere && !quiet && !prev.sharing && m.user.sharing) { sfx('share'); globalThis.ResenhaA11y?.announce(`${m.user.name} começou a transmitir.`); }
+        if (wasHere && isHere && !quiet && !(prev.muted || prev.deafened) && (m.user.muted || m.user.deafened)) globalThis.ResenhaA11y?.announce(`${m.user.name} silenciou o microfone.`);
         if (wasHere && isHere && !quiet && prev.sharing && !m.user.sharing) sfx('shareEnd');
         if (prev.screenStreamId !== m.user.screenStreamId || !m.user.sharing) {
           V.watching.delete(m.user.id); V.relayVia.delete(m.user.id);
@@ -1026,7 +1054,7 @@ function renderChannels() {
     const us = usersIn(c.id), live = us.some((u) => u.sharing);
     const since = us.filter((u) => u.voiceSince).map((u) => u.voiceSince);
     return `<div class="channel voice nsb-ch ${V.joined && V.channel === c.id ? 'connected' : ''} ${live ? 'is-live' : ''}" draggable="true" data-vch="${esc(c.id)}">${icon('volume', 16)}<span class="cn">${esc(c.name)}</span><span class="timer" data-since="${since.length ? Math.min(...since) : ''}"></span><button class="ch-edit" data-edit="${esc(c.id)}" title="Editar canal">${icon('settings', 14)}</button></div>
-      ${us.length ? `<div class="voice-users nsb-who">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${nameHTML(u)}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>` : ''}`;
+      ${us.length ? `<div class="voice-users nsb-who">${us.map((u) => `<div class="vu ${isSpeaking(u.id) ? 'speaking' : ''} ${u.id === DJ_ID ? 'is-dj' : ''}" data-uid="${esc(u.id)}">${avatarHTML(u)}<span class="nm">${listName(u)}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}${u.id === DJ_ID ? '<span class="tag bot">BOT</span>' : ''}</span><span class="st">${statusIcons(u)}</span></div>`).join('')}</div>` : ''}`;
   }).join('');
   tickTimers();
 }
@@ -1037,7 +1065,7 @@ function renderSidebar() {
   $('#online-cat').textContent = `Fora da call · ${others.length}`;
   $('#online-cat').classList.toggle('hidden', !others.length);
   $('#online-users').innerHTML = others.map((u) =>
-    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${nameHTML(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
+    `<div class="ou" data-uid="${esc(u.id)}">${avatarHTML(u)}<span>${listName(u)}${u.id === S.myId ? ' <span class="muted small">(você)</span>' : ''}${u.isHost ? `<span class="host-ic" title="Anfitrião">${icon('crown', 12)}</span>` : ''}</span></div>`).join('');
   setAvatarEl($('#up-avatar'), me);
   $('#up-name').textContent = me.name;
   if (!V.joined) setConnStatus('idle', 'Online');
@@ -1078,7 +1106,7 @@ function installLiveOverlay(tile) {
 const AI_HOVER = '.right-music .mu-art, .right-music .mu-play, #call-controls .cc-btn';
 function aiHalo(el) {
   const h = document.documentElement;
-  if (h.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (h.classList.contains('reduce-motion')) return;
   if (!el.matches('.mu-cover')) return; // só a capa do álbum
   if (el._aiAt && performance.now() - el._aiAt < 900) return; el._aiAt = performance.now();
   const r = el.getBoundingClientRect(); if (!r.width) return;
@@ -1260,8 +1288,10 @@ function renderCall() {
 
   $('#cc-mute').innerHTML = icon(V.muted || V.deafened ? 'micOff' : 'mic', 24);
   $('#cc-mute').classList.toggle('off', V.muted || V.deafened);
+  $('#cc-mute').setAttribute('aria-pressed', String(V.muted || V.deafened));
   $('#cc-deafen').innerHTML = icon(V.deafened ? 'headphonesOff' : 'headphones', 24);
   $('#cc-deafen').classList.toggle('off', V.deafened);
+  $('#cc-deafen').setAttribute('aria-pressed', String(V.deafened));
   // On the desktop app the button edits a running live (change or stop); the browser can only stop it.
   $('#cc-share').innerHTML = icon(V.screen && !native ? 'screenOff' : 'screen', 24);
   $('#cc-share').classList.toggle('on', !!V.screen);
@@ -1291,7 +1321,7 @@ function renderAll() { overlayClient?.sync(); renderSidebar(); renderCall(); ren
 // O client entrega um retrato da sala (skinModel) e as ações (skinActions); o tema nunca mexe em S/V nem no DOM do app.
 // A live chega como MediaStream: o tema cria o próprio <video muted> e respeita a proporção real (videoWidth/videoHeight).
 function skinUser(u) {
-  return { id: u.id, name: u.name, color: u.color || '#5865f2', avatar: u.avatar || '', me: u.id === S.myId, host: !!u.isHost, bot: u.id === DJ_ID,
+  return { id: u.id, name: u.name, color: u.color || '#5865f2', nameColor: u.nameColor || u.color, avatar: u.avatar || '', me: u.id === S.myId, host: !!u.isHost, bot: u.id === DJ_ID,
     speaking: isSpeaking(u.id), muted: !!(u.muted || u.deafened), deafened: !!u.deafened, sharing: !!u.sharing, voice: u.voiceChannel || null };
 }
 function skinModel() {
@@ -1310,8 +1340,8 @@ function skinModel() {
     call: { joined: V.joined, channel: V.channel, muted: V.muted || V.deafened, deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
-      messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
-    reduceMotion: document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
+      messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, nameColor: S.users.get(m.userId)?.nameColor || m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'),
   };
 }
 const skinActions = {
@@ -1339,6 +1369,11 @@ function syncSkinSpeaking() {
   if (sig !== skinSpeakSig) { skinSpeakSig = sig; window.ResenhaSkins.speaking(new Set(ids)); }
 }
 addEventListener('resenha-theme', () => syncSkin());
+addEventListener('resenha-reduce-motion', () => syncSkinSoon());
+// Atualiza as cores sem reconstruir mensagens nem interromper o foco.
+addEventListener('resenha-theme', () => {
+  for (const el of $$('[data-person-color]')) el.style.color = window.readableColor(el.dataset.personColor, el.dataset.personSurface);
+});
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
 
 function refreshSpeaking() {
@@ -1544,6 +1579,7 @@ async function joinVoice(channelId) {
   if (V.deafened) V.muted = true;
   wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
   sfx('join');
+  globalThis.ResenhaA11y?.announce(`Você entrou em ${chanById(channelId)?.name || 'um canal de voz'}.`);
   for (const u of usersIn(channelId)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
   setConnStatus('good', 'Voz conectada');
   syncDJ();
@@ -1574,6 +1610,7 @@ function teardownVoice() {
 function setMuted(m, silent) {
   if (WEB_VIEWER && !WEB_VOICE) return;
   if (V.deafened && !m) { setDeafened(false); return; }
+  if (m !== V.muted) globalThis.ResenhaA11y?.announce(m ? 'Microfone silenciado.' : 'Microfone ativado.');
   V.muted = m; LS.set('muted', m);
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
@@ -1583,6 +1620,7 @@ function setMuted(m, silent) {
 function setDeafened(d) {
   if (d) { V.mutedBeforeDeafen = V.muted; V.muted = true; }
   else { V.muted = V.mutedBeforeDeafen; }
+  if (d !== V.deafened) globalThis.ResenhaA11y?.announce(d ? 'Áudio e microfone silenciados.' : V.muted ? 'Áudio ativado. Microfone silenciado.' : 'Áudio e microfone ativados.');
   V.deafened = d;
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
@@ -1659,7 +1697,7 @@ function setConnStatus(kind, text) {
 }
 function updatePing() {
   if (!V.joined) return;
-  $('#up-sub').title = `Ping até o anfitrião: ${S.lastPing} ms`;
+  $('#up-sub').title = Number.isFinite(S.lastPing) ? `Latência até o anfitrião: ${S.lastPing} ms` : '';
   if (S.ws && S.ws.readyState === 1) setConnStatus(S.lastPing > 250 ? 'warn' : 'good', `Na call · ${chanById(V.channel)?.name || ''}`);
 }
 
@@ -1996,6 +2034,7 @@ function startShareWithStream(stream, q, startupEnabled = true) {
   if (vt) { vt.contentHint = 'motion'; vt.onended = () => stopShare(); }
   wsSend({ t: 'state', sharing: true, screenStreamId: stream.id });
   // Tracks are sent only after a viewer explicitly subscribes.
+  globalThis.ResenhaA11y?.announce('Você começou a transmitir.');
   sfx('share');
   renderAll();
 }
@@ -2319,8 +2358,8 @@ function userMenu(e, uid) {
   const vol = settings.userVolumes[u.name] ?? 100, svol = settings.streamVolumes[u.name] ?? 100;
   showMenu(e, `${isDJ ? `<div class="ctx-head">${avatarHTML(u)}<span>${esc(u.name)}</span></div>` : profileCardHTML(u)}
     <div class="ctx-label"><span>${isDJ ? 'Volume do DJ' : 'Volume do usuário'}</span><span id="cv-v">${vol}%</span></div>
-    <div class="ctx-row"><input type="range" min="0" max="200" step="1" value="${vol}" id="cv"></div>
-    ${u.sharing ? `<div class="ctx-label"><span>Volume da transmissão</span><span id="cs-v">${svol}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${svol}" id="cs"></div>` : ''}
+    <div class="ctx-row"><input type="range" min="0" max="200" step="1" value="${vol}" id="cv" aria-label="Volume da pessoa"></div>
+    ${u.sharing ? `<div class="ctx-label"><span>Volume da transmissão</span><span id="cs-v">${svol}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${svol}" id="cs" aria-label="Volume da transmissão"></div>` : ''}
     <label class="ctx-item check"><span>Silenciar pra mim</span><input type="checkbox" id="cm" ${settings.userMuted[u.name] ? 'checked' : ''}></label>
     <div class="ctx-item" id="cr"><span>Voltar volume pra 100%</span></div>
     ${!isDJ ? `${S.isHost && S.code && u.canHost && uid !== S.myId ? `<div class="ctx-item" id="chost"><span>Tornar anfitrião</span>${icon('crown', 16)}</div>` : ''}<div class="ctx-item" id="cdm"><span>Mensagem privada</span>${icon('chat', 16)}</div><div class="ctx-item" id="cfriend"><span>${friends[uid] ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></div><div class="ctx-item" id="cmention"><span>Mencionar</span>${icon('at', 16)}</div>` : `<div class="ctx-item" id="cdj"><span>Abrir painel do DJ</span>${icon('music', 16)}</div>`}`, (menu) => {
@@ -2353,12 +2392,12 @@ async function listDevices(kind) {
 }
 async function deviceMenu(e, kind) {
   e.preventDefault();
-  const pos = { clientX: e.clientX, clientY: e.clientY, preventDefault() {}, stopPropagation() {} };
+  const pos = { clientX: e.clientX, clientY: e.clientY, origin: e.currentTarget, preventDefault() {}, stopPropagation() {} };
   const devs = await listDevices(kind);
   const cur = kind === 'audioinput' ? settings.inputDevice : settings.outputDevice;
   const item = (id, label) => `<div class="ctx-item dev ${id === cur ? 'sel' : ''}" data-dev="${esc(id)}"><span>${esc(label)}</span>${id === cur ? icon('check', 16) : ''}</div>`;
   const extra = kind === 'audioinput'
-    ? `<div class="ctx-sep"></div><div class="ctx-label"><span>Volume do microfone</span><span id="dm-v">${settings.micGain}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${settings.micGain}" id="dm-g"></div>`
+    ? `<div class="ctx-sep"></div><div class="ctx-label"><span>Volume do microfone</span><span id="dm-v">${settings.micGain}%</span></div><div class="ctx-row"><input type="range" min="0" max="200" value="${settings.micGain}" id="dm-g" aria-label="Volume do microfone"></div>`
     : '';
   showMenu(pos, `<div class="ctx-title">${kind === 'audioinput' ? 'Microfone' : 'Saída de áudio'}</div>
     ${item('default', 'Padrão do Windows')}${devs.map((d) => item(d.deviceId, d.label || 'Dispositivo')).join('')}${extra}
@@ -2474,9 +2513,9 @@ function msgHTML(m, prev) {
   const edited = m.editedAt ? '<span class="edited" title="' + esc(fmtTime(m.editedAt)) + '">(editado)</span>' : '';
   const body = `${m.text ? `<div class="text">${linkify(m.text, m.mentions)}${edited}</div>` : ''}${m.attachments && m.attachments.length ? `<div class="atts">${m.attachments.map(attHTML).join('')}</div>` : ''}`;
   const cls = `msg ${mine ? 'mine' : ''} ${mentionsMe(m) ? 'mentioned' : ''} ${m.bot ? 'bot' : ''}`;
-  const reply = m.replyTo ? `<div class="reply-ref" data-jump="${esc(m.replyTo.id)}">${icon('reply', 14)}<b style="color:${esc(m.replyTo.color)}">@${esc(m.replyTo.name)}</b><span>${esc(m.replyTo.text)}</span></div>` : '';
+  const reply = m.replyTo ? `<div class="reply-ref" data-jump="${esc(m.replyTo.id)}">${icon('reply', 14)}<b ${personInk(m.replyTo.color)}>@${esc(m.replyTo.name)}</b><span>${esc(m.replyTo.text)}</span></div>` : '';
   if (grouped) return `<div class="${cls}" data-id="${esc(m.id)}"><span class="hover-time">${new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>${body}${tools}</div>`;
-  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" style="color:${esc(m.color)}">${m.bot ? esc(m.name) : nameHTML({ ...(S.users.get(m.userId) || {}), name: m.name })}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
+  return `<div class="${cls} head" data-id="${esc(m.id)}">${reply}${avatarHTML({ id: m.bot ? DJ_ID : m.userId, bot: m.bot, name: m.name, color: m.color, avatar: u.avatar })}<div class="meta"><span class="author" ${personInk(u.nameColor || m.color)}>${esc(m.name)}</span>${m.bot ? '<span class="tag bot">BOT</span>' : ''}<span class="time">${fmtTime(m.ts)}</span></div>${body}${tools}</div>`;
 }
 function renderMessages(keepScroll) {
   renderChatHeader();
@@ -2487,7 +2526,8 @@ function renderMessages(keepScroll) {
   const list = curMessages();
   let h = `<div class="welcome"><div class="big-hash">${icon('hash', 40)}</div><h1>Bem-vindo(a) a #${esc(c ? c.name : '')}!</h1><div class="muted">Início do canal #${esc(c ? c.name : '')}.</div></div>`;
   list.forEach((m, i) => { h += msgHTML(m, list[i - 1]); });
-  $('#msg-list').innerHTML = h;
+  const log = $('#msg-list');
+  if (globalThis.ResenhaA11y) globalThis.ResenhaA11y.replaceLog(log, () => { log.innerHTML = h; }); else log.innerHTML = h;
   if (!keepScroll || atBottom) scrollBottom(true); else box.scrollTop = prevTop;
   syncSkinSoon();
 }
@@ -2530,7 +2570,7 @@ async function deleteMsg(m) {
 }
 function startReply(m) {
   S.replyTo = m;
-  $('#reply-bar').innerHTML = `<span>Respondendo a <b style="color:${esc(m.color)}">${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x">${icon('x', 16)}</button>`;
+  $('#reply-bar').innerHTML = `<span>Respondendo a <b ${personInk(m.color)}>${esc(m.name)}</b></span><button class="icon-btn small" id="reply-x" aria-label="Cancelar resposta">${icon('x', 16)}</button>`;
   $('#reply-bar').classList.remove('hidden');
   $('#reply-x').onclick = cancelReply;
   $('#input').focus();
@@ -2885,7 +2925,7 @@ function perfStop(send = true) {
     install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
     noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
     theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
-    reduceMotion: !!settings.reduceMotion, overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
+    reduceMotion: document.documentElement.classList.contains('reduce-motion'), overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
   };
   const report = window.ResenhaPerf.summarize(samples, meta);
   if (report) try { navigator.sendBeacon(PERF_URL, new Blob([JSON.stringify(report)], { type: 'text/plain' })); } catch {}
@@ -3012,7 +3052,7 @@ async function openSettings(tab = 'voz') {
           <div class="field"><label>Densidade</label><label class="check"><input type="checkbox" id="st-compact" ${settings.compact ? 'checked' : ''}> Modo compacto (mais coisa na tela)</label></div>
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
-          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${settings.reduceMotion ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
+          <div class="field"><label>Animações</label><label class="check"><input type="checkbox" id="st-motion" ${document.documentElement.classList.contains('reduce-motion') ? 'checked' : ''}> Reduzir animações (tudo muda na hora)</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
         <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button>
@@ -3127,7 +3167,7 @@ async function openSettings(tab = 'voz') {
   if ($('#st-music', el)) $('#st-music', el).onchange = (e) => music?.setEnabled(e.target.checked);
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
-  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion); };
+  $('#st-motion', el).onchange = (e) => { settings.reduceMotion = e.target.checked; saveSettings(); applyReduceMotion(); };
   // Aparência
   
   bindAppearance(el);
@@ -3240,14 +3280,14 @@ async function roomMenu(anchor) { // anchor: botão de onde o menu nasce (os tem
   menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 280)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
   menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px';
   menu.classList.remove('hidden'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
-  if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches)
-    menu.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+  globalThis.resenhaMotion?.popIn(menu);
   const items = $$('.n-it', menu); items[0]?.focus();
   menu.onkeydown = (e) => {
     const i = items.indexOf(document.activeElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement?.click(); }
-    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeRoomMenu(); (anchor?.isConnected && anchor.offsetParent ? anchor : btn).focus(); }
+    else if (e.key === 'Tab') window.ResenhaA11y.cycle(menu, e, e.shiftKey ? -1 : 1, items);
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRoomMenu(); window.ResenhaA11y.restore(anchor || btn); }
   };
   items.forEach((el) => el.onmouseenter = () => el.focus());
   items.forEach((el) => el.onclick = async () => {
@@ -3346,6 +3386,12 @@ function applyLayout() {
 function bindSplitters() {
   $$('.splitter').forEach((sp) => {
     const adjacent = [sp.dataset.left, sp.dataset.right].find(p => p !== 'call') || 'chat';
+    const syncSize = () => {
+      sp.setAttribute('aria-valuemin', adjacent === 'chat' ? '300' : '200');
+      sp.setAttribute('aria-valuemax', String(adjacent === 'chat' ? Math.max(300, Math.round(innerWidth * .6)) : 420));
+      sp.setAttribute('aria-valuenow', String(Math.round(adjacent === 'chat' ? settings.chatWidth : settings.sidebarWidth)));
+    };
+    syncSize();
     sp.tabIndex = 0; sp.setAttribute('role','separator'); sp.setAttribute('aria-orientation','vertical'); sp.setAttribute('aria-label',adjacent === 'chat' ? 'Largura do painel de conversa' : 'Largura dos canais');
     sp.onkeydown = e => {
       const step = e.shiftKey ? 40 : 16, sign = adjacent === sp.dataset.left ? 1 : -1;
@@ -3353,7 +3399,7 @@ function bindSplitters() {
       const current = adjacent === 'chat' ? settings.chatWidth : settings.sidebarWidth;
       const width = e.key === 'Home' ? (adjacent === 'chat' ? 360 : 264) : current + (e.key === 'ArrowRight' ? step : -step) * sign;
       if (adjacent === 'chat') settings.chatWidth = clamp(width,300,innerWidth*0.6); else settings.sidebarWidth = clamp(width,200,420);
-      document.documentElement.style.setProperty('--chat-w',settings.chatWidth+'px');document.documentElement.style.setProperty('--side-w',settings.sidebarWidth+'px');saveSettings();layoutGrid();
+      document.documentElement.style.setProperty('--chat-w',settings.chatWidth+'px');document.documentElement.style.setProperty('--side-w',settings.sidebarWidth+'px');saveSettings();syncSize();layoutGrid();
     };
     sp.onmousedown = (e) => {
       e.preventDefault(); sp.classList.add('drag'); document.body.classList.add('resizing');
@@ -3368,7 +3414,7 @@ function bindSplitters() {
         else settings.sidebarWidth = clamp(w, 200, 420);
         document.documentElement.style.setProperty('--chat-w', settings.chatWidth + 'px');
         document.documentElement.style.setProperty('--side-w', settings.sidebarWidth + 'px');
-        layoutGrid();
+        syncSize(); layoutGrid();
       };
       const up = () => { sp.classList.remove('drag'); document.body.classList.remove('resizing'); saveSettings(); removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
       addEventListener('mousemove', move); addEventListener('mouseup', up);

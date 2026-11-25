@@ -672,7 +672,7 @@
       const s = parseInt(k, 16) / 255;
       return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.177 ? '#170c2d' : '#ffffff';
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.192 ? '#170c2d' : '#ffffff';
   };
   const image = (v) => typeof v === 'string' && /^(?:data:image\/(?:png|jpe?g|gif|webp|avif);base64,|blob:)/i.test(v) ? v : '';
   const first = (s, n) => Array.from(s || '').slice(0, n).join('');
@@ -930,7 +930,7 @@
         const status = here ? `${ch.users.length} na call` : ch.users.length ? countPeople(ch.users.length) : 'Vazio';
         el.classList.toggle('ap-room-occupied', !!ch.users.length);
         setText(item.name, ch.name); setText(item.status, status);
-        setAttr(el, 'aria-label', `${here ? 'Na call em' : 'Entrar em'} ${ch.name} · ${theme.name} · ${status}`);
+        setAttr(el, 'aria-label', `Canal de voz ${ch.name}, ${countPeople(ch.users.length)}${here ? ', você está nele' : ''}`);
         if (ui.rooms.children[index] !== el) ui.rooms.insertBefore(el, ui.rooms.children[index] || null);
         index++;
       }
@@ -945,16 +945,16 @@
         }
         setText(el.children[1], ch.name); el.classList.toggle('ap-wall-active', !!ch.active);
         setAttr(el, 'aria-current', ch.active ? 'true' : 'false');
-        el.classList.toggle('ap-unread', !!ch.unread); setAttr(el, 'aria-label', `Mural ${ch.name}${ch.unread ? ', mensagens não lidas' : ''}`);
+        el.classList.toggle('ap-unread', !!ch.unread); setAttr(el, 'aria-label', `Canal de texto ${ch.name}${ch.unread ? ', mensagens novas' : ''}`);
         if (ui.walls.children[index] !== el) ui.walls.insertBefore(el, ui.walls.children[index] || null);
         index++;
       }
       for (const [id, el] of textNodes) if (!keep.has(id)) { el.remove(); textNodes.delete(id); }
       btn.chat.classList.toggle('ap-unread', text.some(ch => ch.unread));
-      const waiting = lobby.flatMap(u => [u.id, u.name, u.color, u.avatar]);
+      const waiting = lobby.flatMap(u => [u.id, u.name, u.color, u.nameColor, u.avatar]);
       if (!sameFields(lobbyKey, waiting)) {
         lobbyKey = waiting; ui.lobby.hidden = !lobby.length;
-        ui['lobby-people'].innerHTML = lobby.map(u => `<button type="button" class="ap-lobby-user" data-uid="${e(u.id)}" title="${e(u.name)}" aria-label="Opções de ${e(u.name)}">${avatar(u)}<span>${e(u.name)}</span></button>`).join('');
+        ui['lobby-people'].innerHTML = lobby.map(u => `<button type="button" class="ap-lobby-user" data-uid="${e(u.id)}" title="${e(u.name)}" aria-label="Opções de ${e(u.name)}">${avatar(u)}<span style="color:${e(window.readableColor?.(u.nameColor || u.color, ['#0b0638', '#33256a']) || '')}">${e(u.name)}</span></button>`).join('');
       }
       const pf = [me?.name, me?.color, me?.avatar];
       if (!sameFields(profileKey, pf)) { profileKey = pf; ui['profile-face'].innerHTML = avatar(me); }
@@ -1081,6 +1081,7 @@
           const el = document.createElement('article'); el.className = `ap-message${m.system ? ' ap-system' : m.me ? ' ap-mine' : ''}`;
           el.innerHTML = '<strong></strong><div class="ap-message-text"></div>';
           setText(el.firstElementChild, m.system ? 'Sala' : m.me ? 'Você' : m.name || (m.bot ? 'DJ' : 'Alguém'));
+           if (!m.system) el.firstElementChild.style.color = window.readableColor?.(m.nameColor || m.color, ['#282053', '#352867']) || '';
           setText(el.lastElementChild, [m.text, m.files ? `📎 ${m.files} ${m.files === 1 ? 'anexo' : 'anexos'}` : ''].filter(Boolean).join('\n'));
           return el;
         });
@@ -1090,7 +1091,7 @@
       }
     }
     function syncMotion() {
-      const reduced = !!model?.reduceMotion || reducedSystem.matches;
+      const reduced = !!model?.reduceMotion;
       const paused = document.hidden || document.documentElement.classList.contains('bg-paused');
       const halt = paused || !ui.livestage.hidden;
       const next = `${reduced}|${paused}|${halt}`;

@@ -121,7 +121,7 @@
       </div></div><aside class="cd-slip" aria-label="Bilhete da conversa">
         <button class="cd-slip-tab" type="button" aria-controls="cd-note" aria-expanded="false"><span class="cd-fold" aria-hidden="true"></span><span class="cd-slip-title"></span><span class="cd-ln"><span class="cd-preview-hand" hidden>${hand(22)}</span><b></b><span class="cd-preview"></span></span><span class="cd-wax" hidden></span></button>
         <section class="cd-note-p" id="cd-note" aria-label="Conversa da sala" hidden inert><header class="cd-note-head"><span>Conversa da sala</span>${button('close','Dobrar bilhete (Esc)','×')}<nav class="cd-tabs" aria-label="Canais de texto no bilhete"></nav></header>
-        <div class="cd-msgs" role="log" aria-label="Mensagens" tabindex="0"><div class="cd-entries"></div></div><form class="cd-comp">${quill}<textarea rows="1" maxlength="4000" aria-label="Mensagem"></textarea>${button('send','Enviar mensagem',I('send',17),'disabled','submit')}</form></section>
+        <div class="cd-msgs" role="log" aria-live="polite" aria-label="Mensagens" tabindex="0"><div class="cd-entries"></div></div><form class="cd-comp">${quill}<textarea rows="1" maxlength="4000" aria-label="Mensagem"></textarea>${button('send','Enviar mensagem',I('send',17),'disabled','submit')}</form></section>
       </aside></div>`;
     s = { ui: root.firstElementChild, actions, model: null, open: false, enlarged: false, animations: new Map(), seatsById: new Map(), voices: new Map(), texts: new Map(), tabsById: new Map(), opts: new Map(), messages: new Map(), channels: new Map() };
     s.$ = (q) => s.ui.querySelector(q);
@@ -154,7 +154,7 @@
   function motionState() {
     if (!s) return;
     const c = document.documentElement.classList;
-    const disabled = !!s.model?.reduceMotion || osMotion.matches || c.contains('bg-paused') || c.contains('reduce-motion');
+    const disabled = !!s.model?.reduceMotion || c.contains('bg-paused');
     s.ui.classList.toggle('cd-static', disabled);
     if (disabled) {
       for (const el of s.animations.keys()) cancel(el);
@@ -209,8 +209,8 @@
     const current = !!(voice ? c.here : c.active), n = voice ? c.users.length : unread(c), col = colors[i % colors.length];
     txt(r.name,c.name); txt(r.badge,!voice && c.unread === true ? '•' : String(n)); hide(r.badge,!n);
     if (r.col !== col) { r.col = col; r.el.style.setProperty('--cd-ribbon',col); }
-    r.el.classList.toggle('cd-current',current); attr(r.el,voice ? 'aria-pressed' : 'aria-current',String(current));
-    label(r.el,`${voice ? '' : '#'}${c.name}${n ? ` · ${n} ${voice ? (n === 1 ? 'pessoa' : 'pessoas') : (n === 1 ? 'não lida' : 'não lidas')}` : ''}`);
+    r.el.classList.toggle('cd-current',current); attr(r.el,'aria-current',String(current));
+    label(r.el,`Canal de ${voice ? 'voz' : 'texto'} ${c.name}${voice ? `, ${n} ${n === 1 ? 'pessoa' : 'pessoas'}` : n ? ', mensagens novas' : ''}`);
   }
   const dots = Array.from({ length:16 },(_,i) => { const a = i * Math.PI / 8; return `<circle cx="${54 + 47.5*Math.cos(a)}" cy="${54 + 47.5*Math.sin(a)}" r="1.7" fill="${GOLD}"/>`; }).join('');
   function medal(u) {
@@ -226,6 +226,8 @@
     const role = u.deafened ? 'sem áudio' : u.muted ? 'mudo' : u.sharing ? 'transmitindo' : u.me ? 'você' : u.bot ? 'DJ' : u.voice ? 'ouvindo' : u.host ? 'anfitrião' : 'na sala';
     const color = CSS.supports('color',u.color || '') ? u.color : BLUE;
     if (r.color !== color) { r.color = color; r.el.style.setProperty('--cd-person',color); }
+    r.name.style.color = window.readableColor?.(u.nameColor || u.color, ['#efe6d2', '#d5c5ad']) || '';
+    r.el.style.setProperty('--cd-person-ink', window.readableColor?.(color, '#f7f0e0') || '#2b211b');
     txt(r.name,u.name); txt(r.say,u.name); txt(r.letter,first(u.name).toLocaleUpperCase('pt-BR')); txt(r.role,role); image(r.img,u.avatar);
     const state = u.deafened ? 'headphonesOff' : u.muted ? 'micOff' : u.sharing ? 'screen' : u.host ? 'crown' : '';
     hide(r.state,!state); if (state) glyph(r.state,state,14);
@@ -349,6 +351,7 @@
       const t = new Date(m.ts), valid = Number.isFinite(t.getTime());
       txt(r.time,valid ? hour.format(t) : ''); if (valid) attr(r.time,'datetime',t.toISOString());
       if (marked && valid && r.handEl.title !== r.time.textContent) r.handEl.title = r.time.textContent;
+      r.who.style.color = m.system ? '' : window.readableColor?.(m.nameColor || m.color, ['#f8f1e1', '#ecdcc6']) || '';
       txt(r.who,m.name || ''); ink(r.body,m.text,fresh && s.open && freshIds.has(m.id) && !m.system);
       hide(r.file,!m.files); txt(r.file,m.files ? `◇ ${fileLabel(m.files)}` : ''); previous = m;
     });

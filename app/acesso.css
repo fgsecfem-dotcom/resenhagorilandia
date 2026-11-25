@@ -1,0 +1,81 @@
+/* Acessibilidade das superfícies compartilhadas. */
+/* Vídeo, papel claro ou quadro escuro: o texto é sempre claro sobre vidro fumê. */
+html[data-tk] #call .tile .label,
+html.glass.light[data-tk] #call .tile .label { background: rgba(12, 13, 17, .80) !important; color: #fff !important; }
+html[data-tk] #call .tile .label .uname { color: inherit; background: none; text-shadow: none; animation: none; }
+html[data-tk] #call .tile .label .uname::before,
+html[data-tk] #call .tile .label .uname::after { content: none; }
+html[data-tk] #call .tile .label .ic { color: #fca5a5; }
+
+/* Tinta sobre o fundo real: o Vidro usa cinza onde outros temas usam destaque. */
+html[data-tk] :is(.btn.primary, #home .btn.primary, #update-bar .small-btn.primary, #pwa-update, #composer .send-btn, .dm-compose .send-btn):not(.right-music *, .mu-guide *) { color: var(--on-primary) !important; }
+html[data-tk] :is(.btn.primary:hover, #home .btn.primary:hover, #update-bar .small-btn.primary:hover):not(.right-music *, .mu-guide *) { color: var(--on-primary-hover) !important; background: var(--blurple-h); }
+html[data-tk="vidro"] #composer .send-btn { color: var(--on-accent) !important; }
+
+/* A cor do anel é validada sobre as superfícies de cada área. */
+#sidebar { --speak: var(--side-speak, var(--green)); }
+html.glass #chat .msg.mine .text, html.glass #chat .msg.mine .text a { color: var(--on-primary); }
+
+.sn .sn-seat-name { background: var(--sn-blue-deep); border-radius: 3px; padding-inline: 4px; }
+.mg .mg-person-name { color: var(--mg-name, inherit); }
+.mg .mg-bar.is-speaking .mg-person-name { color: var(--mg-name-speaking, inherit); }
+
+/* Selos com o mesmo desenho no chat e na barra lateral. */
+:root { --live-red: #d92d27; }
+html[data-tk] #chat .msg .tag.bot, html[data-tk] #sidebar .tag.bot {
+  background: var(--accent-soft); color: var(--bot-ink, var(--text-hi)); font-size: 11px; font-weight: 800;
+  letter-spacing: .04em; border-radius: 5px; padding: 1px 5px; opacity: 1;
+}
+html[data-tk] :is(#sidebar .live, #call .live, #call .live-badge) { background: var(--live-red); color: #fff; font-size: 11px; }
+html[data-skin="caderno"] #win-controls button:not(:hover) { color: #fff; background: #352420; }
+html[data-skin="caderno"] #win-controls button:not([data-win="close"]):hover { color: #fff; background: #57392e; }
+#call .tile:not(.is-screen) .avatar { font-size: clamp(11px, 15cqh, 32px); }
+
+#sidebar { --bot-ink: var(--side-bot-ink, var(--text-hi)); }
+
+/* Um anel sólido. O mesmo token ganha tinta clara nas superfícies escuras. */
+:root { --focus: #ff9a57; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+html.light #sidebar { --focus: var(--focus-inv); }
+#call .tile.is-screen :is(.live-meta, .tile-tools) { --focus: #fff; }
+#skin-root .sn { --focus: #18141c; }
+#skin-root .sn :is(.sn-stage, .sn-chat .sn-msgs) { --focus: #fff; }
+#skin-root .sn :is(.sn-tune-button, .sn-stage button.sn-btn) { --focus: #18141c; }
+#skin-root .cd :is(.cd-live, .cd-rib) { --focus: #fff; }
+#skin-root .mg { --focus: #e3f5ff; }
+#skin-root .mg :is(.mg-voice-row:disabled, .mg-cmd[aria-pressed="true"], .mg-composer textarea, .mg-composer button, .mg-watch, .mg-live-tab[aria-pressed="true"], .mg-bar.is-speaking) { --focus: #103179; }
+/* Linhas encostadas em bordas de rolagem: o mesmo anel é pintado por dentro. */
+:is(#channels, #room-menu, #ctx-menu, #skin-root) :focus-visible { outline: 2px solid var(--focus) !important; outline-offset: -2px !important; }
+html.glass :is(#main, #home, #ctx-menu) :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--focus) !important; outline-offset: 2px !important;
+}
+html.glass #composer #input:focus-visible { outline: none !important; }
+html.glass #composer .composer-row:focus-within, :is(.sn-compose, .ap-composer, .cd-comp, .mg-composer, .mu-searchbox):focus-within {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+html.glass #composer .composer-row:focus-within { box-shadow: inset 0 0 0 1px var(--g-edge, var(--line)); }
+html[data-tk] :is(#sidebar #room-header, #sidebar .nsb-ib, #sidebar #btn-invite.nsb-row, #sidebar .up-user, #sidebar .server-dot, #call .live-back, #home .btn, #home .home-profile .avatar-edit, #home .home-profile-d summary, .floating-dj > header):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+#sidebar .server-dot:focus-visible { box-shadow: none; }
+#home :is(.saved-room-hide, .shelf-arrow):focus-visible { opacity: 1; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.toast { pointer-events: auto; }
+
+/* Amplia só a área que recebe o clique, sem mudar o desenho. */
+:is(.cat-add, .nsb-ib, .icon-btn) { position: relative; }
+:is(.cat-add, .nsb-ib, .icon-btn)::after { content: ''; position: absolute; inset: var(--hit-inset, -4px); }
+.cat-add { --hit-inset: -5px; }
+.nsb-ib { --hit-inset: -1px; }
+#main > .splitter::after { inset: 0 -16px; z-index: 1; }
+
+/* Tokens disponíveis antes do script: a primeira pintura também segue o mesmo padrão. */
+:root {
+  --dur-click: 120ms; --dur-menu: 150ms; --dur-exit: 200ms; --dur-window: 250ms; --dur-layout: 350ms;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+}
+
+:where(small) { font-size: max(11px, .83em); } /* o padrão do navegador cai para 10,8 px */
+
+.mg-telemetry > span[hidden] { display: none; }

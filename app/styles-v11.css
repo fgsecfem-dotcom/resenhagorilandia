@@ -51,7 +51,7 @@ body.has-update .screen { top: 70px; }
 /* miniaturas de tela no canto */
 #pips { position: absolute; right: 16px; bottom: 96px; display: flex; flex-direction: column; gap: 10px; z-index: 5; }
 #pips .tile { width: 240px; height: 135px; aspect-ratio: auto; box-shadow: 0 6px 20px #000c; border: 1px solid #ffffff1a; cursor: zoom-in; }
-#pips .tile .live { top: 6px; left: 6px; font-size: 9px; }
+#pips .tile .live { top: 6px; left: 6px; font-size: 11px; }
 #pips .tile .label { bottom: 6px; left: 6px; font-size: 11px; padding: 2px 6px; }
 #pips .tile .tile-tools button { width: 26px; height: 26px; }
 .focus-main .tile.is-screen { cursor: zoom-out; }

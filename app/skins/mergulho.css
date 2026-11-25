@@ -60,7 +60,7 @@
 .mg-room-label { min-width: 0; text-align: left; }
 .mg-room-label > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-room-label small, .mg-stage-label small, .mg-chat-head small, .mg-preview-head small, .mg-menu-code small {
-  font: 700 10px/1.15 Barlow, sans-serif; letter-spacing: .15em; text-transform: uppercase;
+  font: 700 11px/1.15 Barlow, sans-serif; letter-spacing: .15em; text-transform: uppercase;
 }
 .mg-room-label small { color: var(--mg-ice); }
 .mg-room-label strong { max-width: min(37vw, 400px); font: italic 800 clamp(20px, 2vw, 27px)/1.02 var(--mg-display); text-transform: uppercase; padding-right: .12em; }
@@ -105,7 +105,7 @@
 .mg-person-name { min-width: 0; padding-right: .17em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: italic 800 clamp(21px, 2.75vw, 36px)/1.13 var(--mg-display); }
 .mg-telemetry { display: flex; justify-content: flex-end; align-items: end; gap: clamp(8px, 1.1vw, 15px); border-left: 2px solid var(--mg-person, #667ed5); padding-left: 7px; }
 .mg-telemetry > span { display: grid; justify-items: start; align-content: end; gap: 1px; white-space: nowrap; }
-.mg-telemetry small { font: 700 9px/1.1 Barlow, sans-serif; color: var(--mg-dim); letter-spacing: .13em; }
+.mg-telemetry small { font: 700 11px/1.1 Barlow, sans-serif; color: var(--mg-dim); letter-spacing: .13em; }
 .mg-bar.is-speaking .mg-telemetry small { color: var(--mg-muted); }
 .mg-ping b { min-height: 15px; font: italic 800 16px/1 var(--mg-display); }
 .mg-meter, .mg-eq { display: flex; align-items: end; gap: 2px; height: 15px; }
@@ -123,7 +123,7 @@
 .mg-dj-cover { display: flex; justify-content: center; align-items: center; gap: 8px; align-self: stretch; clip-path: var(--mg-cut); color: var(--mg-ink); background: #ffe45e; }
 .mg-dj-cover b { padding: 0 .16em .08em .09em; color: #ffe45e; background: var(--mg-ink); font: italic 900 30px/.87 var(--mg-display); }
 .mg-dj-title { display: grid; min-width: 0; }
-.mg-dj-title small { color: #ffe45e; font: 700 10px/1.2 Barlow, sans-serif; letter-spacing: .13em; }
+.mg-dj-title small { color: #ffe45e; font: 700 11px/1.2 Barlow, sans-serif; letter-spacing: .13em; }
 .mg-dj-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: italic 800 clamp(19px, 2.2vw, 28px)/1 var(--mg-display); }
 .mg-eq { color: #ffe45e; }
 .mg-dj.is-playing .mg-eq i { opacity: 1; animation: mg-equalize 880ms var(--mg-ease) infinite alternate; }
@@ -157,7 +157,7 @@
 .mg-live-panels { flex: 1; min-height: 0; }
 .mg-live-panel { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; }
 .mg-onair { display: flex; align-items: stretch; width: fit-content; max-width: 100%; background: var(--mg-ink); clip-path: var(--mg-cut); }
-.mg-onair b { display: grid; place-items: center; padding: 4px 17px 4px 11px; background: var(--mg-red); color: var(--mg-ink); clip-path: var(--mg-cut); font: italic 900 24px/1 var(--mg-display); white-space: nowrap; text-transform: uppercase; }
+.mg-onair b { display: grid; place-items: center; padding: 4px 17px 4px 11px; background: var(--live-red); color: #fff; clip-path: var(--mg-cut); font: italic 900 24px/1 var(--mg-display); white-space: nowrap; text-transform: uppercase; }
 .mg-onair strong { align-self: center; padding: 2px 5px 4px 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: italic 800 clamp(21px, 2.4vw, 30px)/1 var(--mg-display); text-transform: uppercase; }
 .mg-onair span { align-self: center; padding: 1px 19px 1px 7px; color: var(--mg-dim); white-space: nowrap; font: 600 12px/1.1 Barlow, sans-serif; }
 .mg-live-fit { display: flex; flex-direction: column; align-items: start; min-width: 0; min-height: 0; container-type: size; }
@@ -211,7 +211,7 @@
 .mg-guide b { font: italic 800 19px/1 var(--mg-display); }
 .mg-shortcuts { display: flex; justify-content: end; align-items: center; flex-wrap: wrap; gap: 3px 9px; font: 600 12px/1.1 Barlow, sans-serif; }
 .mg-shortcuts > span { white-space: nowrap; }
-.mg-shortcuts kbd { display: inline-block; min-width: 17px; padding: 2px 4px; border: 1px solid #8e98af; color: inherit; background: transparent; border-radius: 3px; text-align: center; font: 700 10px/1.05 Barlow, sans-serif; }
+.mg-shortcuts kbd { display: inline-block; min-width: 17px; padding: 2px 4px; border: 1px solid #8e98af; color: inherit; background: transparent; border-radius: 3px; text-align: center; font: 700 11px/1.05 Barlow, sans-serif; }
 
 /* Conversa: rasgo opaco à direita. A live fica intacta por baixo. */
 .mg-chat {
@@ -225,7 +225,7 @@
 .mg-chat-tabs { display: flex; gap: 4px; flex: none; overflow: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .mg button.mg-text-tab { padding: 5px 8px; white-space: nowrap; color: var(--mg-dim); font: italic 800 18px/1 var(--mg-display); text-transform: uppercase; }
 .mg button.mg-text-tab:hover { color: var(--mg-paper); }
-.mg button.mg-text-tab[aria-pressed="true"] { color: var(--mg-paper); box-shadow: inset 0 -3px 0 var(--mg-red); }
+.mg button.mg-text-tab[aria-current="true"] { color: var(--mg-paper); box-shadow: inset 0 -3px 0 var(--mg-red); }
 .mg-text-tab.is-unread::after { content: ''; display: inline-block; margin-left: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--mg-paper); vertical-align: middle; }
 .mg-chat-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-right: 4px; }
 .mg-messages { display: grid; gap: 12px; margin-top: auto; }
@@ -289,7 +289,7 @@
 .mg-casc a.is-selected::after { opacity: 1; transform: none; }
 .mg-casc a.is-exit:not(.is-selected) { color: var(--mg-red); }
 .mg-menu-word { min-width: 0; padding: .01em .145em .055em 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mg-casc small { flex: none; font: 700 10px/1 Barlow, sans-serif; color: var(--mg-paper); letter-spacing: .07em; }
+.mg-casc small { flex: none; font: 700 11px/1 Barlow, sans-serif; color: inherit; letter-spacing: .07em; }
 .mg-preview { min-height: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, auto); align-content: start; gap: 9px; }
 .mg-preview-head { padding-block: 8px 10px; }
 .mg-preview-head h2 { font-size: clamp(23px, 3.2vw, 43px); overflow-wrap: anywhere; }

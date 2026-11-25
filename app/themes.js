@@ -26,9 +26,23 @@ function mix(a, b, t) { // t = quanto de b; interpolação em OKLab, sem passar 
 }
 const lum = (h) => { const [r, g, b] = hex2rgb(h).map(toLin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const tint = (bg, fg, alpha) => '#' + hex2rgb(bg).map((c, i) => Math.round(255 * (c * (1 - alpha) + hex2rgb(fg)[i] * alpha)).toString(16).padStart(2, '0')).join('');
 const rgba = (h, a) => `rgba(${hex2rgb(h).map((v) => Math.round(v * 255)).join(',')},${a})`;
 // aproxima fg de toward até passar do contraste mínimo contra todos os fundos dados
 const readable = (fg, bgs, min, toward) => { bgs = [].concat(bgs); let c = fg, i = 0; while (Math.min(...bgs.map((b) => contrast(c, b))) < min && i++ < 40) c = mix(c, toward, 0.06); return c; };
+// Acessibilidade (item 2 e 3 da auditoria): texto sobre cor de destaque e cor de pessoa legível no tema atual.
+const worst = (c, bgs) => Math.min(...[].concat(bgs).map((b) => contrast(c, b)));
+// Preto ou branco: pelo menos uma dessas tintas sempre passa de 4,5:1.
+const inkOn = (bg) => contrast('#ffffff', bg) >= contrast('#000000', bg) ? '#ffffff' : '#000000';
+// a mesma cor, com o matiz e o croma mantidos, e só a luminosidade ajustada até dar `min`:1 contra todos os fundos
+function readableHue(hex, bgs, min = 4.5) {
+  bgs = [].concat(bgs); if (worst(hex, bgs) >= min) return hex;
+  const o = oklch(hex), darkBg = bgs.reduce((s, b) => s + lum(b), 0) / bgs.length < 0.35;
+  for (const dir of darkBg ? [1, -1] : [-1, 1]) {
+    for (let L = o.L, n = 0; n < 100 && L >= 0 && L <= 1; n++, L += dir * 0.01) { const c = fromOklch({ L: Math.min(1, Math.max(0, L)), C: o.C, H: o.H }); if (worst(c, bgs) >= min) return c; }
+  }
+  return worst('#ffffff', bgs) >= worst('#000000', bgs) ? '#ffffff' : '#000000';
+}
 
 // ---------- paletas do Resenha: 60 fundo · 30 parceira · 10 impacto ----------
 window.RESENHA_PALETTES = {
@@ -67,8 +81,19 @@ function paletteTokens([c60, c30, c10], dark) {
     v['side-text'] = c60; v['side-muted'] = readable(mix(c30, c60, 0.62), c30, 4.5, c60); v['side-hover'] = mix(c30, c60, 0.1); v['side-active'] = mix(c30, c60, 0.18);
   }
   v.c60 = c60; v.c30 = c30; v.ink30 = c60; v.accent = c10; v.blurple = c10; v['blurple-h'] = mix(c10, dark ? '#ffffff' : '#000000', 0.1);
-  v['on-accent'] = contrast(c10, '#ffffff') >= 4.5 ? '#ffffff' : readable(mix(c10, c60, 0.85), c10, 4.5, '#000000');
+  v['on-accent'] = inkOn(c10); // texto sobre o destaque: branco ou tinta escura, a que der 4,5:1 (nunca branco sobre menta ou amarelo)
+  v['on-primary'] = inkOn(v.blurple);
+  v['on-primary-hover'] = inkOn(v['blurple-h']);
   v['accent-soft'] = rgba(c10, 0.16);
+  v['bot-ink'] = readableHue(c10, [c60, v.hover, v.active].map(bg => tint(bg, c10, .16)));
+  v['side-bot-ink'] = readableHue(c10, (dark ? [v['bg-side'], v.hover, v.active] : [c30, v['side-hover'], v['side-active']]).map(bg => tint(bg, c10, .16)));
+  // foco do teclado (opaco, >= 3:1): destaque nas paletas escuras; tinta escura (cor 30) nas claras. 'focus-inv' vale sobre superfície escura de paleta clara (barra lateral, quadros).
+  { const fb = [c60, v['bg-panel'], v['bg-input'], v['bg-float']];
+    v.focus = dark ? readable(c10, fb, 3, '#ffffff') : c30; v['focus-inv'] = dark ? v.focus : c60;
+    // anel de quem fala: acompanha a paleta se o destaque dá 3:1; senão fica no verde
+    v.speak = worst(c10, fb) >= 3 ? c10 : readableHue('#3ecf7a', fb, 3);
+    const side = dark ? [v['bg-side'], v.hover, v.active] : [c30, v['side-hover'], v['side-active']];
+    v['side-speak'] = worst(c10, side) >= 3 ? c10 : readableHue('#3ecf7a', side, 3); }
   v.green = dark ? '#3ecf7a' : '#15803d'; v.red = dark ? '#ff5d55' : '#d92d20'; v.yellow = dark ? '#fbbf24' : '#946200';
   v['g-fill'] = rgba(c30, 0.05); v['g-fill-2'] = rgba(c30, 0.07); v['g-fill-h'] = rgba(c30, 0.1); v['g-edge'] = rgba(c30, 0.1);
   v['tone-lilac'] = v.active; v['tone-peach'] = v.hover; v['tone-mint'] = v.hover; v['tone-butter'] = v.hover;
@@ -82,8 +107,8 @@ const VIDRO = { 'bg-rail': '#0a0a0b', 'bg-side': '#0e0e10', 'bg-main': '#0e0e10'
   hover: '#1c1c1f', active: '#232326', line: '#232326', line2: '#232326', line3: '#151517', 'msg-hover': '#1c1c1f', scroll: '#232326',
   text: '#ededee', 'text-hi': '#ffffff', muted: '#a1a1a6', muted2: '#a1a1a6', icon: '#c6c6cb', link: '#ff9a57', accent: '#ffffff', 'on-accent': '#111111',
   c60: '#0e0e10', c30: '#ededee', ink30: '#0e0e10',
-  blurple: '#3d3d41', 'blurple-h': '#4a4a4f', 'accent-soft': 'rgba(255,255,255,.08)', btn: '#151517', 'btn-h': '#232326',
-  green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
+  blurple: '#3d3d41', 'blurple-h': '#4a4a4f', 'on-primary': inkOn('#3d3d41'), 'on-primary-hover': inkOn('#4a4a4f'), 'accent-soft': 'rgba(255,255,255,.08)', btn: '#151517', 'btn-h': '#232326',
+  focus: '#ff9a57', 'focus-inv': '#ff9a57', 'bot-ink': '#ffbb8c', 'side-bot-ink': '#ffbb8c', speak: '#ffffff', 'side-speak': '#ffffff', green: '#3ecf7a', red: '#ef4444', yellow: '#fbbf24', 'call-bg': '#0a0a0b', 'tone-lilac': '#232326', 'tone-peach': '#1c1c1f', 'tone-mint': '#1c1c1f', 'tone-butter': '#1c1c1f',
   'g-fill': 'rgba(255,255,255,.045)', 'g-fill-2': 'rgba(255,255,255,.065)', 'g-fill-h': 'rgba(255,255,255,.10)', 'g-edge': 'rgba(255,255,255,.09)' };
 
 // Os temas alternativos usam o mesmo gerador para o que continua comum (menus, Configurações, avisos);
@@ -109,7 +134,8 @@ window.RETIRED_PALETTES = { arcLight: 'lona', claro: 'gelo', bento: 'marmore', t
   neon: 'musgo', echo: 'musgo', ametista: 'musgo', roxo: 'musgo', floresta: 'musgo' };
 
 const systemAppearance = matchMedia('(prefers-color-scheme: dark)');
-let activeTheme = 'resenha', activePalette = 'auto';
+let activeTheme = 'resenha', activePalette = 'auto', activeVars = null;
+const nameCache = new Map();
 const resolveKey = (key) => (window.THEMES[key] ? key : window.RETIRED_THEMES[key] || 'resenha');
 const resolvePalette = (p) => (p && window.RESENHA_PALETTES[p] ? p : AUTO_PALETTE[systemAppearance.matches ? 'dark' : 'light']);
 function themeFor(key, palette) {
@@ -122,6 +148,7 @@ window.applyTheme = function (key, palette = activePalette) {
   activeTheme = resolveKey(key); activePalette = palette || 'auto';
   const t = themeFor(activeTheme, activePalette), root = document.documentElement;
   for (const [k, v] of Object.entries(t.vars)) root.style.setProperty('--' + k, v);
+  activeVars = t.vars; nameCache.clear();
   if (root.dataset) { root.dataset.tk = t.key; root.dataset.palette = t.key === 'resenha' ? resolvePalette(activePalette) : ''; }
   root.classList.toggle('light', !!t.light);
   root.classList.toggle('glass', true); // base de vidro (glass.css) comum a todos os temas
@@ -133,6 +160,21 @@ window.applyTheme = function (key, palette = activePalette) {
 // Automático acompanha o Windows ao vivo; uma paleta escolhida fica fixa.
 systemAppearance.addEventListener('change', () => { if (activeTheme === 'resenha' && !window.RESENHA_PALETTES[activePalette]) window.applyTheme('resenha', activePalette); });
 window.themePreview = (key, palette) => themeFor(key, palette).vars;
+// Cor de uma pessoa (nome no chat, lista) legível no tema atual: mesmo matiz, luminosidade ajustada para 4,5:1 contra os fundos de texto. `bg` opcional (hex ou lista) para telas com fundo próprio.
+window.readableColor = (hex, bg) => {
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex;
+  const v = activeVars || themeFor(activeTheme, activePalette).vars;
+  const bgs = bg === 'sidebar' ? (v['side-text'] ? [v.c30, v['side-hover'], v['side-active']] : [v['bg-side'], v.hover, v.active])
+    : bg ? [].concat(bg) : [v['bg-main'], v['bg-panel'], v['bg-input'], v['bg-float'], v.active, tint(v['bg-main'], '#f0b232', .15)];
+  const k = hex.toLowerCase() + '|' + bgs.join(',');
+  if (!nameCache.has(k)) {
+    if (nameCache.size >= 512) nameCache.clear();
+    nameCache.set(k, readableHue(hex.toLowerCase(), bgs, 4.5));
+  }
+  return nameCache.get(k);
+};
+// Cor da inicial dentro de um avatar de cor `hex`: branca ou escura, a que tiver mais contraste.
+window.avatarInk = (hex) => (/^#[0-9a-f]{6}$/i.test(hex || '') ? inkOn(hex.toLowerCase()) : '#ffffff');
 window.themeLight = (key, palette) => !!themeFor(key, palette).light;
 window.themeKey = resolveKey; // tema salvo (inclusive os retirados) -> tema atual
 // Preferência salva -> { theme, color } atual. Tema retirado leva junto a paleta mais parecida; paleta que não existe vira Automático.

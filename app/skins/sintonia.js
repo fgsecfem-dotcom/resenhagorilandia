@@ -142,7 +142,7 @@
       <aside class="sn-chat" id="sn-chat" aria-label="Chat da sala" hidden>
         <header><h2 class="sn-ellipsis"></h2><button type="button" data-sn="chat-channels" title="Escolher canal no guia" aria-label="Escolher canal no guia">${guideIcon}</button>
           <button type="button" data-sn="chat-close" title="Fechar chat" aria-label="Fechar chat">${I('x', 18)}</button></header>
-        <div class="sn-msgs" tabindex="0" role="log" aria-label="Mensagens recentes"><div class="sn-msg-list"></div><p class="sn-chat-empty">Nenhuma mensagem neste canal.</p></div>
+        <div class="sn-msgs" tabindex="0" role="log" aria-live="polite" aria-label="Mensagens recentes"><div class="sn-msg-list"></div><p class="sn-chat-empty">Nenhuma mensagem neste canal.</p></div>
         <form class="sn-compose"><input type="text" autocomplete="off" aria-label="Mensagem"><button type="submit" title="Enviar mensagem" aria-label="Enviar mensagem">${I('send', 19)}</button></form>
       </aside>
     </div>`;
@@ -232,6 +232,7 @@
       el.classList.toggle('is-tuned', !!here);
       el.classList.toggle('is-unread', !!c.unread);
       attr(el, 'aria-current', !!here);
+      attr(el, 'aria-label', `Canal de ${voice ? 'voz' : 'texto'} ${c.name}${voice ? ', ' + activity : c.unread ? ', mensagens novas' : ''}`);
       text(p.name, c.name);
       text(p.desc, desc);
       prop(p.desc, 'title', desc);
@@ -282,6 +283,7 @@
       const sharing = u.sharing || model.live.some(l => l.uid === u.id);
       paintAvatar(el.firstElementChild, u.name, u.color, u.avatar);
       text(el.querySelector('b'), u.name);
+      el.querySelector('b').style.color = window.readableColor?.(u.nameColor || u.color, '#00477e') || '';
       hide(el.querySelector('.sn-seat-muted'), !u.muted || u.deafened);
       hide(el.querySelector('.sn-seat-deaf'), !u.deafened);
       hide(el.querySelector('.sn-seat-bot'), !u.bot);
@@ -396,6 +398,7 @@
       const user = state.users.get(m.uid);
       paintAvatar(el.firstElementChild, m.name, m.color || user?.color, user?.avatar);
       text(el.querySelector('b'), m.system ? 'Sala' : m.name || 'Participante');
+      el.querySelector('b').style.color = m.system ? '' : window.readableColor?.(m.nameColor || m.color, m.me ? '#cdd9f7' : '#17151a') || '';
       text(el.querySelector('time'), time(m.ts));
       hide(el.querySelector('p'), !m.text);
       text(el.querySelector('p'), m.text);

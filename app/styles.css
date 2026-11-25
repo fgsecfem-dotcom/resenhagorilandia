@@ -53,7 +53,7 @@ input, textarea, select { font: inherit; color: var(--text); }
 .recent-item:hover { background: var(--hover); }
 .recent-item .x { opacity: .5; } .recent-item .x:hover { opacity: 1; color: var(--red); }
 .avatar-edit { width: 64px; height: 64px; border-radius: 50%; cursor: pointer; flex: none; position: relative; overflow: hidden; }
-.avatar-edit::after { content: 'TROCAR'; position: absolute; inset: 0; background: #000a; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0; transition: .15s; }
+.avatar-edit::after { content: 'TROCAR'; position: absolute; inset: 0; background: #000a; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0; transition: .15s; }
 .avatar-edit:hover::after { opacity: 1; }
 
 /* Avatares */
@@ -91,16 +91,16 @@ input, textarea, select { font: inherit; color: var(--text); }
 .vu { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; color: var(--muted); font-size: 14px; }
 .vu:hover { background: var(--hover); color: var(--text); }
 .vu .avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px transparent; transition: box-shadow .08s; }
-.vu.speaking .avatar, .ou.speaking .avatar { box-shadow: 0 0 0 2px var(--green); }
+.vu.speaking .avatar, .ou.speaking .avatar { box-shadow: 0 0 0 2px var(--speak, var(--green)); }
 .vu .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vu .st { display: flex; gap: 3px; color: var(--muted2); }
 .vu .st .ic.red { color: var(--red); }
-.live { background: var(--red); color: #fff; font-size: 10px; font-weight: 800; border-radius: 8px; padding: 1px 6px; letter-spacing: .02em; }
+.live { background: var(--red); color: #fff; font-size: 11px; font-weight: 800; border-radius: 8px; padding: 1px 6px; letter-spacing: .02em; }
 .ou { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 4px; color: var(--muted); font-size: 14px; cursor: pointer; }
 .ou:hover { background: var(--hover); color: var(--text); }
 .ou .avatar { width: 30px; height: 30px; font-size: 13px; position: relative; }
 .ou .avatar::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--green); border: 3px solid var(--bg-side); }
-.tag { font-size: 10px; background: var(--blurple); color: #fff; border-radius: 3px; padding: 1px 4px; font-weight: 700; margin-left: 4px; }
+.tag { font-size: 11px; background: var(--blurple); color: #fff; border-radius: 3px; padding: 1px 4px; font-weight: 700; margin-left: 4px; }
 
 #voice-panel { background: var(--bg-panel); border-bottom: 1px solid var(--line2); padding: 8px 8px 8px; flex: none; border-radius: 8px 8px 0 0; margin: 0 8px; }
 .vp-top { display: flex; align-items: center; justify-content: space-between; }
@@ -138,7 +138,7 @@ input, textarea, select { font: inherit; color: var(--text); }
 .grid { flex: 1; min-height: 0; display: grid; gap: 10px; align-content: center; justify-content: center; }
 .tile { position: relative; background: var(--bg-side); border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; aspect-ratio: 16/9; cursor: pointer; min-width: 0; min-height: 0; }
 .tile::after { content: ''; position: absolute; inset: 0; border-radius: 10px; box-shadow: inset 0 0 0 0 var(--green); transition: box-shadow .08s; pointer-events: none; }
-.tile.speaking::after { box-shadow: inset 0 0 0 3px var(--green); }
+.tile.speaking::after { box-shadow: inset 0 0 0 3px var(--speak, var(--green)); }
 .tile .avatar { width: 80px; height: 80px; font-size: 32px; }
 .tile .label { position: absolute; left: 10px; bottom: 10px; background: #000a; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; max-width: calc(100% - 20px); }
 .tile .label span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
