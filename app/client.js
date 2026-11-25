@@ -182,6 +182,21 @@ function sfx(kind) {
   } catch {}
 }
 
+const presenceCache = new Map();
+const PRESENCE_TTL = 20000;
+// Linha de status da tela inicial: altura reservada (o layout não pula), spinner de 14 px e vermelho só em falha confirmada.
+let lastHomeStatus = '';
+function setHomeStatus(text, o = {}) {
+  const el = $('#home-error'); if (!el) return;
+  el.replaceChildren();
+  el.classList.toggle('neutral', !!(o.busy || o.note)); el.classList.toggle('busy', !!o.busy);
+  if (text) { const s = document.createElement('span'); s.className = 'st-text'; s.textContent = text; el.append(s); }
+  for (const a of o.actions || []) { const b = document.createElement('button'); b.type = 'button'; b.className = 'st-btn'; b.textContent = a.label; b.onclick = a.fn; el.append(b); }
+  lastHomeStatus = el.textContent;
+}
+// Se outro trecho escrever direto no texto, o estilo neutro/spinner some junto.
+(() => { const el = document.getElementById('home-error'); if (el) new MutationObserver(() => { if (el.textContent !== lastHomeStatus) el.classList.remove('neutral', 'busy'); }).observe(el, { childList: true, characterData: true, subtree: true }); })();
+
 let roomsRenderToken=0;
 let storedRooms = [], savingRoomFailed = false, staleRoomWarned = false;
 async function renderMyRooms(check=false) {
@@ -203,31 +218,53 @@ async function renderMyRooms(check=false) {
   if(check)for(let i=0;i<rooms.length;i++){
     if(token!==roomsRenderToken||$('#home').classList.contains('hidden'))break;
     const result=await native.rooms.inspect(rooms[i].code);
-    if(token!==roomsRenderToken)break;const el=$(`[data-room-status="${i}"]`,root);if(!el||!document.body.contains(root))break;
+    if(token!==roomsRenderToken)break;
+    presenceCache.set(normCode(rooms[i].code),{state:result.state,at:Date.now()});
+    const el=$(`[data-room-status="${i}"]`,root);if(!el||!document.body.contains(root))break;
     const code=fmtCode(rooms[i].code);
-    el.textContent=result.state==='online'?`Online · ${code}`:result.state==='offline'?`Ninguém hospedando · você pode abrir · ${code}`:`Não deu para verificar agora · ${code}`;
+    el.textContent=result.state==='online'?`Online · ${code}`:result.state==='offline'?`Sala fechada · você pode abrir · ${code}`:`Não deu para verificar agora · ${code}`;
     const row=$(`[data-room-row="${i}"]`,root);if(row)row.dataset.state=result.state;
     const btn=$(`[data-open-room="${i}"]`,root);if(btn){btn.textContent=result.state==='online'?'Entrar':'Abrir sala';btn.classList.toggle('primary',result.state==='online');}
   }
 }
-async function openStoredRoom(room, opts={}) {
-  if(!checkName()||!room||!native)return;
-  const status=$('#home-error');status.textContent='Consultando a descoberta e verificando quem hospeda…';
-  let password=$('#join-pass').value || $('#host-pass').value;
-  if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){password=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});if(password===null)return;}
+let pendingRoomOpen = null;
+async function openStoredRoom(room) {
+  if(!room||!native||!checkName()||pendingRoomOpen?.committing)return;
+  pendingRoomOpen?.cancel();
+  const code=fmtCode(room.code), controller=new AbortController(), signal=controller.signal;
+  let timer, resolveStop;
+  const stop=new Promise(r=>{resolveStop=r;});
+  const cancel=()=>{controller.abort();resolveStop();setHomeStatus('');};
+  const retry=()=>openStoredRoom(room);
+  const actions=[{label:'Tentar de novo',fn:retry},{label:'Cancelar',fn:cancel}];
+  const active={cancel,committing:false}; pendingRoomOpen=active;
+  const wait=promise=>Promise.race([promise,stop]);
+  endBoot(); // os botões de status precisam ficar visíveis também na volta automática
   try {
-    const result=await native.rooms.claim({code:room.code,id:CID});
-    if(result.state==='online') { if(opts.auto||await confirmModal('Sala online','Já existe um anfitrião. Entrar na sala que está aberta?','Entrar',false))await joinByCode(room.code,password);return; }
-    if(result.state==='lost'){status.textContent='Outro membro ganhou a reivindicação. Aguardando a sala abrir…';await new Promise(r=>setTimeout(r,2000));await joinByCode(room.code,password);return;}
-    if(result.state!=='won')throw new Error(result.error||'Não foi possível reivindicar esta sala.');
-    status.textContent='Abrindo a cópia local da sala…';
+    let password=$('#join-pass').value || $('#host-pass').value;
+    if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){password=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});if(password===null||signal.aborted)return;}
+    setHomeStatus('Procurando a sala…',{busy:true,actions:[actions[1]]});
+    timer=setTimeout(()=>{cancel();setHomeStatus('A sala está demorando para responder.',{note:true,actions});},8000);
+    const hit=presenceCache.get(normCode(room.code));
+    const result=hit?.state==='online'&&Date.now()-hit.at<PRESENCE_TTL?{state:'online'}:await wait(native.rooms.claim({code:room.code,id:CID}));
+    if(signal.aborted)return;
+    if(result.state==='online'||result.state==='lost'){
+      if(result.state==='lost')await wait(new Promise(r=>setTimeout(r,1200)));
+      if(!signal.aborted)await wait(joinByCode(code,password,{signal,onStatus:(text)=>setHomeStatus(text,{busy:true,actions:[actions[1]]})}));
+      return;
+    }
+    if(result.state==='unknown'){setHomeStatus('Não consegui localizar a sala agora.',{note:true,actions});return;}
+    if(result.state!=='won')throw new Error('Não foi possível abrir esta sala.');
+    clearTimeout(timer); active.committing=true;
+    setHomeStatus('Abrindo a sala…',{busy:true});
     const snap=result.snapshot;
     const r=await native.startHost({roomName:snap.name,port:7777,autoPort:true,password,code:snap.code,restore:snap,resume:true});
     if(!r.ok)throw new Error(r.error);
     S.code=fmtCode(snap.code);S.isHost=true;S.hostKey=r.hostKey;S.viaCode=null;S.joinedAt=Date.now();S.epoch=0;S.forceGuest=false;
     connect(parseAddr('127.0.0.1:'+r.port),password,true);
     toast('Sala retomada com a revisão '+snap.revision+'. A cópia pode não conter as últimas mensagens do anfitrião anterior.','',8000);
-  } catch(e){status.textContent=e.message;}
+  } catch(e){if(!signal.aborted)setHomeStatus(e.message,{actions});}
+  finally{clearTimeout(timer);if(pendingRoomOpen===active)pendingRoomOpen=null;}
 }
 
 // ---------------- Servidores: fileira de bolinhas, favorito e ícone ----------------
@@ -292,7 +329,6 @@ let startTried=false;
 let pendingLaunchJoin = null;
 async function openStartServer(){
   if(startTried)return;startTried=true;
-  const booting=document.documentElement.classList.contains('booting');
   if(!native?.rooms||WEB_VIEWER)return endBoot();
   const intent=await native.launchIntent?.().catch(()=>null);
   if(intent?.type==='join'&&intent.code){
@@ -307,15 +343,7 @@ async function openStartServer(){
   const code=intent?.type==='room'&&intent.code?normCode(intent.code):favoriteCode()||LS.get('lastRoom',null)?.code;
   const room=code&&(storedRooms.length?storedRooms:await native.rooms.list()).find(r=>normCode(r.code)===code);
   if(!room||$('#home').classList.contains('hidden'))return endBoot();
-  if(booting){
-    $('#boot-name').textContent=`Entrando no ${room.name}…`;
-    // Mirror the progress lines ("Procurando a sala…") on the loading screen.
-    const status=$('#home-error'),mirror=new MutationObserver(()=>{$('#boot-status').textContent=status.textContent;});
-    mirror.observe(status,{childList:true,characterData:true,subtree:true});
-    setTimeout(()=>mirror.disconnect(),30000);
-  }
-  S.invitedOnce=true; // opening on start should not pop the invite window every time
-  await openStoredRoom(room,{auto:true});
+  await openStoredRoom(room);
   // Give the connection time to say hello; if it never does, show the home screen with the reason.
   for(let i=0;i<30&&$('#main').classList.contains('hidden');i++)await new Promise(r=>setTimeout(r,500));
   endBoot();
@@ -509,7 +537,8 @@ function checkName() {
 }
 
 async function hostRoom() {
-  if (!checkName()) return;
+  if (!checkName()||pendingRoomOpen?.committing) return;
+  pendingRoomOpen?.cancel();
   const roomName = $('#host-name').value.trim() || `Sala do ${me.name}`;
   const port = Number($('#host-port').value) || 7777;
   const password = $('#host-pass').value;
@@ -529,6 +558,8 @@ async function hostRoom() {
 
 async function joinRoom(addrText, password) {
   if (!checkName()) return;
+  if(pendingRoomOpen?.committing)return;
+  pendingRoomOpen?.cancel();
   pendingLaunchJoin = null;
   S.viaCode = null;
   if (addrText && !looksLikeAddr(addrText)) return joinByCode(addrText, password);
@@ -550,34 +581,45 @@ async function joinRoom(addrText, password) {
   $('#btn-join').disabled = false;
 }
 
-async function joinByCode(codeText, password) {
+async function joinByCode(codeText, password, { signal, onStatus = (text) => setHomeStatus(text, { busy: true }) } = {}) {
   const code = fmtCode(codeText);
   if (code.replace('-', '').length !== 8) { $('#home-error').textContent = 'O código tem 8 letras/números, tipo K7P4-QX9M.'; return; }
   if (globalThis.RESENHA_PWA) return pwaJoin(code, password);
   if (!window.Tun) { $('#home-error').textContent = 'Entrar por código só funciona no app.'; return; }
-  $('#btn-join').disabled = true; $('#home-error').textContent = 'Procurando a sala...';
+  const button = $('#btn-join');
+  if (button.disabled) return;
+  const cancel = () => { Tun.guestClose(); button.disabled = false; };
+  if (signal?.aborted) return;
+  signal?.addEventListener('abort', cancel, { once: true });
+  button.disabled = true; onStatus('Procurando a sala…');
   try {
-    const t = await Tun.guestConnect(code, (s) => ($('#home-error').textContent = s));
+    const t = await Tun.guestConnect(code, onStatus, { signal });
+    if (signal?.aborted) return;
     const a = parseAddr(t.addr);
-    const info = await fetch(`http://${a.text}/api/info`).then((r) => r.json());
+    const info = await fetch(`http://${a.text}/api/info`, { signal: signal || AbortSignal.timeout(7000) }).then((r) => r.json());
+    if (signal?.aborted) return;
     if (info.needsPassword && !password) { Tun.guestClose(); $('#home-error').textContent = 'Essa sala tem senha.'; showJoinPass(); $('#btn-join').disabled = false; return; }
     S.isHost = false; S.hostKey = null; S.viaCode = code; S.code = code; S.joinedAt = Date.now(); S.forceGuest = false;
     addRecent(code, info.name);
     connect(a, password, true);
   } catch (e) {
+    if (signal?.aborted) return;
     Tun.guestClose();
-    if(e.message==='notfound' && native?.rooms){
+    if(e.message==='notfound' && native?.rooms && !signal){
       const cached=(await native.rooms.list()).find(r=>fmtCode(r.code)===code);
-      if(cached && await confirmModal('Ninguém está hospedando','Este PC tem uma cópia desta sala. Abrir aqui com o mesmo código?','Abrir sala',false)) {$('#btn-join').disabled=false;return openStoredRoom(cached);}
+      if(cached && await confirmModal('A sala não está aberta','Este PC tem uma cópia desta sala. Abrir aqui com o mesmo código?','Abrir sala',false)) {$('#btn-join').disabled=false;return openStoredRoom(cached);}
     }
     const msg = {
       notfound: `Não achei a sala ${code}. Confere o código ou pede pra galera abrir a sala.`,
       nobroker: 'Sem internet, ou algo está bloqueando o app (antivírus/firewall).',
       p2p: 'Achei a sala, mas não consegui ligar os dois PCs.\nA rede de um de vocês bloqueia conexão direta (comum em rede de faculdade/empresa ou 4G). Tente trocar quem abre a sala.',
     }[e.message] || 'Erro: ' + e.message;
-    $('#home-error').textContent = msg;
+    if (signal) throw new Error(msg);
+    setHomeStatus(msg);
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+    if (!signal?.aborted) button.disabled = false;
   }
-  $('#btn-join').disabled = false;
 }
 // PWA (celular/tablet pelo navegador): acha a sala pelo código e conecta por dentro do túnel (pwa/pwa.js).
 const PWA_ADDR = { text: 'túnel', host: 'tunel', port: 0 };

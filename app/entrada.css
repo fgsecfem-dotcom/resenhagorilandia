@@ -14,3 +14,16 @@
   #home .home-profile-d.first-run .avatar-edit { width: 48px; height: 48px; }
   #home .welcome-go { grid-column: 2 / -1; justify-self: end; }
 }
+
+@keyframes entrada-spin { to { rotate: 360deg; } }
+
+/* ---- Linha de status: altura reservada, spinner de 14 px, vermelho só em falha confirmada ---- */
+#home #home-error { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-height: 28px; margin: -6px 4px 0; font-size: 14px; line-height: 24px; white-space: pre-line; }
+#home #home-error:empty { display: flex; }
+html.reduce-motion #home #home-error.busy::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { #home #home-error.busy::before { animation: none; } }
+#home #home-error.neutral { color: var(--muted); }
+#home #home-error.busy:not(:empty)::before { content: ''; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--muted) 30%, transparent); border-top-color: var(--muted); animation: entrada-spin .8s var(--ease-out) infinite; margin-right: -4px; }
+#home #home-error .st-btn { min-height: 28px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--text-hi); font: inherit; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; transition: background-color var(--dur-press, 120ms) var(--ease-out); }
+#home #home-error .st-btn:hover { background: var(--hover); }
+#home #home-error .st-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }

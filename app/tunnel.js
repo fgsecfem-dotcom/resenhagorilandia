@@ -119,16 +119,20 @@ const Tun = (() => {
 
   // ---------- Convidado ----------
   // Resolve com o endereço local (127.0.0.1:porta) que já leva até a sala do anfitrião
-  async function guestConnect(code, onStatus = () => {}, { attempts = 3, timeoutMs = 20000 } = {}) {
+  async function guestConnect(code, onStatus = () => {}, { attempts = 3, timeoutMs = 20000, signal } = {}) {
+    const check = () => signal?.throwIfAborted();
+    check();
     guestClose(true);
     const [port, ice] = await Promise.all([T.guestStart(code), tunConfig()]);
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      onStatus(attempt === 1 ? 'Procurando a sala...' : `Tentando de novo (${attempt}/${attempts})...`);
+      check();
+      onStatus(attempt === 1 ? 'Procurando a sala…' : `Tentando de novo (${attempt}/${attempts})…`);
       const pc = new RTCPeerConnection(ice.cfg);
       const g = { pc, chans: new Map(), ctl: pc.createDataChannel('ctl') };
       guest = g;
       await pc.setLocalDescription(await pc.createOffer());
       await gatherDone(pc, { relay: ice.turn, relayOnly: ice.relayOnly });
+      check();
       const r = await T.guestOffer({ type: 'offer', sdp: pc.localDescription.sdp }, timeoutMs);
       if (guest !== g) { pc.close(); throw new Error('cancelado'); }
       if (!r || !r.ok || !r.sdp) {
@@ -147,6 +151,7 @@ const Tun = (() => {
         };
         g.ctl.onopen = chk; pc.onconnectionstatechange = chk; chk();
       });
+      check();
       if (!ok) { pc.close(); guest = null; if (attempt === attempts) throw new Error('p2p'); continue; }
       pc.onconnectionstatechange = () => {
         log('convidado', pc.connectionState);
@@ -157,6 +162,7 @@ const Tun = (() => {
       };
       const stats = await pc.getStats(); let kind = '';
       stats.forEach((s) => { if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') { const l = stats.get(s.localCandidateId); kind = l && l.candidateType; } });
+      check();
       log('túnel pronto via', kind);
       T.ready(true);
       return { addr: '127.0.0.1:' + port, kind };

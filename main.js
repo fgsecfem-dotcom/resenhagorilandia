@@ -318,7 +318,7 @@ async function stopHost(code = 4002) {
 
 // ---------- IPC ----------
 ipcMain.handle('host:start', async (e, opts) => {
-  if(opts.resume){const ticket=pendingClaims.get(norm(opts.code));if(!ticket||ticket.until<Date.now())return {ok:false,error:'A reivindicação expirou. Verifique a sala novamente.'};opts.claim=ticket.claim;pendingClaims.delete(norm(opts.code));}
+  if(opts.resume){const ticket=pendingClaims.get(norm(opts.code));if(!ticket||ticket.until<Date.now())return {ok:false,error:'O tempo para abrir a sala acabou. Tente de novo.'};opts.claim=ticket.claim;pendingClaims.delete(norm(opts.code));}
   await stopHost();
   const hostKey = crypto.randomBytes(16).toString('hex');
   const safeRoom = String(opts.roomName || 'sala').replace(/[^\w\- ]/g, '_').slice(0, 40) || 'sala';
@@ -380,7 +380,7 @@ ipcMain.handle('rooms:inspect',(e,code)=>tunnel.inspect(norm(code)));
 ipcMain.handle('rooms:claim',async(e,{code,id})=>{
   const snap=roomStore.get(code);if(!snap)return {state:'missing'};
   const claim={id:String(id).slice(0,40)+'-'+roomActor,revision:snap.revision};
-  const result=await tunnel.inspect(snap.code,{claim});
+  const result=await tunnel.inspect(snap.code,{claim,connectMs:3000});
   if(result.state==='won')pendingClaims.set(snap.code,{claim,until:Date.now()+30000});
   return {...result,snapshot:snap};
 });
