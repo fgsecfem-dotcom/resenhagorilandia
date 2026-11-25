@@ -447,6 +447,7 @@
     }, opts);
     return {
       update,
+      shortcut(a) { if (a === 'chat') showChat(!chatOpen); if (a === 'liveFull') requestFull(lives.get(activeLive)); },
       speaking(ids) {
         speakingIds = ids;
         for (const records of [people, faces]) for (const [id, { el }] of records) el.classList.toggle('is-speaking', ids.has(id));
@@ -464,6 +465,7 @@
     mount(root, actions) { room = mount(root, actions); },
     update(model) { room?.update(model); },
     speaking(ids) { room?.speaking(ids); },
+    shortcut(a) { room?.shortcut(a); },
     unmount() { room?.unmount(); room = null; },
   });
 })();

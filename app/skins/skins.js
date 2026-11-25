@@ -27,5 +27,5 @@ window.ResenhaSkins = (() => {
     try { cur.update(model); } catch (e) { console.error('[skin] update', theme, e); }
   }
   function speaking(ids) { try { cur?.speaking?.(ids); } catch (e) { console.error('[skin] speaking', curName, e); } }
-  return { register: (name, skin) => reg.set(name, skin), has: (name) => reg.has(name), sync, speaking, stop, get active() { return curName; } };
+  return { register: (name, skin) => reg.set(name, skin), has: (name) => reg.has(name), sync, speaking, stop, shortcut: (action) => cur?.shortcut?.(action), get active() { return curName; } };
 })();

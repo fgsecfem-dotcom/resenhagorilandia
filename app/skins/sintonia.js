@@ -616,5 +616,6 @@
     state = null;
   }
 
-  window.ResenhaSkins.register('sintonia', { mount, update, speaking, unmount });
+  function shortcut(a) { if (a === 'chat') setChat(!state.chatOpen); if (a === 'liveFull' && state.video.videoWidth) state.actions.fullscreen(state.video)?.catch?.(() => {}); }
+  window.ResenhaSkins.register('sintonia', { mount, update, speaking, unmount, shortcut });
 })();

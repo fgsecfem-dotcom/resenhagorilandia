@@ -228,3 +228,9 @@ html.reduce-motion #modal-root .settings-dialog .tp { animation: none; }
 .modal.invite-dialog .invite-primary svg { margin-right: 4px; }
 .invite-dialog .invite-phone { display: flex; align-items: center; gap: 16px; padding: 12px; }
 .invite-phone img { flex: none; background: #fff; border-radius: 8px; }
+
+
+.settings-shortcuts { display: grid; gap: 4px; }
+.settings-key-row { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-key-row button { min-width: 112px; color: var(--text-hi); }
+.settings-key-note { margin-block: 8px; min-height: 20px; color: var(--text-hi); }

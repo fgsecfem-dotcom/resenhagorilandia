@@ -29,12 +29,17 @@ const LS = {
 };
 const COLORS = ['#5865f2', '#eb459e', '#57f287', '#fee75c', '#ed4245', '#f47b67', '#3ba55c', '#faa61a', '#9b59b6', '#1abc9c'];
 const me = LS.get('profile', { name: '', color: COLORS[Math.floor(Math.random() * COLORS.length)], avatar: null });
+const SHORTCUTS = {
+  mute: ['keyMute', 'Mutar/desmutar microfone'], deafen: ['keyDeafen', 'Mutar som e microfone'],
+  ptt: ['keyPtt', 'Apertar para falar'], share: ['keyShare', 'Compartilhar/parar tela'], leave: ['keyLeave', 'Sair da call'],
+  chat: ['keyChat', 'Abrir/fechar chat'], liveFull: ['keyLiveFull', 'Tela cheia da live'],
+};
 const settings = Object.assign({
   mutedRooms: {},
   inputDevice: 'default', outputDevice: 'default', micGain: 100, autoSens: true, threshold: -55,
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
-  keyMute: '', keyDeafen: '', chatWidth: 360, sidebarWidth: 264,
+  ...Object.fromEntries(Object.values(SHORTCUTS).map(([k]) => [k, ''])), pttRelease: 0, chatWidth: 360, sidebarWidth: 264,
   layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
@@ -84,6 +89,9 @@ const V = {
   windowVisible: true, focus: null, monitor: null,
   djAudio: null, djGain: null, djAnalyser: null, djTrack: null,
 };
+let pttPressed = false, pttTimer;
+const heldMicBlocked = () => !!settings.keyPtt && !pttPressed;
+const micMuted = () => V.muted || V.deafened || heldMicBlocked();
 const semisToRatio = (s) => Math.pow(2, s / 12);
 
 // ---------------- Utilidades de UI ----------------
@@ -880,7 +888,7 @@ function handle(m) {
       if (V.joined) { // reconectou (troca de anfitrião): a voz continuou, só avisa o novo servidor
         if (!chanById(V.channel)) V.channel = voiceChannels()[0]?.id;
         const kept = S.users.get(S.myId)?.voiceChannel === V.channel; // o servidor segurou meu lugar na call?
-        wsSend({ t: 'state', voiceChannel: V.channel, muted: V.muted, deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
+        wsSend({ t: 'state', voiceChannel: V.channel, muted: micMuted(), deafened: V.deafened, sharing: !!V.screen, screenStreamId: V.screen ? V.screen.id : null });
         if (S.softResume && !kept) { // demorou demais (ou anfitrião antigo): os outros fecharam a voz comigo, então refaço
           for (const uid of [...V.peers.keys()]) resetPeer(uid, false);
           for (const u of usersIn(V.channel)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
@@ -1080,7 +1088,7 @@ function tickTimers() {
   $$('#voice-channels .timer').forEach((t) => { const s = +t.dataset.since; t.textContent = s ? fmtDur(serverNow() - s) : ''; });
 }
 function isSpeaking(id) {
-  if (id === S.myId) return V.joined && !V.muted && !V.deafened && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
+  if (id === S.myId) return V.joined && !micMuted() && (settings.aiNoise && (V.rnReady || V.dfnReady) ? V.vadOpen : V.gateOpen);
   return V.speaking.has(id);
 }
 
@@ -1162,10 +1170,10 @@ function updateTile(key, u, isScreen) {
     const tools = t.querySelector('.tile-tools');
     const full = document.fullscreenElement === t;
     // Rebuild only when the controls change, so a volume drag or keyboard focus survives other people's updates.
-    const toolsSig = [watching, V.muted || V.deafened, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
+    const toolsSig = [watching, micMuted(), settings.keyLiveFull, V.deafened, !!stream, !!v?.paused, full, self, WEB_VIEWER && !WEB_VOICE].join();
     if (tools.dataset.sig !== toolsSig) {
     tools.dataset.sig = toolsSig;
-    tools.innerHTML = watching ? `<button class="live-call-control ${V.muted || V.deafened ? 'off' : ''}" title="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${V.muted || V.deafened ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${V.muted || V.deafened}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(V.muted || V.deafened ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${full ? 'Sair da tela cheia' : 'Tela cheia'}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
+    tools.innerHTML = watching ? `<button class="live-call-control ${micMuted() ? 'off' : ''}" title="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-label="${micMuted() ? 'Ativar microfone' : 'Mutar microfone'}" aria-pressed="${micMuted()}" data-live-mic ${WEB_VIEWER && !WEB_VOICE ? 'disabled' : ''}>${icon(micMuted() ? 'micOff' : 'mic', 22)}</button><button class="live-call-control ${V.deafened ? 'off' : ''}" title="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-label="${V.deafened ? 'Ativar áudio' : 'Desativar áudio (deafen)'}" aria-pressed="${V.deafened}" data-live-deafen>${icon(V.deafened ? 'headphonesOff' : 'headphones', 22)}</button>${stream ? `<button class="live-call-control" title="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" aria-label="${v?.paused ? 'Retomar vídeo' : 'Pausar vídeo'}" data-live-pause>${icon(v?.paused ? 'play' : 'pause', 22)}</button>` : ''}<button title="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" aria-label="${self ? 'Ocultar prévia' : 'Sair da transmissão'}" data-stop>${icon('x', 18)}<span class="live-exit-label">${self ? 'Ocultar prévia' : 'Sair da transmissão'}</span></button>${stream ? `<button title="${esc(shortcutTip(full ? 'Sair da tela cheia' : 'Tela cheia', 'liveFull'))}" aria-label="${full ? 'Sair da tela cheia' : 'Tela cheia'}" data-full>${icon(full ? 'minimize' : 'maximize', 18)}</button>` : ''}` : '';
     $('[data-stop]', tools)?.addEventListener('click', async (e) => {
       e?.stopPropagation();
       if (document.fullscreenElement === t) await document.exitFullscreen().catch(() => {});
@@ -1290,14 +1298,14 @@ function renderCall() {
   }
   flip?.play();
 
-  $('#cc-mute').innerHTML = icon(V.muted || V.deafened ? 'micOff' : 'mic', 24);
-  $('#cc-mute').classList.toggle('off', V.muted || V.deafened);
+  $('#cc-mute').innerHTML = icon(micMuted() ? 'micOff' : 'mic', 24);
+  $('#cc-mute').classList.toggle('off', micMuted());
   $('#cc-deafen').innerHTML = icon(V.deafened ? 'headphonesOff' : 'headphones', 24);
   $('#cc-deafen').classList.toggle('off', V.deafened);
   // On the desktop app the button edits a running live (change or stop); the browser can only stop it.
   $('#cc-share').innerHTML = icon(V.screen && !native ? 'screenOff' : 'screen', 24);
   $('#cc-share').classList.toggle('on', !!V.screen);
-  $('#cc-share').title = !V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar';
+  applyShortcutTips();
   $('#cc-leave').innerHTML = icon('phoneOff', 18) + '<span>Sair da call</span>';
 }
 function layoutGrid() {
@@ -1339,7 +1347,7 @@ function skinModel() {
     voice: voiceChannels().map((c) => ({ id: c.id, name: c.name, here: V.joined && V.channel === c.id, users: usersIn(c.id).map(skinUser) })),
     text: textChannels().map((c) => ({ id: c.id, name: c.name, active: c.id === S.textChannel, unread: S.unread.has(c.id) && c.id !== S.textChannel })),
     lobby: [...S.users.values()].filter((u) => !u.voiceChannel).map(skinUser),
-    call: { joined: V.joined, channel: V.channel, muted: V.muted || V.deafened, deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
+    call: { joined: V.joined, channel: V.channel, muted: micMuted(), deafened: V.deafened, sharing: !!V.screen, dj: !!(S.dj && S.dj.active && S.dj.channelId === V.channel), djAvailable: !!S.djAvailable, canShare: !WEB_VIEWER },
     live,
     chat: { channel: txt ? { id: txt.id, name: txt.name } : null,
       messages: curMessages().slice(-60).map((m) => ({ id: m.id, uid: m.bot ? DJ_ID : m.userId, name: m.name, color: m.color, text: m.text || '', ts: m.ts, me: m.userId === S.myId, bot: !!m.bot, system: !!m.system, files: (m.attachments || []).length })) },
@@ -1372,7 +1380,7 @@ function syncSkinSpeaking() {
   if (sig !== skinSpeakSig) { skinSpeakSig = sig; window.ResenhaSkins.speaking(new Set(ids)); }
 }
 addEventListener('resenha-theme', () => syncSkin());
-function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: V.muted || V.deafened, deafened: V.deafened }); }
+function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: micMuted(), deafened: V.deafened }); }
 
 function refreshSpeaking() {
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
@@ -1575,7 +1583,8 @@ async function joinVoice(channelId) {
   if (attempt !== V.voiceAttempt || S.closing) return;
   V.joined = true; V.channel = channelId; watchDevices();
   if (V.deafened) V.muted = true;
-  wsSend({ t: 'state', voiceChannel: channelId, muted: V.muted, deafened: V.deafened });
+  updatePttTrack();
+  wsSend({ t: 'state', voiceChannel: channelId, muted: micMuted(), deafened: V.deafened });
   sfx('join');
   for (const u of usersIn(channelId)) if (u.id !== S.myId && u.id !== DJ_ID) getPeer(u.id);
   setConnStatus('good', 'Voz conectada');
@@ -1593,6 +1602,7 @@ function leaveVoice(silentSwitch) {
 }
 function teardownVoice() {
   if (perf.timer) perfStop();
+  clearTimeout(pttTimer); pttPressed = false; updatePttTrack();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
   stopShare(true);
   for (const id of [...V.peers.keys()]) closePeer(id);
@@ -1607,22 +1617,22 @@ function teardownVoice() {
 function setMuted(m, silent) {
   if (WEB_VIEWER && !WEB_VOICE) return;
   if (V.deafened && !m) { setDeafened(false); return; }
-  V.muted = m; LS.set('muted', m);
+  V.muted = m; LS.set('muted', m); updatePttTrack();
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
-  wsSend({ t: 'state', muted: V.muted, deafened: V.deafened });
+  wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
 }
 function setDeafened(d) {
   if (d) { V.mutedBeforeDeafen = V.muted; V.muted = true; }
   else { V.muted = V.mutedBeforeDeafen; }
-  V.deafened = d;
+  V.deafened = d; updatePttTrack();
   if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
   if (V.master) V.master.gain.value = d ? 0 : 1;
   if (V.screenMaster) V.screenMaster.gain.value = d ? 0 : 1;
   sfx(d ? 'mute' : 'unmute');
-  wsSend({ t: 'state', muted: V.muted, deafened: V.deafened });
+  wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
 }
 
@@ -3063,7 +3073,8 @@ function openViewerSettings() {
 async function openSettings(tab = 'voz') {
   if (WEB_VIEWER) return openViewerSettings();
   const opener = document.activeElement;
-  if ($('.settings-dialog:not([inert])')?.closest('.overlay:not([inert])')) return;
+  if ($('.overlay:not([inert]) > .settings-dialog')) return;
+  clearTimeout(pttTimer); setPttPressed(false);
   const inDevs = await listDevices('audioinput');
   const outDevs = await listDevices('audiooutput');
   const opt = (list, cur) => `<option value="default">Padrão do Windows</option>` + list.map((d) => `<option value="${esc(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || 'Dispositivo')}</option>`).join('');
@@ -3071,7 +3082,7 @@ async function openSettings(tab = 'voz') {
   if ($('.overlay:not([inert]) > .settings-dialog')) return;
   const tabButton = ([id, name]) => `<button type="button" class="tab" data-t="${id}" id="st-tab-${id}" role="tab" aria-controls="st-panel-${id}" tabindex="-1">${name}</button>`;
   const tabs = [['voz', 'Voz'], ['filtros', 'Filtros de voz'], ['aparencia', 'Aparência'], ['perfil', 'Perfil'], ...(native ? [['atalhos', 'Atalhos']] : [])];
-  let cancelAppearance;
+  let cancelAppearance, cancelShortcutRecording;
   const closeSettingsMic = () => { if (!V.joined && V.src) { V.raw.getTracks().forEach((t) => t.stop()); V.src.disconnect(); V.src = null; V.raw = null; } };
   const m = openModal(`<header><h2 id="st-title">Configurações</h2><button class="icon-btn" data-close aria-label="Fechar configurações">${icon('x')}</button></header>
     <div class="tabs" role="tablist" aria-label="Seções de configurações">${tabs.map(tabButton).join('')}${overlayClient ? overlayClient.tabHTML() : ''}</div>
@@ -3145,15 +3156,16 @@ async function openSettings(tab = 'voz') {
         <button class="btn" id="st-monitor">${icon('headphones', 16)} Testar: ouvir minha voz</button>
       </div>
       <div class="tp" data-p="atalhos">
-        <div class="settings-grid">
-          <div class="field"><label>Mutar/desmutar microfone</label><div class="kbd" data-key="keyMute">${esc(settings.keyMute || 'Nenhum')}</div></div>
-          <div class="field"><label>Mutar som e microfone</label><div class="kbd" data-key="keyDeafen">${esc(settings.keyDeafen || 'Nenhum')}</div></div>
-        </div><p class="muted small" style="margin:0">Funcionam até dentro do jogo. Clique e aperte a combinação. Esc limpa.</p>
+        <p class="muted small">Escolha uma combinação para usar mesmo com o jogo aberto. Esc limpa a tecla.</p>
+        <div class="settings-shortcuts">${Object.entries(SHORTCUTS).map(([a, [k, title]]) => `<div class="settings-key-row"><label for="st-key-${a}">${title}</label><button type="button" class="kbd" id="st-key-${a}" data-key="${a}">${esc(settings[k] || 'Nenhum')}</button></div>`).join('')}</div>
+        <p class="settings-key-note muted small" id="st-key-note" role="status"></p>
+        <div class="field"><label for="st-ptt-release">Atraso ao soltar <output id="st-ptt-ms">${pttDelay()} ms</output></label><input id="st-ptt-release" type="range" min="0" max="500" step="10" value="${pttDelay()}"></div>
+        <p class="muted small">No Windows, escolha uma tecla só para falar. Com o atalho definido, mantenha o microfone ligado e segure a tecla para transmitir.</p>
       </div>
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
     <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
   const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
@@ -3238,26 +3250,7 @@ async function openSettings(tab = 'voz') {
   $$('.fx-btn', el).forEach((b) => b.onclick = () => { settings.voiceFx = b.dataset.fx; saveSettings(); applyVoiceFx(); fxUI(); });
   $('#st-semis', el).oninput = (e) => { settings.pitchSemis = +e.target.value; $('#st-semis-v', el).textContent = (settings.pitchSemis > 0 ? '+' : '') + settings.pitchSemis; saveSettings(); applyVoiceFx(); };
   $('#st-monitor', el).onclick = () => { setMonitor(!V.monitor); $('#st-monitor', el).classList.toggle('primary', !!V.monitor); $('#st-monitor', el).innerHTML = `${icon('headphones', 16)} ${V.monitor ? 'Parar teste' : 'Testar: ouvir minha voz'}`; };
-  // Atalhos
-  $$('.kbd', el).forEach((k) => k.onclick = () => {
-    $$('.kbd', el).forEach((x) => x.classList.remove('rec'));
-    k.classList.add('rec'); k.textContent = 'Aperte as teclas...';
-    const onKey = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
-      const parts = []; if (e.ctrlKey) parts.push('Control'); if (e.altKey) parts.push('Alt'); if (e.shiftKey) parts.push('Shift');
-      let key = e.code.replace(/^Key/, '').replace(/^Digit/, '');
-      if (!/^F\d+$/.test(key) && key.length > 1 && !/^(Numpad\d|Space|Insert|Home|End|PageUp|PageDown|Pause)$/.test(key)) key = e.key.length === 1 ? e.key.toUpperCase() : key;
-      if (key.startsWith('Numpad') && /\d/.test(key)) key = 'num' + key.slice(6);
-      const accel = e.key === 'Escape' ? '' : [...parts, key].join('+');
-      settings[k.dataset.key] = accel; saveSettings();
-      k.textContent = accel || 'Nenhum'; k.classList.remove('rec');
-      document.removeEventListener('keydown', onKey, true);
-      if (WEB_VIEWER) { import('./mobile.js').then(m=>m.initMobile(window.__resenha)); }
-registerShortcuts();
-    };
-    document.addEventListener('keydown', onKey, true);
-  });
+  cancelShortcutRecording = bindShortcuts(el);
   // Medidor
   try {
     await ensureAudio();
@@ -3286,15 +3279,111 @@ function setMonitor(on) {
   if (on && !V.monitor) { V.monitor = V.ctx.createGain(); V.monitor.gain.value = 1; V.post.connect(V.monitor); V.monitor.connect(V.ctx.destination); }
   if (!on && V.monitor) { try { V.post.disconnect(V.monitor); V.monitor.disconnect(); } catch {} V.monitor = null; }
 }
+const pttDelay = () => clamp(Math.round(Number(settings.pttRelease) || 0), 0, 500);
+function updatePttTrack() {
+  const track = V.dest?.stream.getAudioTracks()[0];
+  if (track) track.enabled = !micMuted(); // trava a própria trilha enviada; nunca altera o mute escolhido.
+}
+function setPttPressed(on) {
+  if (pttPressed === on) return;
+  pttPressed = on; updatePttTrack();
+  if (V.joined) { wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened }); renderAll(); }
+}
+function shortcutTip(label, ...actions) {
+  const keys = actions.map((a) => settings[SHORTCUTS[a][0]]).filter(Boolean);
+  return keys.length ? `${label} · ${keys.join(' / ')}` : label;
+}
+function applyShortcutTips() {
+  $('#cc-mute').title = shortcutTip('Mutar/desmutar microfone', 'mute', 'ptt');
+  $('#cc-deafen').title = shortcutTip('Mutar/ativar som e microfone', 'deafen');
+  $('#cc-share').title = shortcutTip(!V.screen ? 'Compartilhar tela' : native ? 'Alterar ou parar a transmissão' : 'Parar de compartilhar', 'share');
+  $('#cc-leave').title = shortcutTip('Sair da call', 'leave');
+  $('#btn-chat-toggle').title = shortcutTip('Mostrar ou esconder a conversa', 'chat');
+}
+function accelerator(e) {
+  const parts = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Command'].filter(Boolean);
+  const special = { ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down', Backquote: '`', Quote: "'", Comma: ',', Period: '.', Minus: '-', Equal: '=', Semicolon: ';', Slash: '/', BracketLeft: '[', BracketRight: ']', Backslash: '\\' };
+  const physical = /^(?:Key|Digit)([A-Z0-9])$/.exec(e.code);
+  const num = /^Numpad([0-9])$/.exec(e.code);
+  const k = num ? `num${num[1]}` : physical?.[1] || special[e.code] || e.code;
+  return k ? [...parts, k].join('+') : null;
+}
+function shortcutMap() { return Object.fromEntries(Object.entries(SHORTCUTS).map(([a, [k]]) => [a, settings[k]])); }
 async function registerShortcuts() {
   if (!native) return;
-  const r = await native.setShortcuts({ mute: settings.keyMute, deafen: settings.keyDeafen });
-  for (const [k, ok] of Object.entries(r || {})) if (!ok) toast(`Não consegui registrar o atalho ${k === 'mute' ? settings.keyMute : settings.keyDeafen} (outro programa usa?)`, 'err');
+  const r = await native.setShortcuts(shortcutMap());
+  for (const [a, ok] of Object.entries(r || {})) if (!ok) toast(`Atalho indisponível: ${SHORTCUTS[a][1]} (${settings[SHORTCUTS[a][0]]})`, 'err');
+  applyShortcutTips();
+}
+function bindShortcuts(el) {
+  if (!native) return;
+  const note = $('#st-key-note', el);
+  let pending = false, armed;
+  const restore = () => native.setShortcuts(shortcutMap()).catch(() => { note.textContent = 'Não foi possível restaurar os atalhos.'; });
+  for (const btn of $$('[data-key]', el)) {
+    const a = btn.dataset.key, [k, title] = SHORTCUTS[a];
+    const reset = () => { btn.onkeydown = null; btn.classList.remove('rec'); btn.textContent = settings[k] || 'Nenhum'; };
+    btn.disabled = a === 'ptt' && !document.documentElement.classList.contains('os-win32');
+    btn.onblur = () => { if (armed === btn) { armed = null; reset(); restore(); } };
+    btn.onclick = () => {
+      if (pending || armed) return;
+      armed = btn;
+      // Devolve as teclas ao app durante a gravação, inclusive as já usadas em outro atalho.
+      native.setShortcuts({}).catch(() => { if (armed === btn) { armed = null; reset(); note.textContent = 'Não foi possível iniciar a gravação.'; } });
+      note.textContent = ''; btn.classList.add('rec'); btn.textContent = 'Aperte as teclas…';
+      btn.onkeydown = async (e) => {
+        if (e.key === 'Tab') return;
+        e.preventDefault(); e.stopPropagation();
+        if (e.repeat || ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+        armed = null; reset();
+        const key = e.key === 'Escape' ? '' : accelerator(e);
+        if (key == null || key === settings[k]) { restore(); return; }
+        if (a === 'ptt' && key.includes('+')) { restore(); note.textContent = 'Para falar, escolha uma tecla sem modificadores.'; return; }
+        const duplicate = Object.entries(SHORTCUTS).find(([action, [field]]) => action !== a && key && String(settings[field]).toLowerCase() === key.toLowerCase());
+        if (duplicate) { restore(); note.textContent = `${key} já está em uso: ${duplicate[1][1]}.`; return; }
+        pending = true;
+        try {
+          const r = await native.setShortcuts({ ...shortcutMap(), [a]: key });
+          if (key && !r?.[a]) {
+            await native.setShortcuts(shortcutMap());
+            note.textContent = `${key} não está disponível para ${title.toLowerCase()}. Tente outra tecla.`; return;
+          }
+          if (a === 'ptt') { clearTimeout(pttTimer); pttPressed = false; }
+          settings[k] = key; saveSettings(); reset(); updatePttTrack();
+          if (V.joined) { wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened }); renderAll(); } else applyShortcutTips();
+        } catch { restore(); note.textContent = 'Não foi possível registrar o atalho. Tente novamente.'; }
+        finally { pending = false; }
+      };
+    };
+  }
+  $('#st-ptt-release', el).oninput = (e) => { settings.pttRelease = +e.target.value; saveSettings(); $('#st-ptt-ms', el).textContent = `${pttDelay()} ms`; };
+  return () => { if (armed) { armed = null; restore(); } };
+}
+function shortcutBlocked() { return !!$('#modal-root > .overlay:not([inert])'); }
+async function toggleLiveFullscreen() {
+  if (shortcutBlocked()) return;
+  if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
+  if (window.ResenhaSkins?.active) { window.ResenhaSkins.shortcut('liveFull'); return; }
+  const live = $('.focus-main [data-full]') || $('#call [data-full]');
+  live?.click();
 }
 if (native) native.onShortcut((a) => {
+  if (a.startsWith('ptt-')) {
+    clearTimeout(pttTimer);
+    if (a === 'ptt-down') { if (V.joined && settings.keyPtt && !shortcutBlocked()) setPttPressed(true); }
+    else if (a === 'ptt-up' && pttPressed && pttDelay()) pttTimer = setTimeout(() => setPttPressed(false), pttDelay());
+    else setPttPressed(false);
+    return;
+  }
+  if (shortcutBlocked()) return;
   if (a === 'mute') setMuted(!(V.muted || V.deafened));
   if (a === 'deafen') setDeafened(!V.deafened);
   if (a === 'leave') leaveVoice();
+  if (a === 'share' && V.joined) { if (V.screen) stopShare(); else toggleShare(); }
+  if (a === 'chat' && !$('#main').classList.contains('hidden')) {
+    if (window.ResenhaSkins?.active) window.ResenhaSkins.shortcut('chat');
+    else $('#btn-chat-toggle').click();
+  }
 });
 
 // ---------------- Menu da sala ----------------
@@ -3622,7 +3711,7 @@ function watchDevices() {
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (V.joined && settings.inputDevice === 'default') openMic().catch(() => {}); });
 }
 
-window.__resenha = { showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
+window.__resenha = { toggleLiveFullscreen, showUpdateState, openWhatsNew, openSettings, WEB_VOICE, ensureAudio, openMic, volumeGain, saveSettings, userMenu, toast, connect, parseAddr, setWatching, openDM, toggleFriend, getPeer, onSignal, renderCall, failover, successionOrder, applyLayout, resetLayout, joinByCode, S, V, settings, joinVoice, leaveVoice, setMuted, setDeafened, sendMessage, hostRoom, joinRoom, toggleShare, startShareWithStream, applyUserVolume, applyVoiceFx, applyNoiseMode, selectTextChannel, openDJPanel, summonDJ, startEdit, msgAction, deviceMenu, wsSend, openSettings, openLiveAudioTest, runLiveAudioTest };
 // 2.6: seis temas. Quem usava um tema antigo vai para o mais parecido; no Resenha, a paleta também vem dele.
 { const now = window.savedTheme(settings.theme, settings.themeColor);
   if (now.theme !== settings.theme || now.color !== settings.themeColor) { settings.theme = now.theme; settings.themeColor = now.color; saveSettings(); } }

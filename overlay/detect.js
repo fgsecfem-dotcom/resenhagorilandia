@@ -94,4 +94,14 @@ function createHold({ watch, onHold, onRelease, tolerance = 300, setTimer = setT
   };
 }
 
-module.exports = { isGame, vkFor, validKey, place, snap, createHold, ANCHORS, KNOWN, BLOCK };
+const SHORTCUT_ACTIONS = ['mute', 'deafen', 'ptt', 'share', 'leave', 'chat', 'liveFull'];
+const MODS = ['Control', 'Alt', 'Shift', 'Command'];
+function shortcutKey(value, hold = false) {
+  if (typeof value !== 'string' || value.length > 48 || value !== value.trim()) return '';
+  const parts = value.split('+'), key = parts.pop();
+  if (new Set(parts).size !== parts.length || parts.some(k => !MODS.includes(k))) return '';
+  if (hold && (parts.length || !validKey(key))) return '';
+  const allowed = /^[A-Z0-9]$|^F(?:[1-9]|1[0-9]|2[0-4])$|^num[0-9]$/.test(key) || ['Space', 'Insert', 'Home', 'End', 'PageUp', 'PageDown', 'Pause', 'Up', 'Down', 'Left', 'Right', 'Delete', 'Backspace', '`', "'", ',', '.', '-', '=', ';', '/', '[', ']', '\\'].includes(key);
+  return allowed ? [...MODS.filter(k => parts.includes(k)), key].join('+') : '';
+}
+module.exports = { SHORTCUT_ACTIONS, shortcutKey, isGame, vkFor, validKey, place, snap, createHold, ANCHORS, KNOWN, BLOCK };

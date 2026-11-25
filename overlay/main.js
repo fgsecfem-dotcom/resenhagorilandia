@@ -4,6 +4,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { isGame, vkFor, validKey, place, snap, createHold } = require('./detect');
 
+const startWindowsHelper = () => spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'helper.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
 const POLL_MS = 1500, SHRINK_DELAY = 360, IDLE_DESTROY_MS = 20000;
 
 function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, getMain, isTest }) {
@@ -18,7 +19,7 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
     if (helper || !enabledPlatform) return;
     let p;
     try {
-      p = helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'helper.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+      p = helper = startWindowsHelper();
     } catch { helper = null; return; }
     let buf = ''; // cada processo tem o seu: o "exit" de um ajudante antigo não pode mexer no novo
     p.stdout.setEncoding('utf8');
@@ -199,7 +200,62 @@ function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, ge
     }
   });
 
-  return { syncHotkey: () => { registered = ''; register(active); }, dispose: () => { stopPolling(); register(false); [demoTimer, toggleTimer, shrinkTimer, holdTimer, idleTimer].forEach(clearTimeout); destroyWindow(); stopHelper(); }, isActive: () => active };
+  return { hotkey: () => cfg.enabled ? cfg.key : '', syncHotkey: () => { registered = ''; register(active); }, dispose: () => { stopPolling(); register(false); [demoTimer, toggleTimer, shrinkTimer, holdTimer, idleTimer].forEach(clearTimeout); destroyWindow(); stopHelper(); }, isActive: () => active };
 }
 
-module.exports = { createOverlay };
+// Usa o mesmo leitor da ilha, em outro processo: esperar a ilha soltar não pode atrasar o corte do microfone.
+function createTalkKey(send, { platform = process.platform, startHelper = startWindowsHelper, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  let helper, vk, ready = false, pressed = false, open = false, timer, deadline;
+  function finish(reason = 'ptt-cancel') {
+    pressed = false; clearTimer(timer); clearTimer(deadline);
+    if (open) { open = false; send(reason); }
+  }
+  function stop() {
+    const old = helper; helper = null; ready = false; finish();
+    try { old?.stdin.end(); old?.kill(); } catch {}
+  }
+  function ask() {
+    if (!helper || !ready || !pressed) return;
+    deadline = setTimer(stop, 300); // Sem resposta, feche o microfone antes de tentar retomar.
+    helper.stdin.write(`key ${vk}\n`);
+  }
+  function start() {
+    try { helper = startHelper(); } catch { return; }
+    const proc = helper;
+    const gone = () => { if (helper === proc) stop(); };
+    proc.on('exit', gone); proc.on('error', gone); proc.stdin.on('error', gone);
+    proc.stdout.setEncoding('utf8');
+    let buffer = '';
+    proc.stdout.on('data', (chunk) => {
+      if (helper !== proc) return;
+      buffer += chunk;
+      let idx;
+      while ((idx = buffer.indexOf('\n')) !== -1) {
+        const answer = buffer.slice(0, idx).trim(); buffer = buffer.slice(idx + 1);
+        if (answer === 'pong') { ready = true; ask(); continue; }
+        if (!pressed) continue;
+        clearTimer(deadline);
+        if (answer !== 'down') { finish(answer === 'up' ? 'ptt-up' : 'ptt-cancel'); continue; }
+        if (!open) { open = true; send('ptt-down'); }
+        timer = setTimer(ask, 25);
+      }
+    });
+    proc.stdin.write('ping\n');
+  }
+  return {
+    setKey(key) {
+      if (platform !== 'win32') return;
+      const next = vkFor(key);
+      if (next !== vk) { stop(); vk = next; }
+      if (vk != null && !helper) start();
+    },
+    press() {
+      if (vk == null || pressed) return;
+      if (!helper) start();
+      if (ready) { pressed = true; ask(); }
+    },
+    cancel() { if (pressed) { stop(); if (vk != null) start(); } },
+    dispose: stop,
+  };
+}
+module.exports = { createOverlay, createTalkKey };

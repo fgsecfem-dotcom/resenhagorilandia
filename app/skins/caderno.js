@@ -404,5 +404,6 @@
     for (const el of s.animations.keys()) cancel(el);
     s.video.pause(); s.video.srcObject = null; s = null;
   }
-  window.ResenhaSkins.register('caderno',{ mount,update,speaking,unmount });
+  function shortcut(a) { if (a === 'chat') slip(!s.open); if (a === 'liveFull' && s.video.videoWidth) fullscreen(); }
+  window.ResenhaSkins.register('caderno',{ mount,update,speaking,unmount,shortcut });
 })();
