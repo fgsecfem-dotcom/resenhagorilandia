@@ -341,7 +341,6 @@ async function openStoredRoom(room) {
   endBoot(); // os botões de status precisam ficar visíveis também na volta automática
   try {
     let password=$('#join-pass').value || $('#host-pass').value;
-    if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){password=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});if(password===null||signal.aborted)return;}
     setHomeStatus('Procurando a sala…',{busy:true,actions:[actions[1]]});
     timer=setTimeout(()=>{cancel();setHomeStatus('A sala está demorando para responder.',{note:true,actions});},8000);
     const hit=presenceCache.get(normCode(room.code));
@@ -354,7 +353,14 @@ async function openStoredRoom(room) {
     }
     if(result.state==='unknown'){setHomeStatus('Não consegui localizar a sala agora.',{note:true,actions});return;}
     if(result.state!=='won')throw new Error('Não foi possível abrir esta sala.');
-    clearTimeout(timer); active.committing=true;
+    clearTimeout(timer);
+    if((room.configuration?.needsPassword||room.configuration?.legacyPasswordUnknown)&&!password){
+      setHomeStatus('');
+      const answer=await promptModal(room.configuration?.legacyPasswordUnknown?'Senha da sala antiga (deixe vazio se não havia)':'Senha original da sala',{placeholder:'Senha que vocês já usam',inputType:'password',maxLength:512});
+      if(!answer||signal.aborted)return;
+      password=answer.value;
+    }
+    active.committing=true;
     setHomeStatus('Abrindo a sala…',{busy:true});
     const snap=result.snapshot;
     const r=await native.startHost({roomName:snap.name,port:7777,autoPort:true,password,code:snap.code,restore:snap,resume:true});

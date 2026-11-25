@@ -2,16 +2,16 @@ const assert = require('node:assert/strict'), fs = require('fs'), vm = require('
 const source = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
 const code = source.slice(source.indexOf('async function openStoredRoom('), source.indexOf('// ---------------- Servidores:', source.indexOf('async function openStoredRoom(')));
 const room = { code: 'TEST1234', name: 'Sala de teste', revision: 7, configuration: {} };
-function fixture({ state, online = false, hold = false } = {}) {
+function fixture({ state, online = false, hold = false, savedRoom = room, expectedPassword = "" } = {}) {
   let resolveClaim;
-  const count = { claim: 0, host: 0, join: 0, connect: 0 };
+  const count = { claim: 0, host: 0, join: 0, connect: 0, prompts: 0 };
   const fields = { '#join-pass': { value: '' }, '#host-pass': { value: '' }, '#btn-join': {} };
   const timers = new Map(); let id = 0, status;
   const ctx = vm.createContext({
-    native: { rooms: { claim: () => { count.claim++; return hold ? new Promise(r => { resolveClaim = r; }) : Promise.resolve({ state, snapshot: room }); } },
-      startHost: async o => { count.host++; assert.equal(o.code, room.code); assert.equal(o.restore.revision, 7); assert(o.resume); return { ok: true, port: 7777, hostKey: 'key' }; } },
+    native: { rooms: { claim: () => { count.claim++; return hold ? new Promise(r => { resolveClaim = r; }) : Promise.resolve({ state, snapshot: savedRoom }); } },
+      startHost: async o => { count.host++; assert.equal(o.code, room.code); assert.equal(o.restore.revision, 7); assert(o.resume); assert.equal(o.password, expectedPassword); return { ok: true, port: 7777, hostKey: 'key' }; } },
     S: {}, CID: 'B', checkName: () => true, $: s => fields[s], fmtCode: c => c, normCode: c => c,
-    pendingRoomOpen: null, AbortController, endBoot() {},
+    pendingRoomOpen: null, AbortController, endBoot() {}, promptModal: async () => { count.prompts++; return { value: 'senha do teste' }; },
     presenceCache: new Map(online ? [[room.code, { at: Date.now(), state: 'online' }]] : []), PRESENCE_TTL: 20000,
     setHomeStatus: (text, opts = {}) => { status = { text, ...opts }; },
     joinByCode: async c => { count.join++; assert.equal(c, room.code); }, connect: () => count.connect++, parseAddr: s => s, toast() {},
@@ -19,7 +19,7 @@ function fixture({ state, online = false, hold = false } = {}) {
     clearTimeout(timer) { timers.delete(timer); },
   });
   vm.runInContext(code, ctx);
-  return { count, ctx, go: () => ctx.openStoredRoom(room), status: () => status,
+  return { count, ctx, go: () => ctx.openStoredRoom(savedRoom), status: () => status,
     expire: () => { for (const run of [...timers.values()]) run(); }, resolve: state => resolveClaim({ state, snapshot: room }) };
 }
 (async () => {
@@ -34,6 +34,11 @@ function fixture({ state, online = false, hold = false } = {}) {
   }
   const online = fixture({ online: true }); await online.go();
   assert.equal(online.count.claim, 0); assert.equal(online.count.join, 1);
+  const protectedRoom = { ...room, configuration: { needsPassword: true } };
+  const protectedOpen = fixture({ state: 'online', savedRoom: protectedRoom }); await protectedOpen.go();
+  assert.equal(protectedOpen.count.prompts, 0, 'sala online usa o fluxo normal de senha ao entrar');
+  const protectedResume = fixture({ state: 'won', savedRoom: protectedRoom, expectedPassword: 'senha do teste' }); await protectedResume.go();
+  assert.equal(protectedResume.count.prompts, 1); assert.equal(protectedResume.count.connect, 1);
   const timed = fixture({ hold: true }); const first = timed.go();
   assert(timed.status().busy); timed.expire(); await first;
   assert.deepEqual(Array.from(timed.status().actions, a => a.label), ['Tentar de novo', 'Cancelar']);
