@@ -1,0 +1,3 @@
+/* Tema com sala própria: o tema desenha a sala inteira por cima de #main; o resto do app (menus, modais, avisos) continua igual. */
+html[data-skin] #main > :not(#skin-root) { display: none !important; }
+#skin-root { position: fixed; inset: 0; z-index: 5; overflow: hidden; contain: layout paint; }
