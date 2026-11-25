@@ -120,15 +120,15 @@ export function createOverlayClient(d) {
   }
 
   // ---- aba "Ilha" nas configurações ----
-  const tabHTML = () => (supported ? '<button type="button" class="tab" data-t="ilha" role="tab" id="st-tab-ilha" aria-controls="st-panel-ilha" tabindex="-1">Ilha</button>' : '');
+  const tabHTML = () => (supported ? '<button type="button" class="tab" data-t="ilha" role="tab" id="st-tab-ilha" aria-controls="st-panel-ilha" tabindex="-1">Overlay no jogo</button>' : '');
   const sel = (id, opts, cur) => `<select id="${id}">${opts.map(([v, t]) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
   function panelHTML() {
     if (!supported) return '';
     return `<div class="tp hidden" data-p="ilha"><div class="settings-grid">
-      <div class="field"><label class="check"><input type="checkbox" id="ov-en" ${cfg.enabled ? 'checked' : ''}> Mostrar a ilha por cima dos jogos</label>
-        <p class="muted small">Desligada por padrão. Uma cápsula pequena com quem fala e a música. Não mexe no jogo e não usa nada que o anti-cheat costume bloquear.</p></div>
-      <div class="field"><label>Tecla da ilha (segure para clicar)</label><div class="kbd" id="ov-key">${esc(keyLabel())}</div>
-        <p class="muted small">Padrão: a tecla abaixo do Esc. Ela só vale dentro do jogo; fora dele você digita normalmente. Se o seu jogo usa essa tecla (console, chat), troque aqui.</p><p class="muted small" id="ov-mode"></p></div>
+      <div class="field"><label class="check"><input type="checkbox" id="ov-en" ${cfg.enabled ? 'checked' : ''}> Mostrar overlay no jogo</label>
+        <p class="muted small">Veja quem está falando e qual música está tocando sem sair do jogo.</p></div>
+      <div class="field"><label for="ov-key">Tecla do overlay</label><button type="button" class="kbd" id="ov-key">${esc(keyLabel())}</button>
+        <p class="muted small">Segure <strong id="ov-key-name">${esc(keyLabel())}</strong> para usar os controles. Se o jogo usa essa tecla, escolha outra.</p><p class="muted small" id="ov-mode"></p></div>
       <div class="field"><label>Mostrar em</label>${sel('ov-mode-sel', [['jogos', 'Só nos jogos'], ['sempre', 'Sempre, em qualquer programa']], cfg.mode)}<p class="muted small">No modo "Sempre" a tecla fica reservada para a ilha em todos os programas (menos navegadores e similares). Prefira uma tecla F ou Insert.</p></div>
       <div class="field"><label class="check"><input type="checkbox" id="ov-fs" ${cfg.fullscreen ? 'checked' : ''}> Também em qualquer programa em tela cheia</label><p class="muted small">Pode aparecer em filmes e apresentações.</p></div>
       <div class="field"><label>Música quando a ilha está parada</label>${sel('ov-music', [['sempre', 'Sempre (capa e título)'], ['mudar', 'Só quando a música muda'], ['nunca', 'Nunca']], cfg.musicRest)}</div>
@@ -142,7 +142,7 @@ export function createOverlayClient(d) {
   }
   function renderGames(el) {
     const box = $('#ov-games', el);
-    box.innerHTML = cfg.games.length ? cfg.games.map((g, i) => `<div class="ov-game"><span>${esc(g)}</span><button class="btn small-btn" data-i="${i}">Tirar</button></div>`).join('') : '<p class="muted small">Nenhum ainda.</p>';
+    box.innerHTML = cfg.games.length ? cfg.games.map((g, i) => `<div class="ov-game"><span>${esc(g)}</span><button class="btn small-btn" data-i="${i}">Tirar</button></div>`).join('') : '<p class="muted small">Seu jogo não aparece? Abra o jogo e escolha “Adicionar um programa aberto”.</p>';
     $$('button', box).forEach((b) => b.onclick = () => { cfg.games.splice(+b.dataset.i, 1); save(); renderGames(el); });
   }
   async function pickProgram(el) {
@@ -155,7 +155,7 @@ export function createOverlayClient(d) {
   function bindPanel(el) {
     if (!supported) return;
     const p = $('.tp[data-p="ilha"]', el); if (!p) return;
-    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper ? 'Segurar a tecla funciona neste computador.' : 'O ajudante do Windows (PowerShell) não iniciou aqui, então a ilha não vai aparecer nos jogos.'; });
+    native.overlay.state().then((s) => { $('#ov-mode', el).textContent = s.helper ? '' : 'O overlay não está disponível neste computador.'; });
     $('#ov-en', el).onchange = (e) => { cfg.enabled = e.target.checked; save(); if (cfg.enabled && !cfg.trained) note('Dica', 'faça o treino guiado para aprender a usar a ilha.', 5000); sync(true); };
     $('#ov-mode-sel', el).onchange = (e) => { cfg.mode = e.target.value; save(); };
     $('#ov-fs', el).onchange = (e) => { cfg.fullscreen = e.target.checked; save(); };
@@ -171,17 +171,18 @@ export function createOverlayClient(d) {
     const k = $('#ov-key', el);
     k.onclick = () => {
       k.classList.add('rec'); k.textContent = 'Aperte uma tecla...';
-      const onKey = (e) => {
+      k.onkeydown = (e) => {
+        if (e.key === 'Tab') return;
         e.preventDefault(); e.stopPropagation();
         if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
-        document.removeEventListener('keydown', onKey, true); k.classList.remove('rec');
+        k.onkeydown = null; k.classList.remove('rec');
         const letter = /^Key([A-Z])$/.exec(e.code), digit = /^Digit(\d)$/.exec(e.code);
         let key = e.key === 'Escape' ? null : /^F\d{1,2}$/.test(e.key) ? e.key : KEY_NAMES[e.code] || PUNCT[e.code] || (letter && letter[1]) || (digit && digit[1]) || null;
         if (key && /^[A-Z0-9]$/.test(key)) note('Tecla de letra ou número', 'ela deixa de funcionar no jogo enquanto a ilha está ativa. Prefira uma tecla F, Insert ou a abaixo do Esc.', 6000);
         if (key) { cfg.key = key; save(); }
-        k.textContent = keyLabel();
+        k.textContent = $('#ov-key-name', el).textContent = keyLabel();
       };
-      document.addEventListener('keydown', onKey, true);
+      k.onblur = () => { k.onkeydown = null; k.classList.remove('rec'); k.textContent = keyLabel(); };
     };
   }
 

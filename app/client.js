@@ -289,7 +289,7 @@ async function refreshStoredRooms(){
   try{storedRooms=await native.rooms.list();}catch{}
 }
 async function goHome(focus){
-  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e do servidor. Continuar?','Sair',false))return;
+  if(V.joined&&!await confirmModal('Voltar à página inicial','Você vai sair da call e da sala. Continuar?','Sair',false))return;
   forgetLastRoom();
   await leaveRoom();
   if(focus)setTimeout(()=>$(focus)?.focus(),50);
@@ -297,7 +297,7 @@ async function goHome(focus){
 async function switchServer(code){
   const room=storedRooms.find(r=>normCode(r.code)===code);
   if(!room||code===normCode(S.code))return;
-  if(V.joined&&!await confirmModal('Trocar de servidor',`Você vai sair da call e entrar em ${esc(room.name)}.`,'Trocar',false))return;
+  if(V.joined&&!await confirmModal('Trocar de sala',`Você vai sair da call e entrar em ${esc(room.name)}.`,'Trocar',false))return;
   await leaveRoom();
   await openStoredRoom(room,{auto:true});
 }
@@ -2954,45 +2954,20 @@ function openPerformance() {
 
 // ---------------- Convite ----------------
 async function openInvite() {
-  const m = openModal(`<header><div><h2>Convidar amigos para ${esc(S.roomName)}</h2><p>Mande o código pro seu amigo.</p></div><button class="icon-btn" data-close>${icon('x')}</button></header>
-    <div class="body"><div class="addr-list" id="inv-list"><div class="muted">Verificando sua rede...</div></div></div>
-    <footer><button class="btn primary" data-close>Pronto</button></footer>`, { wide: true });
-  const codeHTML = S.code ? `<div class="code-box"><div class="muted small" style="font-weight:700;text-transform:uppercase;margin-bottom:6px">Código da sala</div><div class="code">${esc(S.code)}</div><button class="btn primary" data-copy="${esc(S.code)}">Copiar código</button><div class="note">Seu amigo abre o Resenha, cola esse código em <b>Entrar numa sala</b> e pronto. Funciona pela internet sem abrir porta e sem Radmin. O código é o mesmo sempre que você abrir a sala com esse nome.</div></div><div id="inv-pwa"></div>` : '';
-  // Celular ou tablet em qualquer rede: o PWA abre já com o código da sala.
-  if (S.code && native?.pwaInvite) native.pwaInvite(S.code).then((p) => { const box = $('#inv-pwa', m.el); if (!p || !box) return; box.innerHTML = `<div class="addr pwa-invite"><h3>Celular ou tablet · qualquer rede</h3><img width="180" height="180" src="${p.qr}" alt="QR code para entrar pelo celular"><p>Aponte a câmera do celular ou mande o link. Abre no navegador, já com o código; dá para adicionar à tela inicial. Dá para falar e assistir às lives.</p><code>${esc(p.url)}</code><button class="btn" data-copy="${esc(p.url)}">Copiar link</button></div>`; bindCopy(box); });
-  if (!S.isHost) {
-    $('#inv-list', m.el).innerHTML = codeHTML || addrBlock('Endereço da sala', S.addr.text, 'É o mesmo endereço que você usou. Só funciona enquanto o anfitrião estiver com a sala aberta.');
-    bindCopy(m.el); return;
-  }
-  $('#inv-list', m.el).innerHTML = codeHTML + '<div id="inv-web"></div><details class="more"><summary>Outras formas de entrar (IP)</summary><div class="addr-list" id="inv-ip"><div class="muted">Verificando sua rede...</div></div></details>';
-  bindCopy(m.el);
-  const mobile = await native.mobileAccess();
-  if (document.body.contains(m.el)) {
-    $('#inv-web',m.el).innerHTML = mobile?.error ? `<p>${esc(mobile.error)}</p>` : (mobile?.links||[]).map(x=>`<div class="addr"><h3>Celular · mesmo Wi-Fi</h3><img width="200" height="200" src="${x.qr}" alt="QR code para configurar o Resenha no celular"><p>Escaneie para configurar o certificado local e entrar. O anfitrião precisa continuar com a sala aberta.</p><code>${esc(x.setup)}</code><button class="btn" data-copy="${esc(x.setup)}">Copiar acesso</button><details><summary>Identidade do certificado</summary><code>${esc(mobile.fingerprint)}</code><p>Confie somente no certificado deste anfitrião. A instalação permite confiar em certificados assinados por ele; remova a confiança quando não usar mais.</p></details></div>`).join('');
-    bindCopy($('#inv-web',m.el));
-  }
-  const n = await native.hostNetwork();
-  if (!n || !document.body.contains(m.el)) return;
-  const port = n.port;
-  let h = '';
-  if (n.publicV4) {
-    let note, cls;
-    if (n.cgnat) { cls = 'bad'; note = 'Sua internet usa CGNAT (IP compartilhado da operadora), então por IP não dá. Use o código.'; }
-    else if (n.upnp.ok) { cls = 'ok'; note = 'Porta aberta automaticamente no roteador (UPnP). Deve funcionar direto.'; }
-    else { cls = 'warn'; note = `Não consegui abrir a porta sozinho (${esc(n.upnp.error || 'UPnP indisponível')}). Entre no roteador e redirecione <b>TCP e UDP ${port}</b> para <b>${esc(n.lan[0] || 'este PC')}</b>.`; }
-    h += addrBlock('Pela internet (IPv4)', `${n.publicV4}:${port}`, note, cls);
-  }
-  if (n.publicV6) h += addrBlock('Pela internet (IPv6)', `[${n.publicV6}]:${port}`, 'Funciona se o amigo também tiver IPv6. Alguns roteadores bloqueiam entrada IPv6 no firewall.', '');
-  for (const ip of n.lan) h += addrBlock('Mesma rede / mesmo Wi-Fi', `${ip}:${port}`, 'Pra quem está na sua casa.', '');
-  for (const v of n.vpn) h += addrBlock('Rede virtual (Radmin, ZeroTier, Hamachi...)', `${v.split(' ')[0]}:${port}`, `Se vocês ainda usam essa rede: ${esc(v)}.`, '');
-  h += '<p class="muted small" style="margin:4px 0 0">Entrar por IP só é necessário se o código não funcionar.</p>';
-  $('#inv-ip', m.el).innerHTML = h;
-  bindCopy($('#inv-ip', m.el));
+  const code = S.code;
+  const m = openModal(`<header><div><h2>Convidar pessoas para ${esc(S.roomName)}</h2><p>Mande o código ou o link. Quem receber abre o Resenha, cola o código em Código da sala e entra.</p></div><button class="icon-btn" data-close aria-label="Fechar convite">${icon('x')}</button></header>
+    <div class="body">${code ? `<div class="code-box"><div class="muted small">Código da sala</div><div class="code">${esc(code)}</div><button class="btn primary invite-primary" id="inv-copy">${icon('copy', 16)} Copiar código</button></div><div id="inv-pwa"></div>` : '<p>Esta sala não tem código. Peça um convite a quem abriu a sala.</p>'}</div>`, { cls: 'invite-dialog' });
+  if (!code) return;
+  $('#inv-copy', m.el).onclick = () => copy(code);
+  if (!native?.pwaInvite) return;
+  try {
+    const p = await native.pwaInvite(code);
+    if (!p?.url || !m.el.isConnected || m.el.inert) return;
+    const box = $('#inv-pwa', m.el);
+    box.innerHTML = `<div class="invite-phone">${p.qr ? `<img width="104" height="104" src="${esc(p.qr)}" alt="QR code para entrar pelo celular">` : ''}<div><b>Pelo celular</b><p class="muted small">Escaneie o código ou mande o link.</p><button class="btn" id="inv-link">Copiar link</button></div></div>`;
+    $('#inv-link', m.el).onclick = () => copy(p.url);
+  } catch { /* O código continua disponível se o link não puder ser gerado. */ }
 }
-function addrBlock(title, value, note, cls = '') {
-  return `<div class="addr"><div class="t">${esc(title)}</div><div class="v"><code>${esc(value)}</code><button class="btn primary" data-copy="${esc(value)}">Copiar</button></div>${note ? `<div class="note ${cls}">${note}</div>` : ''}</div>`;
-}
-function bindCopy(root) { $$('[data-copy]', root).forEach((b) => b.onclick = () => { copy(b.dataset.copy); b.textContent = 'Copiado'; setTimeout(() => (b.textContent = 'Copiar'), 1500); }); }
 
 // ---------------- Configurações ----------------
 // A prévia muda o tema efetivo, sem tocar na preferência salva.
@@ -3675,7 +3650,7 @@ const WHATS_NEW = {
   '2.1.6': {
     items: [
       ['screen', 'Janela arredondada', 'No Windows, os cantos da janela acompanham os painéis. Maximizada, fica reta.'],
-      ['hash', 'Menu do servidor e chat mais limpos', 'Menu sem misturar com os canais, seletor e campo de mensagem com um contorno só.'],
+      ['hash', 'Menu da sala e chat mais limpos', 'Menu sem misturar com os canais, seletor e campo de mensagem com um contorno só.'],
       ['edit', 'Efeito do nome no chat', 'Quando alguém troca o efeito, o chat atualiza na hora.'],
       ['image', 'Ícone da sala', 'O ícone da sala aparece ao lado do nome dela.'],
     ],
@@ -3685,9 +3660,9 @@ const WHATS_NEW = {
       ['sparkles', 'Identidade nova', 'Grafite fosco, vidro esfumaçado e um laranja só nos detalhes.'],
       ['image', 'Temas caprichados', 'Âmbar, Noturno, Ametista, Fúcsia, Horizonte e Titânio: cada um com fundo, movimento e cores próprios.'],
       ['screen', 'Janela de vidro', 'No Windows 11 com transparência ligada, o papel de parede aparece desfocado atrás do Resenha.'],
-      ['hash', 'Menu do servidor e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
+      ['hash', 'Menu da sala e chat novos', 'Menu para todos (silenciar, quem está ao vivo) e chat em bolhas.'],
       ['edit', 'Nome com efeito', 'Escolha um efeito discreto em Configurações > Perfil.'],
-      ['download', 'Atualização mais leve', 'O atualizador não usa mais PowerShell e não deixa pasta para trás.'],
+      ['download', 'Atualização mais leve', 'A atualização não deixa mais arquivos para trás.'],
     ],
   },
 };

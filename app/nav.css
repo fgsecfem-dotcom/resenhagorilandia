@@ -221,3 +221,10 @@ html.settings-crossfade::view-transition-old(root), html.settings-crossfade::vie
 html.settings-crossfade::view-transition { pointer-events: none; }
 html.reduce-motion #modal-root :is(.settings-dialog, .overlay:has(> .settings-dialog)) { transition: none; }
 html.reduce-motion #modal-root .settings-dialog .tp { animation: none; }
+
+
+.modal.invite-dialog .invite-primary { background: #ff8a3d; color: #20140c; }
+.modal.invite-dialog .invite-primary:hover { background: #ff9c60; }
+.modal.invite-dialog .invite-primary svg { margin-right: 4px; }
+.invite-dialog .invite-phone { display: flex; align-items: center; gap: 16px; padding: 12px; }
+.invite-phone img { flex: none; background: #fff; border-radius: 8px; }
