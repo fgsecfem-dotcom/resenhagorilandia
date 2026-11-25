@@ -76,10 +76,12 @@
     try {
       for (let attempt = 1; attempt <= attempts; attempt++) {
         onStatus(attempt === 1 ? 'Procurando a sala...' : `Tentando de novo (${attempt}/${attempts})...`);
-        const pc = new RTCPeerConnection({ iceServers: ICE });
+        // repasse da Cloudflare (app/turn.js) junto com o STUN: no 4G a ligação direta costuma falhar e o repasse segura sem nova tentativa
+        const turn = (await window.ResenhaTurn?.load(1500)) || [];
+        const pc = new RTCPeerConnection({ iceServers: [...ICE, ...turn] });
         const ctl = pc.createDataChannel('ctl');
         await pc.setLocalDescription(await pc.createOffer());
-        await gatherDone(pc);
+        await gatherDone(pc, turn.length ? 2500 : 4000);
         const nonce = rnd(6), t0 = Date.now();
         while (!signal.connected() && Date.now() - t0 < timeoutMs) await sleep(200);
         if (!signal.connected()) { pc.close(); throw new Error('nobroker'); }

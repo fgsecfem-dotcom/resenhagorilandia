@@ -1382,13 +1382,15 @@ function refreshSpeaking() {
 
 // ---------------- Voz: cadeia de áudio ----------------
 // mic -> ganho -> RNNoise (IA: tira ruído e corta quando não é voz) -> filtro de voz (tom) -> portão/mute -> envio
+// Voz e live: STUN e, como reserva, o repasse da Cloudflare (app/turn.js). O WebRTC prefere sempre o caminho direto;
+// o repasse só carrega o áudio de quem não consegue ligar direto com aquela pessoa, sem nova tentativa visível.
 function iceServers() {
   const list = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }];
   if (S.turn && !S.isHost && !S.viaCode) {
     list.unshift({ urls: `stun:${S.addr.hf}:${S.turn.port}` });
     list.push({ urls: `turn:${S.addr.hf}:${S.turn.port}?transport=udp`, username: S.turn.username, credential: S.turn.credential });
   }
-  return list;
+  return [...list, ...(window.ResenhaTurn?.servers() || [])];
 }
 
 let rnBinary = null;
@@ -1695,7 +1697,7 @@ function sig(to, data) { wsSend({ t: 'signal', to, data }); }
 function getPeer(uid) {
   let p = V.peers.get(uid);
   if (p) return p;
-  const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && !S.isHost ? 'relay' : 'all' });
+  const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle', iceTransportPolicy: LS.get('forceRelay', false) && (!S.isHost || window.ResenhaTurn?.servers().length) ? 'relay' : 'all' });
   p = { uid, pc, polite: S.myId > uid, makingOffer: false, ignoreOffer: false, streams: new Map(), queue: Promise.resolve(), audio: null, since: Date.now(), okAt: 0 };
   V.peers.set(uid, p);
   pc.onnegotiationneeded = async () => {
