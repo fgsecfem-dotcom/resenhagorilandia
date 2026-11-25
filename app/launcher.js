@@ -57,20 +57,55 @@
     return list.filter(r => rank(r) < 2 || (!hidden.has(norm(r.code)) && r.updatedAt >= cutoff)).sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt).slice(0, 8)
       .map(r => ({ ...r, pinned: norm(r.code) === fav }));
   }
-  function roomCard(room, featured) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'room' + (featured ? ' featured' : '');
-    const art = document.createElement('span'); art.className = 'room-art'; art.style.setProperty('--room', room.color || '#4a4f5c');
+  const span = (className, text) => { const el = document.createElement('span'); el.className = className; if (text) el.textContent = text; return el; };
+  const initial = name => Array.from((name || '?').trim())[0]?.toUpperCase() || '?';
+  function roomCard(room) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'room';
+    const art = span('room-art'); art.style.setProperty('--room', room.color || '#4a4f5c');
     if (room.cover) art.style.backgroundImage = 'url("' + room.cover + '")';
     if (room.icon) { const img = document.createElement('img'); img.src = room.icon; img.alt = ''; art.append(img); }
-    else { const t = document.createElement('i'); t.textContent = (room.name || '?').trim().split(/\s+/).filter((w, i, all) => all.length < 3 || !/^(d[aeo]s?|e)$/i.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase(); art.append(t); }
-    if (room.pinned) { const pin = document.createElement('em'); pin.textContent = 'Abre ao iniciar'; art.append(pin); }
-    const name = document.createElement('b'); name.textContent = room.name || 'Sala sem nome';
-    const meta = document.createElement('small'); meta.textContent = when(room.updatedAt) || room.code;
+    else if (!room.cover) art.append(span('room-initial', initial(room.name)));
+    const name = document.createElement('b'); name.textContent = room.name || 'Sala sem nome'; name.title = room.pinned ? 'Abre ao iniciar' : name.textContent;
+    const meta = span('room-meta'), fallback = when(room.updatedAt) || room.code;
+    const paint = (result) => {
+      const p = result?.presence;
+      if (!p) { meta.textContent = result?.state === 'online' ? 'Sala aberta' : fallback; return; }
+      const dot = span('room-dot' + (p.inCall ? ' on' : '')); dot.title = p.inCall ? 'Gente na call' : 'Ninguém na call';
+      const stack = span('room-stack');
+      const people = p.people.slice(0, 4);
+      for (const person of people) {
+        const av = span('room-avatar', person.avatar ? '' : person.initial); av.title = person.name; av.style.setProperty('--profile-color', person.color);
+        if (person.avatar) { const img = document.createElement('img'); img.src = person.avatar; img.alt = ''; av.append(img); }
+        stack.append(av);
+      }
+      if (p.total > people.length) stack.append(span('room-more', '+' + (p.total - people.length)));
+      const names = people.slice(0, 2).map(person => person.name), more = p.total - names.length;
+      const line = names.length ? names.join(', ') + (more > 0 ? ' +' + more : '') : 'Ninguém na sala';
+      const text = span('room-line', line + (p.channel ? ' · ' + p.channel : '')); text.title = text.textContent;
+      meta.replaceChildren(dot, stack, text, ...(p.live ? [span('room-live', 'Ao vivo')] : []));
+    };
+    meta.textContent = fallback;
     b.append(art, name, meta); b.onclick = () => native.action('open', { type: 'room', code: room.code });
-    return b;
+    return { node: b, code: room.code, paint };
+  }
+  let rows = [], previewTimer, previewing = false;
+  const visibleHub = () => !$('hub').hidden && document.visibilityState === 'visible';
+  async function refreshRows() {
+    if (!native.inspect || !visibleHub() || previewing || !rows.length) return;
+    previewing = true;
+    const current = rows; let next = 0;
+    const worker = async () => {
+      while (next < current.length && visibleHub() && rows === current) {
+        const row = current[next++];
+        const result = await native.inspect(row.code, 'presence').catch(() => null);
+        if (visibleHub() && rows === current) row.paint(result);
+      }
+    };
+    try { await Promise.all([worker(), worker(), worker()]); } finally { previewing = false; }
   }
   function showHub(state) {
     if (pref('skipHub', false) === true && !hubShown) { hubShown = true; native.action('open'); return; }
+    if (hubShown) return;
     hubShown = true;
     $('hello').textContent = greeting();
     try { $('hub-mascot').innerHTML = window.PIPOCA.pipocaSVG(settings.appIcon || 'quentinha', 52); } catch {}
@@ -81,16 +116,18 @@
     $('notice').hidden = !news; $('notice-text').textContent = news ? 'Novidades da versão ' + state.version : '';
     $('skip').checked = pref('skipHub', false) === true;
     native.rooms().then(list => {
-      const rooms = pickRooms(list), box = $('rooms'); box.replaceChildren(...rooms.map((r, i) => roomCard(r, i === 0)));
-      $('rooms-title').hidden = $('rooms').hidden = !rooms.length; $('empty').hidden = !!rooms.length;
+      rows = pickRooms(list).map(roomCard); $('rooms').replaceChildren(...rows.map(r => r.node));
+      $('rooms-title').hidden = $('rooms').hidden = !rows.length; $('empty').hidden = !!rows.length;
+      if (rows.length && native.inspect) { refreshRows(); previewTimer = setInterval(refreshRows, 20000); }
     }).catch(() => { $('rooms-title').hidden = $('rooms').hidden = true; $('empty').hidden = false; });
   }
   let joinAttempt = 0;
   $('code').addEventListener('input', () => {
     joinAttempt++; $('join-go').disabled = false;
+    $('hub-error').dataset.state = '';
     const c = norm($('code').value).slice(0, 8); $('code').value = c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4) : c; $('hub-error').textContent = '';
   });
-  $('join-form').addEventListener('submit', async event => {
+  async function submitCode(event) {
     event.preventDefault(); const c = norm($('code').value);
     if (c.length !== 8) { $('hub-error').textContent = 'O código tem 8 letras ou números, tipo K7P4-QX9M.'; return; }
     const button = $('join-go');
@@ -105,7 +142,10 @@
       if (result?.state === 'offline') { status.textContent = 'Não achei essa sala. Confere o código ou pede pra galera abrir a sala.'; return; }
     }
     native.action('open', { type: 'join', code: c });
-  });
+  }
+  $('join-form').addEventListener('submit', submitCode);
+  $('code').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) submitCode(e); });
+  document.addEventListener?.('visibilitychange', refreshRows);
   $('host-go').onclick = () => native.action('open', { type: 'host' });
   $('hub-open').onclick = $('notice-open').onclick = () => native.action('open');
   $('skip').onchange = () => { try { localStorage.setItem('resenha.skipHub', JSON.stringify($('skip').checked)); } catch {} };
@@ -117,6 +157,8 @@
     document.body.dataset.phase = phase; document.body.dataset.error = String(error);
     $('hub').hidden = phase !== 'hub'; $('status').hidden = phase === 'hub';
     if (phase === 'hub') return showHub(state);
+    if (previewTimer) { clearInterval(previewTimer); previewTimer = 0; }
+    hubShown = false;
     $('launcher-status').textContent = message[0]; $('description').textContent = phase === 'downloading' && state.info?.version ? 'Transferindo o pacote ' + state.info.version : message[1];
     if (phase === 'unavailable' && state.required) $('description').textContent = 'Uma atualização já foi encontrada. Tente novamente para continuar.';
     if (phase === 'unavailable' && state.skipped) { $('launcher-status').textContent = 'Não foi possível atualizar agora'; $('description').textContent = 'Você pode continuar usando esta versão' + (state.offerDownload ? ' ou baixar a nova pelo site.' : '.'); }

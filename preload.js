@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('resenhaNative', {
   windowControl: (action) => ipcRenderer.send('window:control', action),
   setAppIcon: (key, pngs) => ipcRenderer.invoke('app:icon', { key, pngs }),
   onWindowMaximized: (fn) => ipcRenderer.on('window:maximized', (e, maximized) => fn(maximized)),
-  rooms: {locations:()=>ipcRenderer.invoke('rooms:locations'),list:()=>ipcRenderer.invoke('rooms:list'),save:s=>ipcRenderer.invoke('rooms:save',s),import:codes=>ipcRenderer.invoke('rooms:import',codes),inspect:code=>ipcRenderer.invoke('rooms:inspect',code),claim:o=>ipcRenderer.invoke('rooms:claim',o)},
+  rooms: {locations:()=>ipcRenderer.invoke('rooms:locations'),list:()=>ipcRenderer.invoke('rooms:list'),save:s=>ipcRenderer.invoke('rooms:save',s),import:codes=>ipcRenderer.invoke('rooms:import',codes),inspect:(code,opts)=>ipcRenderer.invoke('rooms:inspect',code,opts),claim:o=>ipcRenderer.invoke('rooms:claim',o)},
   hostBackground: value=>ipcRenderer.invoke('window:host-background',value),
   startHost: (opts) => ipcRenderer.invoke('host:start', opts),
   stopHost: (code) => ipcRenderer.invoke('host:stop', code),

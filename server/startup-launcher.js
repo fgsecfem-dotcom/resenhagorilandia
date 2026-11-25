@@ -108,9 +108,9 @@ function createStartupWindow({ BrowserWindow, ipcMain, manager, version, icon, o
   ipcMain.handle('launcher:ready', event => { if (!fromLauncher(event)) return; controller.start(); return { ...controller.current(), version, channel: manager.channel() }; });
   ipcMain.handle('launcher:rooms', async event => { if (!fromLauncher(event)) return []; try { return publicRooms(await rooms()); } catch (error) { log('launcher-rooms-error', { error: error.message }); return []; } });
   // Só leitura: o Hub consulta quem está numa sala (pelo código) sem entrar nela. Devolve só estado e a prévia.
-  ipcMain.handle('launcher:inspect', async (event, code, cover) => {
+  ipcMain.handle('launcher:inspect', async (event, code, mode) => {
     if (!fromLauncher(event) || !CODE.test(String(code || '').trim())) return null;
-    try { const result = await inspect(String(code).trim().replace('-', '').toUpperCase(), !!cover); return result ? { state: String(result.state || 'unknown'), presence: result.presence || null } : null; }
+    try { const result = await inspect(String(code).trim().replace('-', '').toUpperCase(), mode === 'presence' ? 'presence' : 'availability'); return result ? { state: String(result.state || 'unknown'), presence: result.presence || null } : null; }
     catch (error) { log('launcher-inspect-error', { error: error.message }); return null; }
   });
   ipcMain.handle('launcher:action', (event, action, payload) => {

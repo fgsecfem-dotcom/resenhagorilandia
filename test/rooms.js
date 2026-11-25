@@ -4,6 +4,7 @@ const wait=async fn=>{for(let i=0;i<100;i++){const v=fn();if(v)return v;await ne
 const channels=[{id:'geral',type:'text',name:'geral'},{id:'lobby',type:'voice',name:'Lobby'}];
 const input={code:'TEST-1234',name:'Same room',revision:3,channels,history:{geral:[{id:'public',text:'public',ts:1,channelId:'geral'},{id:'private',text:'secret',t:'dm',to:'B',ts:2}]},dmHistory:['secret2'],favorites:['secret3'],configuration:{needsPassword:false,otherSecret:'excluded'}};
 (async()=>{
+ const bus=new Set();const factory=(code,onMessage)=>{const s={connected:()=>true,send:m=>{for(const listener of [...bus])queueMicrotask(()=>listener(m));},close:()=>bus.delete(onMessage)};bus.add(onMessage);return s;};
  const dir=fs.mkdtempSync(path.join(path.resolve(__dirname,'../../'),'resenha-rooms-'));const aStore=new RoomStore(path.join(dir,'A')),bStore=new RoomStore(path.join(dir,'B'));
  const snap=makeSnapshot(input);assert.equal(snap.roomId,roomIdFor('TEST1234'));assert(!JSON.stringify(snap).includes('secret'));assert.equal(snap.history.geral.length,1);
  const legacyArray=makeSnapshot({...input,history:[{id:'old-array',text:'old format',ts:1}]});assert.equal(legacyArray.history.geral[0].text,'old format');
@@ -17,6 +18,22 @@ const input={code:'TEST-1234',name:'Same room',revision:3,channels,history:{gera
  try{await server.listen();assert(server.roomInfo().migrationBackup);assert(fs.existsSync(path.join(server.roomInfo().migrationBackup,'history.json')));
   ws=new WS('ws://127.0.0.1:17961');const messages=[];ws.on('message',d=>messages.push(JSON.parse(d)));await new Promise(r=>ws.on('open',r));ws.send(JSON.stringify({t:'hello',name:'A',cid:'A'}));await wait(()=>messages.find(m=>m.t==='room-snapshot'));
   const welcome=messages.find(m=>m.t==='welcome');
+  ws.send(JSON.stringify({t:'state',voiceChannel:'lobby',sharing:true,screenStreamId:'screen-test'}));
+  await wait(()=>messages.find(m=>m.t==='user-update'&&m.user.sharing));
+  const api='http://127.0.0.1:17961/api/info';
+  assert.equal((await fetch(api).then(r=>r.json())).presence,undefined,'perfis são exclusivos de quem tem o código');
+  assert.equal((await fetch(api+'?code=WRNG-1234').then(r=>r.json())).presence,undefined);
+  const info=await fetch(api+'?code=TEST-1234').then(r=>r.json());
+  assert.equal(info.presence.total,1);assert.equal(info.presence.inCall,1);assert.equal(info.presence.live,1);
+  assert.deepEqual(info.presence.people[0],{name:'A',color:'#5865f2',initial:'A',channel:'Lobby',live:true});
+  const fetchPreview=require('../server/presence').fetchPreview;
+  const probeHost=new Tunnel(null,()=>{},{signalFactory:factory}),guestProbe=new Tunnel(null,()=>{},{signalFactory:factory});
+  probeHost.hostStart(snap.code,17961,[0,0,'host'],()=>1,()=>1,cover=>fetchPreview(17961,snap.code,cover));
+  try {
+    const preview=await guestProbe.inspect(snap.code,{presence:true,cover:true,timeoutMs:1200});
+    assert.equal(preview.state,'online');assert.equal(preview.presence.people[0].name,'A');
+    assert.equal(server.clientCount(),1,'prévia não entra na sala');
+  }finally{probeHost.stop();}
   privatePeer=new WS('ws://127.0.0.1:17961');const privateMsgs=[];privatePeer.on('message',d=>privateMsgs.push(JSON.parse(d)));await new Promise(r=>privatePeer.on('open',r));privatePeer.send(JSON.stringify({t:'hello',name:'Private B',cid:'private-B'}));const pw=await wait(()=>privateMsgs.find(m=>m.t==='welcome'));
   ws.send(JSON.stringify({t:'dm',to:pw.id,text:'private-sentinel-never-replicate',requestId:'dm-sentinel'}));await wait(()=>privateMsgs.find(m=>m.t==='dm'));
   ws.send(JSON.stringify({t:'chat',channelId:'geral',text:'new public',requestId:'new'}));const newer=await wait(()=>messages.find(m=>m.t==='room-snapshot'&&m.snapshot.revision>0));assert(!JSON.stringify(newer.snapshot).includes('private-sentinel-never-replicate'));liveStoreB.save(newer.snapshot);
@@ -27,7 +44,6 @@ const input={code:'TEST-1234',name:'Same room',revision:3,channels,history:{gera
  // A receives newer revision and retains it; local newer server data beats older restore.
  liveStoreA.save(bSnap);assert.equal(liveStoreA.get(snap.code).revision,1);
  server=createServer({port:17963,dataDir:bDir,code:snap.code,restore:{...snap,revision:0},log:()=>{}});assert.equal(server.snapshot().revision,1);assert(server.snapshot().history.geral.some(m=>m.text==='new public'));await server.close();
- const bus=new Set();const factory=(code,onMessage)=>{const s={connected:()=>true,send:m=>{for(const listener of [...bus])queueMicrotask(()=>listener(m));},close:()=>bus.delete(onMessage)};bus.add(onMessage);return s;};
  const a=new Tunnel(null,()=>{},{signalFactory:factory}),b=new Tunnel(null,()=>{},{signalFactory:factory});
  const [ca,cb]=await Promise.all([a.inspect('TEST1234',{claim:{id:'A',revision:4},timeoutMs:30,claimMs:30}),b.inspect('TEST1234',{claim:{id:'B',revision:5},timeoutMs:30,claimMs:30})]);assert.equal(ca.state,'lost');assert.equal(cb.state,'won');assert.equal(ca.winner.id,'B');
  const branch=new RoomStore(path.join(dir,'branch'));branch.save({...snap,lineage:'older-host'});branch.save({...snap,revision:6,lineage:'new-host'});assert(fs.readdirSync(path.join(branch.root,'conflitos')).length>0,'previous host copy survives new lineage');

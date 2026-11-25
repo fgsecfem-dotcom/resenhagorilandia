@@ -6,6 +6,7 @@ const { createFileHTTP } = require('./file-http');
 const http = require('http');
 const roomState = require('../room-state');
 const {safeIcon, safeLook} = require('./room-icon');
+const {buildPresence} = require('./presence');
 const { applyProfileExtras, createBannerHTTP } = require('./profile-extras');
 const fs = require('fs');
 const path = require('path');
@@ -344,7 +345,17 @@ function createServer(opts = {}) {
       return res.end(`<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resenha no celular</title><link rel="stylesheet" href="/app/mobile-setup.css"><main><img width="90" src="/app/brand-pipoca.png" alt="Pipoca"><h1>Seu Resenha no celular</h1><p>Use o mesmo Wi-Fi do anfitrião. Para falar na call, configure o certificado deste computador uma vez.</p><ol><li><a href="/resenha-local.cer">Baixar certificado local</a>. Instale somente se você confia no anfitrião. Ele só vale para a rede local; se você já tinha instalado um certificado Resenha antes, apague o antigo.</li><li><b>iPhone:</b> Ajustes → Geral → VPN e Gerenciamento de Dispositivo → perfil baixado → Instalar. Depois Geral → Sobre → Ajustes de Confiança de Certificados → ativar confiança total no certificado Resenha.</li><li><b>Android:</b> Configurações → Segurança → Criptografia e credenciais (ou Mais configurações de segurança) → Instalar certificado → Certificado CA. Escolha o arquivo baixado. O nome dos menus varia por aparelho.</li><li><a href="${secureURL}">Abrir Resenha com voz</a> e permitir o microfone quando entrar no canal.</li></ol><p>Se surgir “Sua conexão não é particular” ou “Esta conexão não é privada”, a confiança ainda não foi estabelecida. Volte à configuração do certificado; apenas ignorar o aviso não garante voz.</p><p>Essa confiança permite validar certificados assinados pelo anfitrião. Você pode removê-la nas configurações de certificados/perfis do aparelho. Não compartilhe chaves privadas.</p><p>Sem instalar: <a href="/">entrar por HTTP para chat e assistir</a>, sem microfone. Use fone. Chamadas em segundo plano não são garantidas.</p></main></html>`);
     }
     if (p === '/resenha-local.cer' && publicCA) { res.writeHead(200, {'Content-Type':'application/pkix-cert','Content-Disposition':'attachment; filename=Resenha-local.cer'}); return res.end(publicCA); }
-    if (p === '/api/info') return json(res, 200, { app: 'resenha', name: roomName, needsPassword: !!password, users: clients.size });
+    if (p === '/api/info') {
+      const info = { app: 'resenha', name: roomName, needsPassword: !!password, users: clients.size };
+      const code = url.searchParams.get('code') || '';
+      if (req.method === 'GET' && roomCode && /^[a-z0-9]{4}-?[a-z0-9]{4}$/i.test(code) && roomState.norm(code) === roomCode) {
+        res.setHeader('Cache-Control', 'no-store');
+        info.presence = buildPresence(clients, channels);
+        info.color = roomLook.color || '';
+        if (url.searchParams.get('cover') === '1') info.cover = roomLook.cover || '';
+      }
+      return json(res, 200, info);
+    }
     if (p === '/upload' && req.method === 'POST') return handleUpload(req, res, url);
     if (p === '/banner' && req.method === 'POST') return banners.handleBannerUpload(req, res, url);
     if (p.startsWith('/banner/')) {

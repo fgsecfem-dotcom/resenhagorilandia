@@ -1,3 +1,8 @@
+/* Entrada: como a pessoa chega, entra e volta para a sala (primeira vez, status, cartões com quem está na sala, prévia do código, dicas). */
+/* Movimento: uma curva só (--ease-out), 150 ms para o que entra; "Reduzir animações" zera tudo (glass.css). */
+@keyframes entrada-in { from { opacity: 0; translate: 0 4px; } }
+@keyframes entrada-spin { to { rotate: 360deg; } }
+
 /* ---- Primeira vez: "Como a galera te chama?" inline, acima do código ---- */
 #home .home-top.first-run { flex-direction: column; align-items: stretch; }
 #home .home-profile-d:not([open]) > .home-profile { display: none; }
@@ -15,8 +20,6 @@
   #home .welcome-go { grid-column: 2 / -1; justify-self: end; }
 }
 
-@keyframes entrada-spin { to { rotate: 360deg; } }
-
 /* ---- Linha de status: altura reservada, spinner de 14 px, vermelho só em falha confirmada ---- */
 #home #home-error { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-height: 28px; margin: -6px 4px 0; font-size: 14px; line-height: 24px; white-space: pre-line; }
 #home #home-error:empty { display: flex; }
@@ -31,3 +34,34 @@ html.reduce-motion #home #home-error.busy::before { animation: none; }
 /* ---- Recentes ---- */
 #home .recent-item .x { cursor: pointer; border: 0; background: transparent; }
 #home .recent-item .x:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+
+/* ---- Quem está na sala: pilha de avatares, ponto e selo ---- */
+.pv-stack { display: inline-flex; flex: none; padding-left: 6px; }
+.pv-av, .pv-more { width: 22px; height: 22px; margin-left: -6px; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; overflow: hidden; font-style: normal; font-size: 10px; font-weight: 700; line-height: 1; color: #fff; background: var(--c, #5865f2); box-shadow: 0 0 0 2px var(--pv-ring, var(--bg-side)); text-shadow: 0 1px 1px rgba(0,0,0,.3); user-select: none; }
+.pv-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pv-more { background: var(--bg-panel); color: var(--muted); text-shadow: none; font-size: 10px; }
+.pv-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--muted2, #8b8f9a); opacity: .7; display: inline-block; }
+.pv-dot.on { background: var(--green); opacity: 1; }
+
+/* Cartões de "Minhas salas" */
+#home .saved-room-status::before { display: none; }
+#home .saved-room-status { min-height: 18px; overflow: hidden; white-space: nowrap; }
+#home .saved-room-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#home .saved-room-pv { display: flex; align-items: center; gap: 8px; min-height: 24px; min-width: 0; }
+#home .saved-room.has-cover .saved-room-art img { position: static; width: 40px; height: 40px; border-radius: 8px; }
+#home .saved-room-live, .join-preview .jp-live { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 8px; border-radius: 99px; background: rgba(0,0,0,.5); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; line-height: 1.2; }
+#home .saved-room-live::before, .join-preview .jp-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+#home .saved-room-live { position: absolute; left: 10px; bottom: 10px; z-index: 3; }
+#home .saved-room-live[hidden] { display: none; }
+
+/* ---- Prévia do código digitado ---- */
+.join-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px; background: var(--bg-side); border: 1px solid var(--line); animation: entrada-in var(--dur-menu, 150ms) var(--ease-out) both; --pv-ring: var(--bg-side); }
+.join-preview[hidden] { display: none; }
+.join-preview.note { color: var(--muted); font-size: 14px; padding: 10px 14px; }
+.join-preview .jp-art { width: 96px; height: 48px; flex: none; border-radius: 10px; display: grid; place-items: center; overflow: hidden; background: var(--room-color, #4a4f5c); color: #fff; font-size: 16px; font-weight: 800; }
+.join-preview .jp-art.has-cover { background: var(--room-cover) center / cover no-repeat; }
+.join-preview .jp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.join-preview .jp-info b { font-size: 15px; color: var(--text-hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.join-preview .jp-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-width: 0; }
+
+@media (max-width: 720px) { .join-preview .jp-art { width: 64px; } }

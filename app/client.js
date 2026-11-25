@@ -182,8 +182,48 @@ function sfx(kind) {
   } catch {}
 }
 
-const presenceCache = new Map();
+// ---------------- Prévia de quem está na sala (antes de entrar) ----------------
+// Só leitura: native.rooms.inspect sonda o código sem entrar na sala, com limite de ~3 s. Sem resposta, não mostra ponto.
+const presenceCache = new Map(), presenceRequests = new Map();
 const PRESENCE_TTL = 20000;
+const previewVisible = () => document.visibilityState === 'visible' && !$('#home').classList.contains('hidden');
+const validPreviewCode = (raw) => /^[a-z0-9]{4}-?[a-z0-9]{4}$/i.test(String(raw || '').trim());
+function inspectRoom(code) {
+  if (!native?.rooms?.inspect || !previewVisible() || !validPreviewCode(code)) return Promise.resolve(null);
+  const key = normCode(code);
+  if (presenceRequests.has(key)) return presenceRequests.get(key);
+  const request = (async () => {
+    const res = await native.rooms.inspect(key, { presence: true, cover: true });
+    if (!res || res.state === 'unknown') { presenceCache.delete(key); return null; }
+    const entry = { at: Date.now(), state: res.state, presence: res.presence ?? null };
+    presenceCache.set(key, entry);
+    if (presenceCache.size > 64) presenceCache.delete(presenceCache.keys().next().value);
+    return entry;
+  })().catch(() => { presenceCache.delete(key); return null; }).finally(() => presenceRequests.delete(key));
+  presenceRequests.set(key, request);
+  return request;
+}
+// 'Felipe, Ana +2 · Lobby'
+function presenceLine(p) {
+  if (!p.total) return 'Ninguém na sala';
+  if (!p.people.length) return p.total + (p.total === 1 ? ' pessoa na sala' : ' pessoas na sala');
+  const shown = p.people.slice(0, 2).map((x) => x.name), rest = p.total - shown.length;
+  return shown.join(', ') + (rest > 0 ? ' +' + rest : '') + (p.channel && p.inCall ? ' · ' + p.channel : '');
+}
+// '5 na sala · 3 na call · Felipe ao vivo'
+function presenceCounts(p) {
+  const parts = [p.total + ' na sala', p.inCall + ' na call'];
+  const live = p.people.filter((x) => x.live);
+  if (live.length === 1 && p.live <= 1) parts.push(live[0].name + ' ao vivo'); else if (p.live) parts.push(p.live + ' ao vivo');
+  return parts.join(' · ');
+}
+function presenceStack(p, max = 4) {
+  const shown = p.people.slice(0, max), more = p.total - shown.length;
+  if (!shown.length) return '';
+  return '<span class="pv-stack" aria-hidden="true">' + shown.map((x) => `<i class="pv-av" style="--c:${esc(x.color)}" title="${esc(x.name)}">${x.avatar ? `<img src="${esc(x.avatar)}" alt="">` : esc(x.initial || initials(x.name))}</i>`).join('') + (more > 0 ? `<i class="pv-more">+${more}</i>` : '') + '</span>';
+}
+const presenceDot = (p) => `<i class="pv-dot${p.inCall ? ' on' : ''}" title="${p.inCall ? 'Gente na call' : 'Ninguém na call'}"></i>`;
+
 // Linha de status da tela inicial: altura reservada (o layout não pula), spinner de 14 px e vermelho só em falha confirmada.
 let lastHomeStatus = '';
 function setHomeStatus(text, o = {}) {
@@ -209,7 +249,7 @@ async function renderMyRooms(check=false) {
   root.classList.toggle('hidden',!storedRooms.length);
   shownRooms=rooms;
   // Fileira de cards (estilo Apple TV): arte com a cor ou o ícone da sala, nome, status e botão.
-  root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room ${r.look?.cover ? 'has-cover' : ''}" data-room-row="${i}" style="--room-color:${r.look?.color || serverColor(r.code)}${r.look?.cover ? `;--room-cover:url('${esc(r.look.cover)}')` : ''}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}</div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}">${check?'Verificando…':esc(fmtCode(r.code))}</span></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
+  root.innerHTML='<h2>Minhas salas</h2><div class="shelf-wrap"><button class="shelf-arrow prev" aria-label="Salas anteriores">'+icon('chevronLeft',18)+'</button><div class="room-shelf">'+rooms.map((r,i)=>`<div class="saved-room ${r.look?.cover ? 'has-cover' : ''}" data-room-row="${i}" style="--room-color:${r.look?.color || serverColor(r.code)}${r.look?.cover ? `;--room-cover:url('${esc(r.look.cover)}')` : ''}"><button class="saved-room-hide" data-hide-room="${esc(normCode(r.code))}" title="Ocultar esta sala da lista (não apaga nada)" aria-label="Ocultar sala">${icon('x',13)}</button><div class="saved-room-art">${r.icon?`<img src="${esc(r.icon)}" alt="">`:`<span class="saved-room-badge" aria-hidden="true">${esc(initials(r.name))}</span>`}${normCode(r.code)===favoriteCode()?`<i class="saved-room-fav" title="Abre ao iniciar">${icon('star',11)}</i>`:''}<span class="saved-room-live" data-room-live="${i}" hidden>Ao vivo</span></div><div class="saved-room-info"><b>${esc(r.name)}</b><span class="saved-room-status" data-room-status="${i}" title="${esc(fmtCode(r.code))}">${check?'Procurando…':esc(fmtCode(r.code))}</span><div class="saved-room-pv" data-room-pv="${i}"></div></div><button class="btn" data-open-room="${i}">Abrir sala</button></div>`).join('')+'</div><button class="shelf-arrow next" aria-label="Mais salas">'+icon('chevronLeft',18)+'</button></div>'
     +(hiddenCount&&!showOld?`<button class="rooms-old" data-rooms-old>Mostrar ${hiddenCount} ${hiddenCount===1?'sala oculta':'salas ocultas'}</button>`:showOld&&hiddenCount?'<button class="rooms-old" data-rooms-old>Esconder salas antigas</button>':'');
   root.classList.toggle('hidden',!rooms.length&&!hiddenCount);
   $$('[data-hide-room]',root).forEach(b=>b.onclick=(e)=>{e.stopPropagation();const h=new Set(LS.get('hiddenRooms',[]));h.add(b.dataset.hideRoom);LS.set('hiddenRooms',[...h]);renderMyRooms();refreshStoredRooms();});
@@ -218,17 +258,73 @@ async function renderMyRooms(check=false) {
   $$('[data-open-room]',root).forEach(b=>b.onclick=()=>openStoredRoom(rooms[+b.dataset.openRoom]));
   $$('[data-room-row]',root).forEach(c=>c.onclick=(e)=>{if(!e.target.closest('button'))$('[data-open-room]',c)?.click();}); // o card inteiro abre a sala
   renderRecent();
-  if(check)for(let i=0;i<rooms.length;i++){
-    if(token!==roomsRenderToken||$('#home').classList.contains('hidden'))break;
-    const result=await native.rooms.inspect(rooms[i].code);
-    if(token!==roomsRenderToken)break;
-    presenceCache.set(normCode(rooms[i].code),{state:result.state,at:Date.now()});
-    const el=$(`[data-room-status="${i}"]`,root);if(!el||!document.body.contains(root))break;
-    const code=fmtCode(rooms[i].code);
-    el.textContent=result.state==='online'?`Online · ${code}`:result.state==='offline'?`Sala fechada · você pode abrir · ${code}`:`Não deu para verificar agora · ${code}`;
-    const row=$(`[data-room-row="${i}"]`,root);if(row)row.dataset.state=result.state;
-    const btn=$(`[data-open-room="${i}"]`,root);if(btn){btn.textContent=result.state==='online'?'Entrar':'Abrir sala';btn.classList.toggle('primary',result.state==='online');}
+  paintCachedRooms();
+  if(check)checkRoomsPresence(token);
+}
+// Pinta o cartão da sala com o que a sondagem trouxe (ou nada, se não houve resposta).
+function paintRoom(i, entry) {
+  const root = $('#my-rooms'), row = root && $(`[data-room-row="${i}"]`, root); if (!row) return;
+  const status = $(`[data-room-status="${i}"]`, row), pv = $(`[data-room-pv="${i}"]`, row), live = $(`[data-room-live="${i}"]`, row), btn = $(`[data-open-room="${i}"]`, row);
+  const p = entry?.presence, code = fmtCode(shownRooms[i]?.code);
+  row.dataset.state = entry?.state || 'unknown';
+  if (entry?.state === 'online' && p) status.innerHTML = presenceDot(p) + '<span>' + esc(presenceLine(p)) + '</span>';
+  else status.textContent = entry?.state === 'online' ? 'Sala aberta' : entry?.state === 'offline' ? 'Sala fechada' : 'Sem resposta agora';
+  status.title = p ? `${presenceLine(p)} · ${code}` : code;
+  pv.innerHTML = p ? presenceStack(p) : '';
+  live.hidden = !p?.live;
+  const cover = p?.cover || shownRooms[i]?.look?.cover;
+  if (cover) { row.style.setProperty('--room-cover', `url("${cover}")`); row.classList.add('has-cover'); }
+  btn.textContent = entry?.state === 'online' ? 'Entrar' : 'Abrir sala'; btn.classList.toggle('primary', entry?.state === 'online');
+}
+function paintCachedRooms() {
+  shownRooms.forEach((r, i) => { const hit = presenceCache.get(normCode(r.code)); if (hit && Date.now() - hit.at < PRESENCE_TTL) paintRoom(i, hit); });
+}
+let lastPresenceCheck = 0;
+async function checkRoomsPresence(token) {
+  if (!previewVisible()) return;
+  lastPresenceCheck = Date.now();
+  const list = shownRooms.slice(); let next = 0;
+  const worker = async () => {
+    while (next < list.length) {
+      const i = next++;
+      if (token !== roomsRenderToken || !previewVisible()) return;
+      const entry = await inspectRoom(list[i].code);
+      if (token !== roomsRenderToken || !previewVisible()) return;
+      paintRoom(i, entry);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+}
+// Atualiza a cada ~20 s, só enquanto a tela inicial está visível.
+let presenceBusy = false;
+function refreshPresenceNow() {
+  if (presenceBusy || !native?.rooms || !previewVisible()) return;
+  presenceBusy = true;
+  Promise.all([checkRoomsPresence(roomsRenderToken), refreshJoinPreview()]).catch(() => {}).finally(() => { presenceBusy = false; });
+}
+function startPresenceWatch() {
+  setInterval(refreshPresenceNow, PRESENCE_TTL);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastPresenceCheck > PRESENCE_TTL) refreshPresenceNow(); });
+}
+// Cartão de quem digitou um código válido: nome, capa e quem está lá, antes de clicar em Entrar.
+let joinPreviewToken = 0;
+async function refreshJoinPreview() {
+  const box = $('#join-preview'), field = $('#join-addr');
+  if (!box || !field || !native?.rooms || !previewVisible() || !validPreviewCode(field.value)) return;
+  const code = normCode(field.value), token = ++joinPreviewToken;
+  const entry = await inspectRoom(code);
+  if (token !== joinPreviewToken || normCode(field.value) !== code || !previewVisible()) return;
+  if (!entry) { box.hidden = true; box.replaceChildren(); return; }
+  const stored = storedRooms.find((r) => normCode(r.code) === code), p = entry.presence;
+  if (entry.state === 'offline' && !stored) {
+    box.hidden = false; box.className = 'join-preview note';
+    box.textContent = 'Não achei essa sala agora. Confere o código com quem te convidou ou espera o anfitrião abrir.'; return;
   }
+  const name = p?.name || stored?.name || 'Sala do Resenha', color = p?.color || stored?.look?.color || serverColor(code), cover = p?.cover || stored?.look?.cover || '';
+  box.hidden = false; box.className = 'join-preview';
+  box.innerHTML = `<span class="jp-art${cover ? ' has-cover' : ''}" style="--room-color:${esc(color)}${cover ? `;--room-cover:url('${esc(cover)}')` : ''}" aria-hidden="true">${cover ? '' : esc(initials(name))}</span>`
+    + `<span class="jp-info"><b>${esc(name)}</b><span class="jp-counts">${entry.state === 'online' ? (p ? presenceDot(p) + esc(presenceCounts(p)) : 'Sala aberta') : 'Sala fechada · você pode abrir'}</span></span>`
+    + (p && p.total ? presenceStack(p) : '') + (p && p.live > 0 ? '<span class="jp-live">Ao vivo</span>' : '');
 }
 let pendingRoomOpen = null;
 async function openStoredRoom(room) {
@@ -310,7 +406,7 @@ async function switchServer(code){
   if(!room||code===normCode(S.code))return;
   if(V.joined&&!await confirmModal('Trocar de servidor',`Você vai sair da call e entrar em ${esc(room.name)}.`,'Trocar',false))return;
   await leaveRoom();
-  await openStoredRoom(room,{auto:true});
+  await openStoredRoom(room);
 }
 // On start the app opens the favourite, else the last server you were in (left via home or "Sair" clears it).
 const rememberRoom=()=>{if(native?.rooms&&S.code)LS.set('lastRoom',{code:normCode(S.code),name:S.roomName||''});};
@@ -338,7 +434,7 @@ async function openStartServer(){
     const code=fmtCode(intent.code);
     $('#join-addr').value=code;
     endBoot();
-    if(!me.name.trim()){pendingLaunchJoin=code;return;}
+    if(!me.name.trim()){pendingLaunchJoin=code;refreshJoinPreview();return;}
     return joinRoom(code,$('#join-pass').value);
   }
   if(!me.name.trim()&&intent?.type!=='host')return endBoot();
@@ -491,6 +587,14 @@ function initHome() {
   // Popover do perfil (quando já existe nome): Esc e clique fora fecham.
   document.addEventListener('keydown', (e) => { const d = $('#home-profile-d'); if (e.key === 'Escape' && d?.open && !d.classList.contains('first-run') && !$('#home').classList.contains('hidden')) { d.open = false; d.querySelector('summary')?.focus(); } });
   document.addEventListener('pointerdown', (e) => { const d = $('#home-profile-d'); if (d?.open && !d.classList.contains('first-run') && !d.contains(e.target)) d.open = false; });
+  let previewDebounce;
+  $('#join-addr').addEventListener('input', () => {
+    joinPreviewToken++;
+    const box = $('#join-preview'); box.hidden = true; box.replaceChildren();
+    clearTimeout(previewDebounce);
+    if (validPreviewCode($('#join-addr').value)) previewDebounce = setTimeout(refreshJoinPreview, 350);
+  });
+  startPresenceWatch();
   $('#btn-join').onclick = () => joinRoom($('#join-addr').value, $('#join-pass').value);
   $('#join-addr').onkeydown = $('#join-pass').onkeydown = (e) => { if (e.key === 'Enter') $('#btn-join').click(); };
   if (!native) { $('#btn-host').disabled = true; $('#btn-host').textContent = 'Criar sala só no app'; }
@@ -1057,7 +1161,7 @@ async function leaveRoom(endForAll) {
   $('#main').classList.add('hidden');
   $('#home').classList.remove('hidden');
   $('#web-nav').classList.add('hidden');
-  if(native?.rooms)renderMyRooms(false);
+  if(native?.rooms){renderMyRooms(true);refreshJoinPreview();}
   pushTray();
   renderRecent();
 }

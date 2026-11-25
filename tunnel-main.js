@@ -116,23 +116,35 @@ class Tunnel {
   warm() { try { brokerConn(SIGNAL_URL, this.log); } catch {} }
   emit(ev) { if (this.win && !this.win.isDestroyed()) this.win.webContents.send('tun:event', ev); }
 
-  async inspect(code, {claim=null, timeoutMs=2500, claimMs=1500, connectMs=20000} = {}) {
+  async inspect(code, {claim=null, timeoutMs=2500, claimMs=1500, connectMs=20000, presence=false, cover=false} = {}) {
     const hosts=new Map(),claims=new Map();if(claim)claims.set(claim.id,claim);
-    let signal=this.makeSignal(code,m=>{if(m.t==='host'&&m.hostId)hosts.set(m.hostId,m.rank||{});if(m.t==='claim'&&m.claim?.id)claims.set(m.claim.id,m.claim);},this.log);
-    // Pedidos repetidos a cada 250 ms. Na sondagem, sai assim que um anfitrião responde (não precisa esperar a janela toda).
-    const until=async(ms,claiming)=>{const end=Date.now()+ms;while(Date.now()<end){if(!claiming&&hosts.size)return;signal.send({t:claiming?'claim':'probe',...(claiming?{claim}:{})});await new Promise(r=>setTimeout(r,250));}};
+    const probeId=presence?crypto.randomBytes(8).toString('hex'):null;
+    let preview=null,firstHostAt=0;
+    const signal=this.makeSignal(code,m=>{
+      if(m.t==='host'&&m.hostId){hosts.set(m.hostId,m.rank||{});if(!firstHostAt)firstHostAt=Date.now();}
+      if(m.t==='claim'&&m.claim?.id)claims.set(m.claim.id,m.claim);
+      if(probeId&&m.t==='preview'&&m.to===probeId&&m.hostId&&m.data){preview=m.data;if(!hosts.has(m.hostId))hosts.set(m.hostId,m.rank||{});}
+    },this.log);
+    // Pedido curto, repetido por perda no caminho. O host antigo responde normalmente, só sem a prévia.
+    const until=async(ms,claiming)=>{
+      const end=Date.now()+ms;
+      while(Date.now()<end){
+        if(!claiming&&hosts.size&&(!presence||preview||Date.now()-firstHostAt>=1000))return;
+        signal.send(claiming?{t:'claim',claim}:{t:'probe',...(probeId?{pv:probeId,cover}:{})});
+        await new Promise(r=>setTimeout(r,Math.min(250,Math.max(0,end-Date.now()))));
+      }
+    };
     try {
-      // Os brokers públicos podem demorar a aceitar a conexão: espera até 20 s por pelo menos um antes de consultar,
-      // e a janela de consulta conta a partir daí (antes, conectar aos 6,1 s já dava "não consegui consultar").
       const connectEnd=Date.now()+connectMs;
-      while(!signal.connected()&&Date.now()<connectEnd)await new Promise(r=>setTimeout(r,200));
+      while(!signal.connected()&&Date.now()<connectEnd)await new Promise(r=>setTimeout(r,Math.min(200,Math.max(0,connectEnd-Date.now()))));
+      if(!signal.connected())return {state:'unknown'};
       await until(timeoutMs,false);
-      if(!signal.connected())return {state:'unknown',error:'Não consegui consultar a descoberta. Não vou abrir uma segunda sala sem verificar.'};
-      if(hosts.size)return {state:'online',hosts:[...hosts.values()]};
+      if(hosts.size)return {state:'online',hosts:[...hosts.values()],...(presence?{presence:preview}:{})};
+      if(!signal.connected())return {state:'unknown'};
       if(!claim)return {state:'offline'};
       await until(claimMs,true);
       if(hosts.size)return {state:'online',hosts:[...hosts.values()]};
-      if(!signal.connected())return {state:'unknown',error:'A descoberta caiu durante a reivindicação.'};
+      if(!signal.connected())return {state:'unknown'};
       const winner=[...claims.values()].sort((a,b)=>-compareClaims(a,b))[0];
       return {state:winner.id===claim.id?'won':'lost',winner};
     } finally {signal.close();}
@@ -141,16 +153,28 @@ class Tunnel {
   // ---------- Anfitrião ----------
   // Se aparecerem 2 anfitriões com o mesmo código, fica o que tem mais gente;
   // empate: troca mais recente (epoch maior); depois quem entrou antes na sala.
-  hostStart(code, port, rank, getClients, getRevision) {
+  hostStart(code, port, rank, getClients, getRevision, getPresence) {
     this.stop();
     this.role = 'host'; this.port = port;
     const r = Array.isArray(rank) ? rank : [0, Date.now(), crypto.randomBytes(6).toString('hex')];
     this.rankNow = () => ({ clients: getClients ? getClients() : 1, epoch: r[0], joinedAt: r[1], id: String(r[2]), claim: rank?.claim || null, revision:getRevision?.()||0 });
     this.hostId = crypto.randomBytes(6).toString('hex');
-    const nonces = new Map();
+    const nonces = new Map(), previews = new Map();
     const better = (a, b) => a.claim && b.claim ? compareClaims(a.claim,b.claim)>0 : (a.clients !== b.clients ? a.clients > b.clients : a.epoch !== b.epoch ? a.epoch > b.epoch : a.joinedAt !== b.joinedAt ? a.joinedAt < b.joinedAt : a.id < b.id);
     this.signal = this.makeSignal(code, (m) => {
-      if(m.t==='probe'||m.t==='claim') { this.signal?.send({t:'host',hostId:this.hostId,rank:this.rankNow()});return; }
+      if(m.t==='probe'||m.t==='claim') {
+        const signal=this.signal, hostId=this.hostId;
+        signal?.send({t:'host',hostId,rank:this.rankNow()});
+        if(m.t==='probe'&&getPresence&&typeof m.pv==='string'&&/^[a-f0-9]{16}$/.test(m.pv)){
+          const cover=m.cover===true, now=Date.now();
+          let entry=previews.get(cover);
+          if(!entry||now-entry.at>=1000){entry={at:now,result:Promise.resolve().then(()=>getPresence(cover)).catch(()=>null)};previews.set(cover,entry);}
+          entry.result.then(data=>{
+            if(data&&signal===this.signal&&this.role==='host')signal.send({t:'preview',to:m.pv,hostId,data});
+          });
+        }
+        return;
+      }
       if (m.t === 'host' && m.hostId && m.hostId !== this.hostId && m.rank && typeof m.rank === 'object') {
         if (this.role === 'host' && better(m.rank, this.rankNow())) { this.log('outro anfitrião com prioridade maior, saindo'); this.emit({ type: 'yield' }); }
         return;
