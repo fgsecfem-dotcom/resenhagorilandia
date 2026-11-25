@@ -1248,17 +1248,18 @@ function setWatching(uid, active) {
 }
 // A fileira de pessoas debaixo da live herda a largura da live (que muda com a proporção do vídeo e com a janela).
 let focusFrame = null;
-const focusRO = new ResizeObserver(([entry]) => {
+let focusRO = null;
+const focusObserver = () => focusRO ||= new ResizeObserver(([entry]) => {
   const wrap = entry.target.closest('.focus-wrap');
   if (entry.target === focusFrame && wrap && entry.target.offsetWidth) wrap.style.setProperty('--live-w', entry.target.offsetWidth + 'px');
 });
 function watchFocusWidth(wrap, el) {
   const live = el?.classList.contains('is-screen') ? el : null;
   if (focusFrame !== live) {
-    focusRO.disconnect(); focusFrame = live;
-    if (live) focusRO.observe(live);
+    focusRO?.disconnect(); focusFrame = live;
+    if (live) focusObserver().observe(live);
   }
-  if (live?.offsetWidth) wrap.style.setProperty('--live-w', live.offsetWidth + 'px');
+  if (live?.offsetWidth && wrap) wrap.style.setProperty('--live-w', live.offsetWidth + 'px');
   else wrap?.style.removeProperty('--live-w');
 }
 
