@@ -29,7 +29,7 @@ html #call #call-stage .tile.is-voice { display: flex; flex-direction: column; j
 html #call #call-stage .tile.is-voice::after { content: none; }
 html #call #call-stage .tile.is-voice .tile-body { position: static; flex: none; width: auto; height: auto; }
 html #call #call-stage .tile.is-voice .avatar { width: var(--voice-size, 64px); height: var(--voice-size, 64px); font-size: calc(var(--voice-size, 64px) * .35); border-radius: 50%; transform: none; }
-html #call #call-stage .tile.is-voice.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-rail), 0 0 0 4px var(--green); }
+html #call #call-stage .tile.is-voice .avatar { --speaking-ring: 0 0 0 2px var(--bg-rail), 0 0 0 4px var(--green); }
 html #call #call-stage .tile.is-voice .label { position: static; max-width: calc(100% - 8px); padding: 0; background: transparent; color: var(--text-hi); backdrop-filter: none; white-space: nowrap; }
 #call #call-stage .focus-main > .tile.is-voice { --voice-size: min(38cqh, 224px); }
 #call #call-stage .focus-strip > .tile.is-voice { --voice-size: 40px; }
