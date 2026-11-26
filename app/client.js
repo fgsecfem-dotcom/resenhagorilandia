@@ -1837,7 +1837,7 @@ async function loadDeepFilterNet() {
     await w.ready;
     if (V.dfnOff) { w.dispose(); return; }
     V.dfn = w.node; V.dfnDispose = w.dispose;
-    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; V.dfn.connect(V.nsAn); // nível depois do filtro: diz quando você fala
+    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; // nível depois do filtro: diz quando você fala
     V.dfnReady = true;
     applyNoiseMode();
   } catch (e) { console.warn('deepfilternet', e); V.dfnOff = true; }
@@ -1855,10 +1855,23 @@ function dropDeepFilterNet(overload) {
 function applyNoiseMode() {
   if (!V.micGain) return;
   for (const n of [V.pre, V.rn, V.dfn]) if (n) try { V.micGain.disconnect(n); } catch {}
-  try { if (V.rn) V.rn.disconnect(); } catch {}
-  try { if (V.dfn) V.dfn.disconnect(V.pre); } catch {}
+  try { V.rn?.disconnect(); } catch {}
+  try { V.dfn?.disconnect(); } catch {}
+  const active = !!V.src && !!(V.joined ? !micMuted() : V.testing);
+  if (V.raw) for (const track of V.raw.getAudioTracks()) track.enabled = active;
+  if (active !== V.micActive) {
+    V.micActive = active;
+    V.gateOpen = V.vadOpen = false;
+    V.gateHold = V.dfnHold = 0;
+    const now = V.ctx.currentTime;
+    V.micReadyAt = active ? now + 0.1 : 0;
+    V.gate?.gain.cancelScheduledValues(now);
+    V.gate?.gain.setValueAtTime(0, now);
+  }
+  if (!active) return;
   if (settings.aiNoise && V.dfnReady && V.dfn) {
     V.micGain.connect(V.dfn); V.dfn.connect(V.pre);
+    if (V.nsAn) V.dfn.connect(V.nsAn);
   } else if (settings.aiNoise && V.rn) {
     V.micGain.connect(V.rn); V.rn.connect(V.pre);
     V.rn.port.postMessage({ gate: true, thr: 1 - settings.vadSens / 100 * 0.9, holdMs: 350 });
@@ -1897,6 +1910,7 @@ async function openMic(attempt = V.voiceAttempt) {
   V.raw = raw;
   V.src = V.ctx.createMediaStreamSource(raw);
   V.src.connect(V.micGain);
+  applyNoiseMode();
 }
 function applyOutputDevice() {
   const id = settings.outputDevice === 'default' ? '' : settings.outputDevice;
@@ -1949,7 +1963,7 @@ function teardownVoice() {
   if (V.raw) V.raw.getTracks().forEach((t) => t.stop());
   if (V.src) try { V.src.disconnect(); } catch {}
   V.raw = null; V.src = null; V.joined = false; V.channel = null; V.speaking.clear(); V.focus = null; V.gateOpen = false; V.vadOpen = false;
-  if (V.gate) V.gate.gain.value = 0;
+  applyNoiseMode();
   for (const tile of tileCache.values()) detachTile(tile); tileCache.clear();
   stopDJAudio();
 }
@@ -1959,7 +1973,6 @@ function setMuted(m, silent) {
   if (V.deafened && !m) { setDeafened(false); return; }
   if (m !== V.muted) globalThis.ResenhaA11y?.announce(m ? 'Microfone silenciado.' : 'Microfone ativado.');
   V.muted = m; LS.set('muted', m); updatePttTrack();
-  if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
   wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
@@ -1969,7 +1982,6 @@ function setDeafened(d) {
   else { V.muted = V.mutedBeforeDeafen; }
   if (d !== V.deafened) globalThis.ResenhaA11y?.announce(d ? 'Áudio e microfone silenciados.' : V.muted ? 'Áudio ativado. Microfone silenciado.' : 'Áudio e microfone ativados.');
   V.deafened = d; updatePttTrack();
-  if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
   if (V.master) V.master.gain.value = d ? 0 : 1;
   if (V.screenMaster) V.screenMaster.gain.value = d ? 0 : 1;
@@ -1986,12 +1998,7 @@ const level = (an) => { an.getFloatTimeDomainData(lvlBuf); let s = 0; for (let i
 setInterval(() => {
   if (!V.joined && !V.testing) return;
   if (!V.analyser || !V.src) return;
-  // Mutado (fora do teste de microfone): nada sai, então não precisa medir.
-  if ((V.muted || V.deafened) && !V.testing) {
-    if (V.gate.gain.value > 0.5) V.gate.gain.setTargetAtTime(0, V.ctx.currentTime, 0.03);
-    if (V.gateOpen) { V.gateOpen = false; refreshSpeaking(); }
-    return;
-  }
+  if (!V.micActive) return;
   const now = performance.now();
   const db = level(V.analyser); V.selfLevel = db;
   let open;
@@ -2007,7 +2014,7 @@ setInterval(() => {
     open = now < V.gateHold;
     if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
   }
-  const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
+  const send = (WEB_VIEWER || open) && !micMuted() && V.joined && V.ctx.currentTime >= V.micReadyAt;
   if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
 }, MIC_TICK);
 setInterval(() => {
@@ -3571,7 +3578,7 @@ async function openSettings(tab = 'voz') {
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
     <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); applyNoiseMode(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
   const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
@@ -3663,7 +3670,7 @@ async function openSettings(tab = 'voz') {
     if (el.inert) return;
     if (!V.src) await openMic();
     if (el.inert) { if (!V.joined) closeSettingsMic(); return; }
-    V.testing = true;
+    V.testing = true; applyNoiseMode();
     const lvl = $('.lvl', el), thr = $('.thr', el), st = $('#st-state', el);
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
@@ -3689,6 +3696,7 @@ const pttDelay = () => clamp(Math.round(Number(settings.pttRelease) || 0), 0, 50
 function updatePttTrack() {
   const track = V.dest?.stream.getAudioTracks()[0];
   if (track) track.enabled = !micMuted(); // trava a própria trilha enviada; nunca altera o mute escolhido.
+  if (V.micGain && V.micActive !== (!!V.src && !!(V.joined ? !micMuted() : V.testing))) applyNoiseMode();
 }
 function setPttPressed(on) {
   if (pttPressed === on) return;
