@@ -18,7 +18,7 @@ vm.runInContext(main.slice(main.indexOf("ipcMain.handle('performance:save'"),mai
   const reads = { self: 0, peer: 0 }, gain = { value: 0, setTargetAtTime(v) { this.value = v; } };
   const loud = (key) => ({ getFloatTimeDomainData(buf) { reads[key]++; buf.fill(0.5); } });
   const V = { joined: true, micActive: false, micReadyAt: 0, windowVisible: true, analyser: loud('self'), src: {}, gate: { gain }, ctx: { currentTime: 0 }, peers: new Map([['p1', { analyser: loud('peer') }]]), speaking: new Set() };
-  const vctx = vm.createContext({ V, S: { users: new Map() }, settings: { threshold: -50, userMuted: {} }, WEB_VIEWER: false, DJ_NAME: 'DJ', DJ_ID: 'dj', micMuted: () => !V.micActive, refreshSpeaking() {}, performance, document: { hidden: false } });
+  const vctx = vm.createContext({ V, S: { users: new Map() }, settings: { threshold: -50, userMuted: {} }, WEB_VIEWER: false, DJ_NAME: 'DJ', DJ_ID: 'dj', micMuted: () => !V.micActive, wantsDeepFilterNet: () => false, refreshSpeaking() {}, performance, document: { hidden: false } });
   vm.runInContext(code, vctx);
   vctx.tickMic(); assert.equal(reads.self, 0); assert.equal(gain.value, 0);
   V.micActive = true; V.micReadyAt = 0.1;

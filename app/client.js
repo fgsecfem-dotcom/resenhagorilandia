@@ -54,6 +54,9 @@ applyReduceMotion();
 if (!window.resenhaMotion?.setPreference) systemReducedMotion.addEventListener('change', applyReduceMotion);
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
+// O padrão antigo (IA ligada, sem escolha de filtro) passa para o RNNoise.
+function noiseModeFromSettings(saved) { return saved.noiseMode === 'dfn' ? 'dfn' : 'rnnoise'; }
+settings.noiseMode = noiseModeFromSettings(settings);
 const saveSettings = () => LS.set('settings', settings);
 // 1.6 layout: move untouched old default widths (440/240) to the new ones once; custom widths stay.
 if (!LS.get('layout16', false)) { if (settings.chatWidth === 440) settings.chatWidth = 360; if (settings.sidebarWidth === 240) settings.sidebarWidth = 264; saveSettings(); LS.set('layout16', true); }
@@ -1822,26 +1825,29 @@ async function initAudioGraph() {
       V.rnReady = true;
     } catch (e) { console.warn('rnnoise', e); V.rn = null; }
     applyNoiseMode();
-    loadDeepFilterNet(); // 2.4: filtro melhor no PC; carrega em segundo plano e assume quando estiver pronto
+    loadDeepFilterNet(); // Só carrega se a pessoa escolheu qualidade máxima.
     applyVoiceFx();
     applyOutputDevice();
   }
 }
 // 2.4: no PC, o DeepFilterNet3 (melhor em louça, TV, ventilador e conversa ao fundo no teste comparativo).
 // O RNNoise fica de reserva: entra se o DeepFilterNet3 não carregar ou se o PC não der conta.
+function wantsDeepFilterNet() { return !WEB_VIEWER && settings.aiNoise && settings.noiseMode === 'dfn'; }
 async function loadDeepFilterNet() {
-  if (WEB_VIEWER || V.dfn || V.dfnLoading || V.dfnOff) return;
+  if (!wantsDeepFilterNet() || !V.ctx || V.dfn || V.dfnLoading || V.dfnOff) return;
   V.dfnLoading = true;
+  let w;
   try {
     const { createDeepFilterNetAudioWorklet } = await import('./vendor/dfn3/deepfilternet.js');
-    const w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => dropDeepFilterNet(true) });
+    if (!wantsDeepFilterNet()) return;
+    w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => { if (V.dfn === w?.node) dropDeepFilterNet(true); } });
     await w.ready;
-    if (V.dfnOff) { w.dispose(); return; }
+    if (!wantsDeepFilterNet()) { w.dispose(); return; }
     V.dfn = w.node; V.dfnDispose = w.dispose;
     V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; // nível depois do filtro: diz quando você fala
     V.dfnReady = true;
     applyNoiseMode();
-  } catch (e) { console.warn('deepfilternet', e); V.dfnOff = true; }
+  } catch (e) { w?.dispose(); console.warn('deepfilternet', e); V.dfnOff = true; }
   finally { V.dfnLoading = false; }
 }
 function dropDeepFilterNet(overload) {
@@ -1870,7 +1876,7 @@ function applyNoiseMode() {
     V.gate?.gain.setValueAtTime(0, now);
   }
   if (!active) return;
-  if (settings.aiNoise && V.dfnReady && V.dfn) {
+  if (wantsDeepFilterNet() && V.dfnReady && V.dfn) {
     V.micGain.connect(V.dfn); V.dfn.connect(V.pre);
     if (V.nsAn) V.dfn.connect(V.nsAn);
   } else if (settings.aiNoise && V.rn) {
@@ -2005,7 +2011,7 @@ function tickMic() {
   const now = performance.now();
   const db = level(V.analyser); V.selfLevel = db;
   let open;
-  if (settings.aiNoise && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
+  if (wantsDeepFilterNet() && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
     if (level(V.nsAn) > -60 + settings.vadSens * 0.25) V.dfnHold = now + 300;
     const sp = now < (V.dfnHold || 0); if (sp !== V.vadOpen) { V.vadOpen = sp; refreshSpeaking(); }
     open = true;
@@ -3357,7 +3363,7 @@ function perfStop(send = true) {
   if (!send || !perfOn() || samples.length < 3) return;
   const meta = {
     install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
-    noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
+    noise: settings.aiNoise ? (wantsDeepFilterNet() && V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
     theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
     reduceMotion: document.documentElement.classList.contains('reduce-motion'), overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
   };
@@ -3568,6 +3574,7 @@ async function openSettings(tab = 'voz') {
         </div>
         <div class="ns-box">
           <label class="check big"><input type="checkbox" id="st-ai" ${settings.aiNoise ? 'checked' : ''}> <span><b>Supressão de ruído com IA</b><br><span class="muted small">Tira teclado, ventilador, cachorro e barulho de fundo. Quando você não está falando, não sai som nenhum.</span></span></label>
+          ${WEB_VIEWER ? '' : `<div class="field" id="st-noise-mode-box"><label for="st-noise-mode">Filtro de ruído</label><select id="st-noise-mode"><option value="rnnoise" ${settings.noiseMode === 'rnnoise' ? 'selected' : ''}>Leve (recomendado)</option><option value="dfn" ${settings.noiseMode === 'dfn' ? 'selected' : ''}>Qualidade máxima (usa mais CPU)</option></select></div>`}
           <div class="field" id="st-vad-box"><label>Exigência pra reconhecer voz <span id="st-vad-v">${settings.vadSens}%</span></label><input type="range" id="st-vad" min="10" max="95" value="${settings.vadSens}"><div class="small muted">Mais alto = só passa voz bem clara. Mais baixo = passa até sussurro.</div></div>
           <div id="st-sens-box">
             <label class="check"><input type="checkbox" id="st-auto" ${settings.autoSens ? 'checked' : ''}> Sensibilidade automática</label>
@@ -3654,9 +3661,11 @@ async function openSettings(tab = 'voz') {
   $('#st-in', el).onchange = (e) => { settings.inputDevice = e.target.value; remic(); };
   $('#st-out', el).onchange = (e) => { settings.outputDevice = e.target.value; saveSettings(); applyOutputDevice(); };
   $('#st-mg', el).oninput = (e) => { settings.micGain = +e.target.value; $('#st-mg-v', el).textContent = e.target.value + '%'; if (V.micGain) V.micGain.gain.value = settings.micGain / 100; saveSettings(); };
-  const nsUI = () => { $('#st-vad-box', el).classList.toggle('hidden', !settings.aiNoise); $('#st-sens-box', el).classList.toggle('hidden', settings.aiNoise); };
+  const nsUI = () => { $('#st-noise-mode-box', el)?.classList.toggle('hidden', !settings.aiNoise); $('#st-vad-box', el).classList.toggle('hidden', !settings.aiNoise); $('#st-sens-box', el).classList.toggle('hidden', settings.aiNoise); };
   nsUI();
-  $('#st-ai', el).onchange = (e) => { settings.aiNoise = e.target.checked; saveSettings(); applyNoiseMode(); nsUI(); };
+  $('#st-ai', el).onchange = (e) => { settings.aiNoise = e.target.checked; saveSettings(); applyNoiseMode(); loadDeepFilterNet(); nsUI(); };
+  const noiseSelect = $('#st-noise-mode', el);
+  if (noiseSelect) noiseSelect.onchange = () => { settings.noiseMode = noiseModeFromSettings({ noiseMode: noiseSelect.value }); saveSettings(); applyNoiseMode(); loadDeepFilterNet(); };
   $('#st-vad', el).oninput = (e) => { settings.vadSens = +e.target.value; $('#st-vad-v', el).textContent = e.target.value + '%'; saveSettings(); applyNoiseMode(); };
   $('#st-auto', el).onchange = (e) => { settings.autoSens = e.target.checked; $('#st-thr', el).disabled = e.target.checked; saveSettings(); };
   $('#st-thr', el).oninput = (e) => { settings.threshold = +e.target.value; saveSettings(); };
