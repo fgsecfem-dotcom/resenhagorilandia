@@ -73,3 +73,23 @@ console.log('PASS: sem ease-in, quique ou zoom no hover');
   assert.equal(classes.has('reduce-motion'), true);
 }
 console.log('PASS: Reduzir animações aceita auto, ligado e desligado, e acompanha o Windows');
+
+// Desfocar não equivale a esconder: só as animações entram em repouso depois de 5 s.
+{
+  const fs = require('node:fs'), vm = require('node:vm');
+  const { declaration } = require('./helpers/characterization-client');
+  const src = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
+  let next = 0, paused = false; const timers = new Map();
+  const V = { windowVisible: true }, settings = { keepAnimatingInBackground: false };
+  const classList = { toggle(name, on) { paused = on; return paused; }, contains: () => paused };
+  const ctx = vm.createContext({ V, settings, window: {}, document: { hidden: false, documentElement: { classList } }, refreshSpeaking() {},
+    setTimeout(fn, ms) { assert.equal(ms, 5000); timers.set(++next, fn); return next; }, clearTimeout(id) { timers.delete(id); } });
+  vm.runInContext('let bgBlurTimer = null;\n' + ['syncBgPaused', 'setBackgroundFocus'].map((n) => declaration(src, n)).join('\n'), ctx);
+  const blur = () => ctx.setBackgroundFocus(false), focus = () => ctx.setBackgroundFocus(true);
+  function elapsed() { const callbacks = [...timers.values()]; timers.clear(); callbacks.forEach((fn) => fn()); }
+  blur(); assert.equal(paused, false); focus(); elapsed(); assert.equal(paused, false, 'foco de volta antes do prazo');
+  blur(); elapsed(); assert.equal(paused, true); assert.equal(V.windowVisible, true, 'não esconde a live');
+  focus(); assert.equal(paused, false, 'volta na hora');
+  settings.keepAnimatingInBackground = true; blur(); elapsed(); assert.equal(paused, false);
+  V.windowVisible = false; ctx.syncBgPaused(); assert.equal(paused, true, 'minimizar ainda pausa');
+}

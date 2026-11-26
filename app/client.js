@@ -40,7 +40,7 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   ...Object.fromEntries(Object.values(SHORTCUTS).map(([k]) => [k, ''])), pttRelease: 0, chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', keepAnimatingInBackground: false, appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
 // Migração do antigo padrão desligado; o desligado explícito da nova opção é preservado.
@@ -54,6 +54,9 @@ applyReduceMotion();
 if (!window.resenhaMotion?.setPreference) systemReducedMotion.addEventListener('change', applyReduceMotion);
 globalThis.PIPOCA?.applyLogo(settings.appIcon); // logo da interface na variação escolhida
 if ('noiseSuppression' in settings) { settings.aiNoise = settings.noiseSuppression; delete settings.noiseSuppression; }
+// O padrão antigo (IA ligada, sem escolha de filtro) passa para o RNNoise.
+function noiseModeFromSettings(saved) { return saved.noiseMode === 'dfn' ? 'dfn' : 'rnnoise'; }
+settings.noiseMode = noiseModeFromSettings(settings);
 const saveSettings = () => LS.set('settings', settings);
 // 1.6 layout: move untouched old default widths (440/240) to the new ones once; custom widths stay.
 if (!LS.get('layout16', false)) { if (settings.chatWidth === 440) settings.chatWidth = 360; if (settings.sidebarWidth === 240) settings.sidebarWidth = 264; saveSettings(); LS.set('layout16', true); }
@@ -1148,7 +1151,7 @@ function handle(m) {
       if (!chanById(S.textChannel)) S.textChannel = textChannels()[0]?.id;
       // ligações de voz com quem sumiu da sala: espera um pouco (na troca de anfitrião a galera volta aos poucos)
       clearTimeout(S.peerSweep);
-      S.peerSweep = setTimeout(() => { for (const id of [...V.peers.keys()]) { const u = S.users.get(id); if (!u || u.voiceChannel !== V.channel) closePeer(id); } renderCall(); }, 20000);
+      S.peerSweep = V.joined && V.peers.size ? setTimeout(() => { for (const id of [...V.peers.keys()]) { const u = S.users.get(id); if (!u || u.voiceChannel !== V.channel) closePeer(id); } renderCall(); }, 20000) : null;
       for (const list of Object.values(S.history)) for (const msg of list) cacheAttachments(msg);
       showMain();
       if (LS.get('musicIntro', false)) { LS.set('musicIntro', false); setTimeout(() => roomUI?.open('music'), 700); } // 2.2: primeira sala depois de atualizar
@@ -1498,6 +1501,19 @@ function updateTile(key, u, isScreen) {
   }
   return t;
 }
+// Não confundir com bg-paused: perder o foco não interrompe a live em outro monitor.
+function syncWatchingVisibility() {
+  const paused = !V.windowVisible || document.hidden;
+  if (paused === !!V.watchVideoPaused) return;
+  V.watchVideoPaused = paused;
+  for (const [owner, streamId] of V.watching) {
+    const via = V.relayVia.get(owner);
+    if (via) {
+      relayHealth.set(owner, { since: Date.now(), bad: 0 });
+      sig(via, { relayVideoPaused: paused, owner, streamId });
+    } else sig(owner, { watchVideoPaused: paused, streamId });
+  }
+}
 function setWatching(uid, active) {
   const u = S.users.get(uid);
   if (!u) return;
@@ -1721,10 +1737,11 @@ addEventListener('resenha-theme', () => {
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: micMuted(), deafened: V.deafened }); }
 
 function refreshSpeaking() {
+  overlayClient?.syncSpeaking();
+  if (document.documentElement.classList.contains('bg-paused')) return;
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   for (const [k, t] of tileCache) if (k.startsWith('user:')) t.classList.toggle('speaking', isSpeaking(k.slice(5)));
   $$('.live-person').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
-  overlayClient?.syncSpeaking();
   syncSkinSpeaking();
 }
 
@@ -1821,26 +1838,29 @@ async function initAudioGraph() {
       V.rnReady = true;
     } catch (e) { console.warn('rnnoise', e); V.rn = null; }
     applyNoiseMode();
-    loadDeepFilterNet(); // 2.4: filtro melhor no PC; carrega em segundo plano e assume quando estiver pronto
+    loadDeepFilterNet(); // Só carrega se a pessoa escolheu qualidade máxima.
     applyVoiceFx();
     applyOutputDevice();
   }
 }
 // 2.4: no PC, o DeepFilterNet3 (melhor em louça, TV, ventilador e conversa ao fundo no teste comparativo).
 // O RNNoise fica de reserva: entra se o DeepFilterNet3 não carregar ou se o PC não der conta.
+function wantsDeepFilterNet() { return !WEB_VIEWER && settings.aiNoise && settings.noiseMode === 'dfn'; }
 async function loadDeepFilterNet() {
-  if (WEB_VIEWER || V.dfn || V.dfnLoading || V.dfnOff) return;
+  if (!wantsDeepFilterNet() || !V.ctx || V.dfn || V.dfnLoading || V.dfnOff) return;
   V.dfnLoading = true;
+  let w;
   try {
     const { createDeepFilterNetAudioWorklet } = await import('./vendor/dfn3/deepfilternet.js');
-    const w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => dropDeepFilterNet(true) });
+    if (!wantsDeepFilterNet()) return;
+    w = await createDeepFilterNetAudioWorklet(V.ctx, { pauseGateLookaheadFrames: 1, onOverload: () => { if (V.dfn === w?.node) dropDeepFilterNet(true); } });
     await w.ready;
-    if (V.dfnOff) { w.dispose(); return; }
+    if (!wantsDeepFilterNet()) { w.dispose(); return; }
     V.dfn = w.node; V.dfnDispose = w.dispose;
-    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; V.dfn.connect(V.nsAn); // nível depois do filtro: diz quando você fala
+    V.nsAn = V.ctx.createAnalyser(); V.nsAn.fftSize = 512; // nível depois do filtro: diz quando você fala
     V.dfnReady = true;
     applyNoiseMode();
-  } catch (e) { console.warn('deepfilternet', e); V.dfnOff = true; }
+  } catch (e) { w?.dispose(); console.warn('deepfilternet', e); V.dfnOff = true; }
   finally { V.dfnLoading = false; }
 }
 function dropDeepFilterNet(overload) {
@@ -1855,10 +1875,23 @@ function dropDeepFilterNet(overload) {
 function applyNoiseMode() {
   if (!V.micGain) return;
   for (const n of [V.pre, V.rn, V.dfn]) if (n) try { V.micGain.disconnect(n); } catch {}
-  try { if (V.rn) V.rn.disconnect(); } catch {}
-  try { if (V.dfn) V.dfn.disconnect(V.pre); } catch {}
-  if (settings.aiNoise && V.dfnReady && V.dfn) {
+  try { V.rn?.disconnect(); } catch {}
+  try { V.dfn?.disconnect(); } catch {}
+  const active = !!V.src && !!(V.joined ? !micMuted() : V.testing);
+  if (V.raw) for (const track of V.raw.getAudioTracks()) track.enabled = active;
+  if (active !== V.micActive) {
+    V.micActive = active;
+    V.gateOpen = V.vadOpen = false;
+    V.gateHold = V.dfnHold = 0;
+    const now = V.ctx.currentTime;
+    V.micReadyAt = active ? now + 0.1 : 0;
+    V.gate?.gain.cancelScheduledValues(now);
+    V.gate?.gain.setValueAtTime(0, now);
+  }
+  if (!active) return;
+  if (wantsDeepFilterNet() && V.dfnReady && V.dfn) {
     V.micGain.connect(V.dfn); V.dfn.connect(V.pre);
+    if (V.nsAn) V.dfn.connect(V.nsAn);
   } else if (settings.aiNoise && V.rn) {
     V.micGain.connect(V.rn); V.rn.connect(V.pre);
     V.rn.port.postMessage({ gate: true, thr: 1 - settings.vadSens / 100 * 0.9, holdMs: 350 });
@@ -1897,6 +1930,7 @@ async function openMic(attempt = V.voiceAttempt) {
   V.raw = raw;
   V.src = V.ctx.createMediaStreamSource(raw);
   V.src.connect(V.micGain);
+  applyNoiseMode();
 }
 function applyOutputDevice() {
   const id = settings.outputDevice === 'default' ? '' : settings.outputDevice;
@@ -1920,6 +1954,7 @@ async function joinVoice(channelId) {
   // The person left the room or picked another channel while the microphone was starting.
   if (attempt !== V.voiceAttempt || S.closing) return;
   V.joined = true; V.channel = channelId; watchDevices();
+  syncVoiceTimers();
   if (V.deafened) V.muted = true;
   updatePttTrack();
   wsSend({ t: 'state', voiceChannel: channelId, muted: micMuted(), deafened: V.deafened });
@@ -1941,6 +1976,7 @@ function leaveVoice(silentSwitch) {
 }
 function teardownVoice() {
   if (perf.timer) perfStop();
+  clearTimeout(S.peerSweep); S.peerSweep = null;
   clearTimeout(pttTimer); pttPressed = false; updatePttTrack();
   djPanel?.close();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
@@ -1949,7 +1985,8 @@ function teardownVoice() {
   if (V.raw) V.raw.getTracks().forEach((t) => t.stop());
   if (V.src) try { V.src.disconnect(); } catch {}
   V.raw = null; V.src = null; V.joined = false; V.channel = null; V.speaking.clear(); V.focus = null; V.gateOpen = false; V.vadOpen = false;
-  if (V.gate) V.gate.gain.value = 0;
+  applyNoiseMode();
+  syncVoiceTimers();
   for (const tile of tileCache.values()) detachTile(tile); tileCache.clear();
   stopDJAudio();
 }
@@ -1959,7 +1996,6 @@ function setMuted(m, silent) {
   if (V.deafened && !m) { setDeafened(false); return; }
   if (m !== V.muted) globalThis.ResenhaA11y?.announce(m ? 'Microfone silenciado.' : 'Microfone ativado.');
   V.muted = m; LS.set('muted', m); updatePttTrack();
-  if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!V.deafened); if(V.gate)V.gate.gain.value=V.muted||V.deafened?0:1; }
   if (!silent) sfx(m ? 'mute' : 'unmute');
   wsSend({ t: 'state', muted: micMuted(), deafened: V.deafened });
   renderAll();
@@ -1969,7 +2005,6 @@ function setDeafened(d) {
   else { V.muted = V.mutedBeforeDeafen; }
   if (d !== V.deafened) globalThis.ResenhaA11y?.announce(d ? 'Áudio e microfone silenciados.' : V.muted ? 'Áudio ativado. Microfone silenciado.' : 'Áudio e microfone ativados.');
   V.deafened = d; updatePttTrack();
-  if(WEB_VIEWER && V.raw) { V.raw.getAudioTracks().forEach(t=>t.enabled=!V.muted&&!d); if(V.gate)V.gate.gain.value=V.muted||d?0:1; }
   LS.set('deafened', d); LS.set('muted', V.muted);
   if (V.master) V.master.gain.value = d ? 0 : 1;
   if (V.screenMaster) V.screenMaster.gain.value = d ? 0 : 1;
@@ -1983,19 +2018,13 @@ const MIC_TICK = WEB_VIEWER ? 80 : 40, SPEAK_TICK = WEB_VIEWER ? 160 : 120;
 let noiseFloor = -60;
 const lvlBuf = new Float32Array(512);
 const level = (an) => { an.getFloatTimeDomainData(lvlBuf); let s = 0; for (let i = 0; i < lvlBuf.length; i++) s += lvlBuf[i] * lvlBuf[i]; return 20 * Math.log10(Math.sqrt(s / lvlBuf.length) + 1e-9); };
-setInterval(() => {
-  if (!V.joined && !V.testing) return;
+function tickMic() {
   if (!V.analyser || !V.src) return;
-  // Mutado (fora do teste de microfone): nada sai, então não precisa medir.
-  if ((V.muted || V.deafened) && !V.testing) {
-    if (V.gate.gain.value > 0.5) V.gate.gain.setTargetAtTime(0, V.ctx.currentTime, 0.03);
-    if (V.gateOpen) { V.gateOpen = false; refreshSpeaking(); }
-    return;
-  }
+  if (!V.micActive) return;
   const now = performance.now();
   const db = level(V.analyser); V.selfLevel = db;
   let open;
-  if (settings.aiNoise && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
+  if (wantsDeepFilterNet() && V.dfnReady && V.nsAn) { // DeepFilterNet3 já corta o ruído: a fala é o que sobra acima do limite
     if (level(V.nsAn) > -60 + settings.vadSens * 0.25) V.dfnHold = now + 300;
     const sp = now < (V.dfnHold || 0); if (sp !== V.vadOpen) { V.vadOpen = sp; refreshSpeaking(); }
     open = true;
@@ -2007,11 +2036,10 @@ setInterval(() => {
     open = now < V.gateHold;
     if (open !== V.gateOpen) { V.gateOpen = open; refreshSpeaking(); }
   }
-  const send = (WEB_VIEWER || open) && !V.muted && !V.deafened && V.joined;
+  const send = (WEB_VIEWER || open) && !micMuted() && V.joined && V.ctx.currentTime >= V.micReadyAt;
   if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
-}, MIC_TICK);
-setInterval(() => {
-  if (!V.joined && !V.testing) return;
+}
+function tickSpeaking() {
   if (!V.windowVisible || document.hidden) return;
   const now = performance.now();
   let changed = false;
@@ -2027,13 +2055,25 @@ setInterval(() => {
     if (sp !== V.speaking.has(DJ_ID)) { if (sp) V.speaking.add(DJ_ID); else V.speaking.delete(DJ_ID); changed = true; }
   }
   if (changed) refreshSpeaking();
-}, SPEAK_TICK);
+}
+function syncVoiceTimers() {
+  if (V.joined || V.testing) V.micTimer ??= setInterval(tickMic, MIC_TICK);
+  else { clearInterval(V.micTimer); V.micTimer = null; }
+  if (V.joined) {
+    V.speakTimer ??= setInterval(tickSpeaking, SPEAK_TICK);
+    V.peerTimer ??= setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
+    V.relayTimer ??= setInterval(() => { if (V.relayVia.size) checkRelayQuality(); }, 2000);
+  } else {
+    for (const key of ['speakTimer', 'peerTimer', 'relayTimer']) { clearInterval(V[key]); V[key] = null; }
+  }
+  window.resenhaAmbient?.setInCall(V.joined);
+}
 setInterval(() => {
-  if (V.windowVisible && !document.hidden) tickTimers();
+  if (V.joined && V.windowVisible && !document.hidden) tickTimers();
   wsSend({ t: 'ping', ts: Date.now() });
   let ch = false; for (const [id, t] of S.typing) if (Date.now() - t > 6000) { S.typing.delete(id); ch = true; }
   if (ch) renderTyping();
-  if (V.windowVisible && !document.hidden) updateDJProgress();
+  if (V.joined && V.windowVisible && !document.hidden) updateDJProgress();
 }, 1000);
 
 // Estado da voz na linha "você" da barra lateral: ícone de sinal (cor pelo ping) + onde você está.
@@ -2064,8 +2104,9 @@ function getPeer(uid) {
   pc.onsignalingstatechange = () => { if (pc.signalingState === 'stable') tunePeerSenders(p); };
   pc.onicecandidate = ({ candidate }) => { if (candidate) sig(uid, { cand: candidate }); };
   pc.oniceconnectionstatechange = () => {
+    clearTimeout(p.iceRetry); p.iceRetry = null;
     if (pc.iceConnectionState === 'failed') { try { pc.restartIce(); } catch {} }
-    if (pc.iceConnectionState === 'disconnected') setTimeout(() => { if (pc.iceConnectionState === 'disconnected') try { pc.restartIce(); } catch {} }, 3000);
+    if (pc.iceConnectionState === 'disconnected') p.iceRetry = setTimeout(() => { if (pc.iceConnectionState === 'disconnected') try { pc.restartIce(); } catch {} }, 3000);
   };
   pc.ontrack = (ev) => {
     const stream = ev.streams[0] || new MediaStream([ev.track]);
@@ -2106,9 +2147,9 @@ function checkStuckPeers(now = Date.now()) {
     if (now - Math.max(p.okAt || 0, p.since || 0) > PEER_STUCK_MS && now - (p.resetAt || 0) > PEER_RESET_GAP_MS) resetPeer(uid, true);
   }
 }
-setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
 function closePeer(uid) {
   const p = V.peers.get(uid); if (!p) return;
+  clearTimeout(p.iceRetry);
   V.peers.delete(uid); V.speaking.delete(uid);
   try { p.pc.close(); } catch {}
   for (const a of [p.audio, p.screenAudio]) if (a) { try { a.src.disconnect(); a.gain.disconnect(); } catch {} a.el.srcObject = null; }
@@ -2134,6 +2175,8 @@ function onSignal(from, data) {
         p.wantsScreen = !!data.watch && !!V.screen && data.streamId === V.screen.id;
         if (p.wantsScreen) routeViewer(p, data);
         else { removeScreenFrom(p); V.relayed.delete(p.uid); if (V.relayId === p.uid) dropRelay(); }
+      } else if (typeof data.watchVideoPaused === 'boolean') {
+        if (p.wantsScreen && V.screen?.id === data.streamId) setViewerVideoPaused(p, data.watchVideoPaused);
       } else if (onRelaySignal(from, p, data)) {
         // handled: relay routing between streamer, relay and viewers
       } else if (data.desc) {
@@ -2162,8 +2205,11 @@ function tunePeerSenders(p) {
   for (const sender of p.pc.getSenders()) {
     if (!sender.track) continue;
     const screen = (V.screenSenders.get(p.uid) || []).includes(sender);
-    if (screen && sender.track.kind === 'video') tuneSender(sender, { maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' });
-    else tuneSender(sender, { maxBitrate: screen ? 128000 : 96000 });
+    const relay = V.relayOut.get(p.uid);
+    const forwarded = relay?.senders.includes(sender);
+    if (screen && sender.track.kind === 'video') tuneSender(sender, liveVideoEncoding(p, sender.track));
+    else if (forwarded && sender.track.kind === 'video') tuneSender(sender, { active: !relay.videoPaused, maxBitrate: 4500000, degradationPreference: 'maintain-framerate' });
+    else tuneSender(sender, { maxBitrate: screen || forwarded ? 128000 : 96000 });
   }
 }
 function attachRemoteAudio(p, stream, isScreen) {
@@ -2387,13 +2433,18 @@ async function toggleShare() {
 // Video is swapped in place; sound that appears or goes away is added or removed per viewer (renegotiates).
 function swapShareStream(next, q) {
   const cur = V.screen, Q = QUALITY[q] || QUALITY['720p30'];
+  clearLiveEncoderProbe();
+  V.screenEncoderCap = null;
   const nv = next.getVideoTracks()[0], na = next.getAudioTracks()[0];
   const soundChanged = !!na !== cur.getAudioTracks().length > 0;
   for (const [uid, senders] of V.screenSenders) {
     const p = V.peers.get(uid); if (!p) continue;
     const kept = [];
     for (const s of senders) {
-      if (s.track?.kind === 'video') { s.replaceTrack(nv || null).catch(() => {}); tuneSender(s, { maxBitrate: Q.br, maxFramerate: Q.fps, degradationPreference: 'maintain-framerate' }); kept.push(s); }
+      if (s.track?.kind === 'video') {
+        s.replaceTrack(nv || null).then(() => { if (s.track === nv && nv) tuneSender(s, liveVideoEncoding(p, nv)); }).catch(() => {});
+        kept.push(s);
+      }
       else if (s.track?.kind === 'audio' && na) { s.replaceTrack(na).catch(() => {}); kept.push(s); }
       else try { p.pc.removeTrack(s); } catch {}
     }
@@ -2405,9 +2456,13 @@ function swapShareStream(next, q) {
   for (const t of next.getTracks()) cur.addTrack(t);
   if (nv) { nv.contentHint = 'motion'; nv.onended = () => stopShare(); }
   V.screenQ = Q; V.screenQName = q;
+  scheduleLiveEncoderProbe();
   // The relay forwards the tracks it receives; when sound appears or goes, relayed viewers ask again so the
   // relay picks up the new set (the video track itself is swapped in place and keeps flowing).
-  if (soundChanged) setTimeout(() => dropRelay(true), 1500);
+  if (soundChanged) {
+    clearTimeout(V.relayAudioTimer);
+    V.relayAudioTimer = setTimeout(() => { V.relayAudioTimer = null; dropRelay(true); }, 1500);
+  }
   native?.captureStatus({ active: true, stage: 'streaming', quality: q, audio: !!na });
   renderAll();
 }
@@ -2415,6 +2470,7 @@ function startShareWithStream(stream, q, startupEnabled = true) {
   const Q = QUALITY[q] || QUALITY['720p60'];
   V.screen = stream; V.screenQ = Q; V.screenQName = QUALITY[q] ? q : '720p60'; V.previewHidden = true;
   V.screenStartupEnabled = startupEnabled;
+  V.screenEncoderCap = null;
   native?.captureStatus({ active: true, stage: 'streaming', quality: q, audio: stream.getAudioTracks().length > 0 });
   const vt = stream.getVideoTracks()[0];
   if (vt) { vt.contentHint = 'motion'; vt.onended = () => stopShare(); }
@@ -2531,8 +2587,16 @@ function canRelay() { return typeof native !== 'undefined' && !!native; }
 // relayV: versão do repasse. Quem transmite só escolhe como repasse quem tem a versão atual (2.3.3+);
 // um repasse de versão antiga deixava a live preta para quem chegava depois.
 const RELAY_VERSION = 2;
-function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, ...extra }; }
+function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, videoPaused: !!V.watchVideoPaused, ...extra }; }
+function setViewerVideoPaused(p, paused) {
+  p.screenVideoPaused = paused;
+  // Quem está em segundo plano não deve congelar a imagem de quem recebe por repasse.
+  if (paused && V.relayId === p.uid) dropRelay();
+  for (const s of V.screenSenders.get(p.uid) || []) if (s.track?.kind === 'video') tuneSender(s, { active: !paused });
+  if (!paused && V.screenSenders.has(p.uid)) scheduleLiveEncoderProbe();
+}
 function routeViewer(p, data) {
+  setViewerVideoPaused(p, data.videoPaused === true);
   const relay = V.relayId && V.relayId !== p.uid && V.screenSenders.has(V.relayId) && V.peers.get(V.relayId);
   if (relay && data.acceptsRelay && !data.noRelay) {
     removeScreenFrom(p); V.relayed.add(p.uid);
@@ -2540,7 +2604,7 @@ function routeViewer(p, data) {
     return;
   }
   V.relayed.delete(p.uid); addScreenTo(p);
-  if (!V.relayId && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
+  if (!V.relayId && !p.screenVideoPaused && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
 }
 function dropRelay(keepRelay = false) { // relayed viewers ask again and get a new route
   if (!keepRelay) V.relayId = null;
@@ -2552,22 +2616,30 @@ function stopRelayingTo(uid) {
   if (out && p) for (const s of out.senders) try { p.pc.removeTrack(s); } catch {}
   V.relayOut.delete(uid);
 }
-function relayTo(p, owner, streamId) { // runs on the relay: forward the live it is watching to one more viewer
+function relayTo(p, owner, streamId, videoPaused = false) { // runs on the relay: forward the live it is watching to one more viewer
   stopRelayingTo(p.uid);
   const stream = V.peers.get(owner)?.streams.get(streamId);
   if (!canRelay() || !stream?.getVideoTracks().length) return sig(p.uid, { relayFail: true, owner });
   const senders = stream.getTracks().map((t) => p.pc.addTrack(t, stream)); // same stream id, so the viewer's UI finds it
   for (const s of senders) {
-    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { maxBitrate: 4500000, degradationPreference: 'maintain-framerate' }); }
+    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { active: !videoPaused, maxBitrate: 4500000, degradationPreference: 'maintain-framerate' }); }
     else tuneSender(s, { maxBitrate: 128000 });
   }
-  V.relayOut.set(p.uid, { owner, streamId, senders });
+  V.relayOut.set(p.uid, { owner, streamId, senders, videoPaused });
 }
 function onRelaySignal(from, p, data) {
-  if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId); else stopRelayingTo(from); return true; }
+  if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId, data.videoPaused === true); else stopRelayingTo(from); return true; }
+  if (typeof data.relayVideoPaused === 'boolean') {
+    const out = V.relayOut.get(from);
+    if (out?.owner === data.owner && out?.streamId === data.streamId && out) {
+      out.videoPaused = data.relayVideoPaused;
+      for (const s of out.senders) if (s.track?.kind === 'video') tuneSender(s, { active: !out.videoPaused });
+    }
+    return true;
+  }
   if ('relayVia' in data) { // from the streamer: watch through this relay
     if (V.watching.get(from) !== data.streamId || !V.peers.has(data.relayVia)) return sig(from, watchMsg(data.streamId, true, { noRelay: true })), true;
-    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
+    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId, videoPaused: !!V.watchVideoPaused });
     return true;
   }
   if ('relayLost' in data) { // from the streamer: the relay went away, ask again
@@ -2598,6 +2670,7 @@ function goDirect(owner) {
   toast('A live de ' + (S.users.get(owner)?.name || 'quem transmite') + ' chegava fraca pelo repasse. Agora vem direto.', '', 4000);
 }
 async function checkRelayQuality() {
+  if (V.watchVideoPaused) return;
   for (const [owner, via] of [...V.relayVia]) {
     const p = V.peers.get(via), sid = V.watching.get(owner), track = sid && p?.streams?.get(sid)?.getVideoTracks()[0];
     // Repasse que não entrega nada (tela preta) em 10 s: pede direto para quem transmite.
@@ -2605,6 +2678,7 @@ async function checkRelayQuality() {
     if (!track) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     let r = null; try { (await p.pc.getStats(track)).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') r = x; }); } catch {}
     if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
+    if (V.watchVideoPaused || V.relayVia.get(owner) !== via) continue;
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
     const frames = Number(r.framesDecoded), stalled = Number.isFinite(frames) && Number.isFinite(h.frames) ? frames <= h.frames : !r.framesPerSecond;
@@ -2615,21 +2689,72 @@ async function checkRelayQuality() {
     if (h.bad >= 4) goDirect(owner);
   }
 }
-window.__relayCheck = setInterval(() => { if (V.relayVia.size) checkRelayQuality(); }, 2000);
 
-// Shown in "Alterar transmissão": which encoder runs, what limits it, and how many copies the PC encodes.
+function videoEncoderHardware(stat) {
+  const impl = String(stat.encoderImplementation || '');
+  if (stat.powerEfficientEncoder === true || /MediaFoundation|VideoToolbox|NVENC|AMF|QSV|Accelerator|External|VAAPI|V4L2/i.test(impl)) return true;
+  if (/OpenH264|libvpx|libaom|software|x264/i.test(impl) || (stat.powerEfficientEncoder === false && stat.framesEncoded > 0)) return false;
+  return null;
+}
+function liveVideoEncoding(p, track) {
+  const opts = { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' };
+  const cap = V.screenEncoderCap;
+  if (cap) {
+    const { width, height } = track.getSettings();
+    opts.scaleResolutionDownBy = Math.max(1, (width || cap.w) / V.screenQ.w, (height || cap.h) / V.screenQ.h);
+  } else opts.scaleResolutionDownBy = 1;
+  return opts;
+}
+function clearLiveEncoderProbe() {
+  clearTimeout(V.screenEncoderProbe?.timer);
+  V.screenEncoderProbe = null;
+}
+async function capSoftwareLive(probe) {
+  if (V.screenEncoderProbe !== probe || V.screenEncoderCap) return;
+  const { track, quality } = probe, q = QUALITY['720p30'];
+  V.screenEncoderCap = quality;
+  V.screenQName = '720p30'; V.screenQ = q;
+  try { await track.applyConstraints({ width: { max: q.w }, height: { max: q.h }, frameRate: { max: q.fps } }); } catch {} // Alguns modos de captura só aceitam redução no envio.
+  if (V.screenEncoderProbe !== probe) return;
+  for (const p of V.peers.values()) if (V.screenSenders?.has(p.uid)) tunePeerSenders(p);
+  native?.captureStatus({ active: true, stage: 'streaming', quality: '720p30', audio: probe.stream.getAudioTracks().length > 0 });
+  toast('Seu PC não tem codificador de vídeo; a live ficou em 720p para não pesar no jogo');
+}
+function scheduleLiveEncoderProbe() {
+  const stream = V.screen, quality = V.screenQ;
+  const track = stream?.getVideoTracks()[0], target = QUALITY['720p30'];
+  if (!track || !V.screenSenders.size || V.screenEncoderProbe || V.screenEncoderCap || (quality.w <= target.w && quality.h <= target.h && quality.fps <= target.fps)) return;
+  const probe = V.screenEncoderProbe = { stream, track, quality, timer: null, attempts: 0 };
+  const check = async () => {
+    if (V.screenEncoderProbe !== probe) return;
+    const stat = await liveEncoderInfo();
+    if (V.screenEncoderProbe !== probe) return;
+    if (stat.gpu === false) { await capSoftwareLive(probe); return; }
+    if (++probe.attempts < 8 && (stat.gpu !== true || stat.pending)) probe.timer = setTimeout(check, 2000);
+    else clearLiveEncoderProbe();
+  };
+  probe.timer = setTimeout(check, 3000);
+}
+// Mostrado em "Alterar transmissão" e usado para reduzir a carga de um codificador por software.
 async function liveEncoderInfo() {
-  const copies = [...V.screenSenders.values()].length;
+  const copies = V.screenSenders.size;
+  let first = null, pending = false;
   for (const senders of V.screenSenders.values()) for (const s of senders) {
     if (s.track?.kind !== 'video') continue;
     try {
-      for (const r of (await s.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
-        const impl = String(r.encoderImplementation || ''), gpu = r.powerEfficientEncoder === true || /MediaFoundation|VideoToolbox|NVENC|AMF|QSV|Accelerator|External/i.test(impl);
-        return { copies, gpu, impl, limit: r.qualityLimitationReason || 'none', fps: Math.round(r.framesPerSecond || 0) };
+      let found = false;
+      for (const r of (await s.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video' && r.framesEncoded > 0) {
+        const gpu = videoEncoderHardware(r);
+        if (gpu === null) continue;
+        found = true;
+        const info = { copies, gpu, impl: String(r.encoderImplementation || ''), limit: r.qualityLimitationReason || 'none', fps: Math.round(r.framesPerSecond || 0) };
+        if (!gpu) return info; // Basta uma cópia por software para o jogo sentir o custo.
+        first ??= info;
       }
-    } catch {}
+      pending ||= !found;
+    } catch { pending = true; }
   }
-  return { copies };
+  return { copies, ...first, pending };
 }
 
 function addScreenTo(p) {
@@ -2638,9 +2763,10 @@ function addScreenTo(p) {
   V.screenSenders.set(p.uid, senders);
   p.screenStartupSender = null;
   for (const s of senders) {
-    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' }); }
+    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, liveVideoEncoding(p, s.track)); }
     else tuneSender(s, { maxBitrate: 128000 });
   }
+  scheduleLiveEncoderProbe();
 }
 function removeScreenFrom(p) {
   for (const sender of V.screenSenders.get(p.uid) || []) {
@@ -2649,6 +2775,9 @@ function removeScreenFrom(p) {
   V.screenSenders.delete(p.uid);
 }
 function stopShare(silent) {
+  clearTimeout(V.relayAudioTimer); V.relayAudioTimer = null;
+  clearLiveEncoderProbe();
+  V.screenEncoderCap = null;
   if (!V.screen) return;
   V.screen.getTracks().forEach((t) => t.stop());
   for (const [uid, senders] of V.screenSenders) { const p = V.peers.get(uid); if (p) for (const s of senders) try { p.pc.removeTrack(s); } catch {} }
@@ -3332,7 +3461,7 @@ function perfStop(send = true) {
   if (!send || !perfOn() || samples.length < 3) return;
   const meta = {
     install: perfInstall(), durationMin: Math.round((Date.now() - perf.startedAt) / 60000),
-    noise: settings.aiNoise ? (V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
+    noise: settings.aiNoise ? (wantsDeepFilterNet() && V.dfnReady ? 'dfn' : V.rnReady ? 'rnnoise' : 'carregando') : 'desligado',
     theme: String(settings.theme || '').slice(0, 30), glass: document.documentElement.classList.contains('glass'), translucent: settings.translucent !== false,
     reduceMotion: document.documentElement.classList.contains('reduce-motion'), overlay: !!overlayClient?.cfg?.enabled, longTasks: jank, ...window.ResenhaPerf.system(perf.sys),
   };
@@ -3505,6 +3634,7 @@ async function openSettings(tab = 'voz') {
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
           <div class="field"><label for="st-motion">Reduzir animações</label><select id="st-motion">${[['auto','Seguir o Windows'], ['true','Ligado'], ['false','Desligado']].map(([v, name]) => `<option value="${v}" ${String(settings.reduceMotion) === v ? 'selected' : ''}>${name}</option>`).join('')}</select></div>
+          <div class="field"><label class="check"><input type="checkbox" id="st-bg-motion" ${settings.keepAnimatingInBackground ? 'checked' : ''}> Continuar animando com o Resenha em segundo plano</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
         <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button></details>
@@ -3542,6 +3672,7 @@ async function openSettings(tab = 'voz') {
         </div>
         <div class="ns-box">
           <label class="check big"><input type="checkbox" id="st-ai" ${settings.aiNoise ? 'checked' : ''}> <span><b>Supressão de ruído com IA</b><br><span class="muted small">Tira teclado, ventilador, cachorro e barulho de fundo. Quando você não está falando, não sai som nenhum.</span></span></label>
+          ${WEB_VIEWER ? '' : `<div class="field" id="st-noise-mode-box"><label for="st-noise-mode">Filtro de ruído</label><select id="st-noise-mode"><option value="rnnoise" ${settings.noiseMode === 'rnnoise' ? 'selected' : ''}>Leve (recomendado)</option><option value="dfn" ${settings.noiseMode === 'dfn' ? 'selected' : ''}>Qualidade máxima (usa mais CPU)</option></select></div>`}
           <div class="field" id="st-vad-box"><label>Exigência pra reconhecer voz <span id="st-vad-v">${settings.vadSens}%</span></label><input type="range" id="st-vad" min="10" max="95" value="${settings.vadSens}"><div class="small muted">Mais alto = só passa voz bem clara. Mais baixo = passa até sussurro.</div></div>
           <div id="st-sens-box">
             <label class="check"><input type="checkbox" id="st-auto" ${settings.autoSens ? 'checked' : ''}> Sensibilidade automática</label>
@@ -3571,7 +3702,7 @@ async function openSettings(tab = 'voz') {
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
     <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); } });
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); applyNoiseMode(); syncVoiceTimers(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
   const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
@@ -3628,9 +3759,11 @@ async function openSettings(tab = 'voz') {
   $('#st-in', el).onchange = (e) => { settings.inputDevice = e.target.value; remic(); };
   $('#st-out', el).onchange = (e) => { settings.outputDevice = e.target.value; saveSettings(); applyOutputDevice(); };
   $('#st-mg', el).oninput = (e) => { settings.micGain = +e.target.value; $('#st-mg-v', el).textContent = e.target.value + '%'; if (V.micGain) V.micGain.gain.value = settings.micGain / 100; saveSettings(); };
-  const nsUI = () => { $('#st-vad-box', el).classList.toggle('hidden', !settings.aiNoise); $('#st-sens-box', el).classList.toggle('hidden', settings.aiNoise); };
+  const nsUI = () => { $('#st-noise-mode-box', el)?.classList.toggle('hidden', !settings.aiNoise); $('#st-vad-box', el).classList.toggle('hidden', !settings.aiNoise); $('#st-sens-box', el).classList.toggle('hidden', settings.aiNoise); };
   nsUI();
-  $('#st-ai', el).onchange = (e) => { settings.aiNoise = e.target.checked; saveSettings(); applyNoiseMode(); nsUI(); };
+  $('#st-ai', el).onchange = (e) => { settings.aiNoise = e.target.checked; saveSettings(); applyNoiseMode(); loadDeepFilterNet(); nsUI(); };
+  const noiseSelect = $('#st-noise-mode', el);
+  if (noiseSelect) noiseSelect.onchange = () => { settings.noiseMode = noiseModeFromSettings({ noiseMode: noiseSelect.value }); saveSettings(); applyNoiseMode(); loadDeepFilterNet(); };
   $('#st-vad', el).oninput = (e) => { settings.vadSens = +e.target.value; $('#st-vad-v', el).textContent = e.target.value + '%'; saveSettings(); applyNoiseMode(); };
   $('#st-auto', el).onchange = (e) => { settings.autoSens = e.target.checked; $('#st-thr', el).disabled = e.target.checked; saveSettings(); };
   $('#st-thr', el).oninput = (e) => { settings.threshold = +e.target.value; saveSettings(); };
@@ -3645,6 +3778,7 @@ async function openSettings(tab = 'voz') {
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
   $('#st-motion', el).onchange = (e) => { const v = e.target.value; settings.reduceMotion = v === 'auto' ? v : v === 'true'; saveSettings(); applyReduceMotion(); syncSkinSoon(); };
+  $('#st-bg-motion', el).onchange = (e) => { settings.keepAnimatingInBackground = e.target.checked; saveSettings(); syncBgPaused(); };
   cancelAppearance = bindAppearance(el);
   $('#st-fs', el).onchange = (e) => { settings.fontScale = +e.target.value; saveSettings(); applyLayout(); };
   $('#st-fs', el).oninput = (e) => { $('#st-fs-v', el).textContent = e.target.value + '%'; };
@@ -3663,7 +3797,7 @@ async function openSettings(tab = 'voz') {
     if (el.inert) return;
     if (!V.src) await openMic();
     if (el.inert) { if (!V.joined) closeSettingsMic(); return; }
-    V.testing = true;
+    V.testing = true; applyNoiseMode(); syncVoiceTimers();
     const lvl = $('.lvl', el), thr = $('.thr', el), st = $('#st-state', el);
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
@@ -3689,6 +3823,7 @@ const pttDelay = () => clamp(Math.round(Number(settings.pttRelease) || 0), 0, 50
 function updatePttTrack() {
   const track = V.dest?.stream.getAudioTracks()[0];
   if (track) track.enabled = !micMuted(); // trava a própria trilha enviada; nunca altera o mute escolhido.
+  if (V.micGain && V.micActive !== (!!V.src && !!(V.joined ? !micMuted() : V.testing))) applyNoiseMode();
 }
 function setPttPressed(on) {
   if (pttPressed === on) return;
@@ -4213,10 +4348,27 @@ async function maybeWhatsNew() {
 }
 maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
-// Janela escondida ou minimizada: pausa as animações decorativas (o renderer não desacelera sozinho por causa da voz).
-const syncBgPaused = () => document.documentElement.classList.toggle('bg-paused', !V.windowVisible || document.hidden);
-native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); renderCall(); });
-document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); });
+// Só a aparência desacelera ao perder o foco. Voz e live não dependem deste estado.
+let bgBlurTimer = null;
+function syncBgPaused() {
+  const classes = document.documentElement.classList;
+  const wasPaused = classes.contains('bg-paused');
+  const paused = !V.windowVisible || document.hidden || (!!V.windowIdle && !settings.keepAnimatingInBackground);
+  classes.toggle('bg-paused', paused);
+  window.resenhaAmbient?.setPaused(paused);
+  if (wasPaused && !paused) refreshSpeaking();
+}
+function setBackgroundFocus(focused) {
+  clearTimeout(bgBlurTimer);
+  bgBlurTimer = null;
+  if (focused) { V.windowIdle = false; syncBgPaused(); }
+  else if (!V.windowIdle) bgBlurTimer = setTimeout(() => { bgBlurTimer = null; V.windowIdle = true; syncBgPaused(); }, 5000);
+}
+window.addEventListener('blur', () => setBackgroundFocus(false));
+window.addEventListener('focus', () => setBackgroundFocus(true));
+setBackgroundFocus(document.hasFocus());
+native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); syncWatchingVisibility(); renderCall(); });
+document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); syncWatchingVisibility(); });
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
 native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();

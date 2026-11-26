@@ -5,13 +5,13 @@ const { declaration } = require('./helpers/characterization-client');
 const source = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
 
 const video = { kind: 'video' }, audio = { kind: 'audio' }, screen = { id: 'live-1', getTracks: () => [video, audio] };
-const signals = [];
+const signals = [], parameters = [];
 const same = (a, b, msg) => assert.deepEqual(JSON.parse(JSON.stringify(a)), b, msg); // vm objects come from another realm
 const pc = () => ({ senders: [], addTrack(track) { const s = { track, getParameters: () => ({ encodings: [{}] }), setParameters: async () => {} }; this.senders.push(s); return s; }, removeTrack(s) { this.senders = this.senders.filter((x) => x !== s); } });
 const peers = new Map(['relay', 'newer', 'older'].map((uid) => [uid, { uid, pc: pc(), streams: new Map() }]));
 const V = { screen, screenQ: { br: 2500000, fps: 30 }, screenSenders: new Map(), peers, relayId: null, relayed: new Set(), relayVia: new Map(), relayOut: new Map(), watching: new Map() };
-const ctx = vm.createContext({ V, native: {}, sig: (to, data) => signals.push({ to, data }), tuneSender: () => {}, RELAY_VERSION: 2, relayHealth: new Map() });
-vm.runInContext(['preferH264', 'canRelay', 'watchMsg', 'addScreenTo', 'removeScreenFrom', 'routeViewer', 'dropRelay', 'stopRelayingTo', 'relayTo', 'onRelaySignal'].map((n) => declaration(source, n)).join('\n'), ctx);
+const ctx = vm.createContext({ V, native: {}, sig: (to, data) => signals.push({ to, data }), tuneSender: (sender, params) => parameters.push({ kind: sender.track.kind, active: params.active }), RELAY_VERSION: 2, scheduleLiveEncoderProbe() {}, relayHealth: new Map() });
+vm.runInContext(['preferH264', 'canRelay', 'watchMsg', 'liveVideoEncoding', 'addScreenTo', 'removeScreenFrom', 'setViewerVideoPaused', 'routeViewer', 'dropRelay', 'stopRelayingTo', 'relayTo', 'onRelaySignal'].map((n) => declaration(source, n)).join('\n'), ctx);
 const watch = (uid, extra) => { const p = peers.get(uid); p.wantsScreen = true; ctx.routeViewer(p, { watch: true, streamId: 'live-1', ...extra }); };
 
 // 2.3.3: um viewer de versão antiga (sem relayV) não vira repasse: com ele a live ficava preta para quem chegava depois.
@@ -26,6 +26,10 @@ watch('newer', { acceptsRelay: true, canRelay: true, relayV: 2 });
 assert.equal(peers.get('newer').pc.senders.length, 0, 'the streamer does not encode again for a 2.0.1 viewer');
 same(signals.pop(), { to: 'newer', data: { relayVia: 'relay', streamId: 'live-1' } });
 watch('older', {});
+ctx.setViewerVideoPaused(peers.get('older'), true);
+same(parameters.pop(), { kind: 'video', active: false }, 'minimizado, desativa vídeo sem remover áudio');
+ctx.setViewerVideoPaused(peers.get('older'), false);
+same(parameters.pop(), { kind: 'video', active: true }, 'restaurado, reativa o mesmo envio');
 assert.equal(peers.get('older').pc.senders.length, 2, 'a 2.0.0 viewer still gets the live directly');
 assert.equal(V.screenSenders.size, 2, 'two encodes instead of three');
 watch('newer', { acceptsRelay: true, canRelay: true, noRelay: true });
@@ -41,6 +45,10 @@ peers.set('owner', { uid: 'owner', pc: pc(), streams: new Map([['live-1', ownerS
 const viewer = peers.get('newer'); viewer.pc = pc();
 assert.equal(ctx.onRelaySignal('newer', viewer, { relayWatch: true, owner: 'owner', streamId: 'live-1' }), true);
 assert.equal(viewer.pc.senders.length, 2, 'relay forwards video and sound'); assert.equal(V.relayOut.get('newer').owner, 'owner');
+ctx.onRelaySignal('newer', viewer, { relayVideoPaused: true, owner: 'owner', streamId: 'live-1' });
+same(parameters.pop(), { kind: 'video', active: false }, 'repasse também pausa apenas o vídeo');
+ctx.onRelaySignal('newer', viewer, { relayVideoPaused: false, owner: 'owner', streamId: 'live-1' });
+same(parameters.pop(), { kind: 'video', active: true }, 'repasse reativa o mesmo envio');
 ctx.onRelaySignal('newer', viewer, { relayWatch: false, owner: 'owner' });
 assert.equal(viewer.pc.senders.length, 0); assert.equal(V.relayOut.has('newer'), false, 'stops forwarding when the viewer leaves');
 ctx.onRelaySignal('newer', viewer, { relayWatch: true, owner: 'owner', streamId: 'other' });

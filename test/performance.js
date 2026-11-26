@@ -11,17 +11,44 @@ const nativeCtx=vm.createContext({ipcMain:{handle:(key,fn)=>hooks[key]=fn},dialo
 vm.runInContext(main.slice(main.indexOf("ipcMain.handle('performance:save'"),main.indexOf("ipcMain.handle('app:version'")),nativeCtx);
 (async()=>{assert.equal(await hooks['performance:save']({}, {schema:1,samples:[{at:1}]}),true);assert.equal(JSON.parse(saved.data).schema,1);saved=null;choice={canceled:true};assert.equal(await hooks['performance:save']({},{}),false);assert.equal(saved,null);console.log('PASS: native export writes report JSON and honors save cancellation');})().catch(e=>{console.error(e);process.exitCode=1;});
 (async()=>{const report=await ctx.window.readMediaStats(new Map([['private-person-id',{pc:{getStats:async()=>stats}}]]));assert.equal(report.length,2);assert.equal(report[0].codec,'video/VP8');assert.equal(report[0].framesPerSecond,30);assert.equal(report[1].rtt,0.025);assert.ok(!JSON.stringify(report).includes('192.168'));assert.ok(!JSON.stringify(report).includes('private-person-id'));console.log('PASS: video stats collected without peer identity or network address');})().catch(e=>{console.error(e);process.exitCode=1;});
-// Laços de voz: o portão do microfone roda a 40 ms; o contorno de quem fala, a 120 ms. Mutado, o microfone nem é medido.
-(()=>{const src=fs.readFileSync(require.resolve('../app/client.js'),'utf8');const code=src.slice(src.indexOf('// Laço: portão'),src.indexOf('function setConnStatus'));
-const timers=[],reads={self:0,peer:0},gain={value:1,setTargetAtTime(v){this.value=v;}};let refreshed=0;
-const loud=(key)=>({getFloatTimeDomainData(buf){reads[key]++;buf.fill(0.5);}});
-const V={joined:true,testing:false,muted:true,deafened:false,windowVisible:true,analyser:loud('self'),src:{},gate:{gain},ctx:{currentTime:0},gateOpen:true,peers:new Map([['p1',{analyser:loud('peer')}]]),speaking:new Set()};
-const vctx=vm.createContext({V,S:{users:new Map(),typing:new Map()},settings:{threshold:-50,userMuted:{}},WEB_VIEWER:false,DJ_NAME:'DJ',DJ_ID:'dj',clamp:(v,a,b)=>Math.min(b,Math.max(a,v)),refreshSpeaking:()=>refreshed++,performance,document:{hidden:false},setInterval:(fn,ms)=>timers.push({fn,ms}),Math,Float32Array});
-vm.runInContext(code,vctx);
-assert.deepEqual(timers.map(t=>t.ms).slice(0,2),[40,120]);
-const [mic,speak]=timers;
-mic.fn();assert.equal(reads.self,0);assert.equal(gain.value,0);assert.equal(V.gateOpen,false);
-V.muted=false;mic.fn();assert.equal(reads.self,1);assert.equal(reads.peer,0);assert.equal(gain.value,1);
-speak.fn();assert.equal(reads.peer,1);assert.ok(V.speaking.has('p1'));
-V.windowVisible=false;speak.fn();assert.equal(reads.peer,1);
-console.log('PASS: voice gate runs at 40 ms, speaking ring at 120 ms, muted mic is not measured');})();
+// O relógio de cada laço é testado em mobile-client; aqui exercitamos cada leitura.
+(() => {
+  const src = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
+  const code = src.slice(src.indexOf('// Laço: portão'), src.indexOf('function syncVoiceTimers'));
+  const reads = { self: 0, peer: 0 }, gain = { value: 0, setTargetAtTime(v) { this.value = v; } };
+  const loud = (key) => ({ getFloatTimeDomainData(buf) { reads[key]++; buf.fill(0.5); } });
+  const V = { joined: true, micActive: false, micReadyAt: 0, windowVisible: true, analyser: loud('self'), src: {}, gate: { gain }, ctx: { currentTime: 0 }, peers: new Map([['p1', { analyser: loud('peer') }]]), speaking: new Set() };
+  const vctx = vm.createContext({ V, S: { users: new Map() }, settings: { threshold: -50, userMuted: {} }, WEB_VIEWER: false, DJ_NAME: 'DJ', DJ_ID: 'dj', micMuted: () => !V.micActive, wantsDeepFilterNet: () => false, refreshSpeaking() {}, performance, document: { hidden: false } });
+  vm.runInContext(code, vctx);
+  vctx.tickMic(); assert.equal(reads.self, 0); assert.equal(gain.value, 0);
+  V.micActive = true; V.micReadyAt = 0.1;
+  vctx.tickMic(); assert.equal(reads.self, 1); assert.equal(reads.peer, 0); assert.equal(gain.value, 0);
+  V.ctx.currentTime = 0.1; vctx.tickMic(); assert.equal(gain.value, 1);
+  vctx.tickSpeaking(); assert.equal(reads.peer, 1); assert.ok(V.speaking.has('p1'));
+  V.windowVisible = false; vctx.tickSpeaking(); assert.equal(reads.peer, 1);
+  console.log('PASS: microfone mudo não é medido, abertura aguarda o filtro e só o laço de fala lê os pares');
+})();
+
+(async () => {
+  const { declaration } = require('./helpers/characterization-client');
+  const source = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
+  const toasts = [], tuned = [], constraints = [];
+  const track = { getSettings: () => ({ width: 1920, height: 1080 }), applyConstraints: async (c) => { constraints.push(c); throw Error('capture não aceitou'); } };
+  const stream = { getVideoTracks: () => [track], getAudioTracks: () => [{}] };
+  const V = { screen: stream, screenQ: { w: 1920, h: 1080, fps: 60 }, screenQName: '1080p60', screenSenders: new Map([['a', []]]), peers: new Map([['a', { uid: 'a' }]]) };
+  const QUALITY = { '720p30': { w: 1280, h: 720, fps: 30, br: 2500000 } };
+  const ctx = vm.createContext({ V, QUALITY, native: null, toast: (t) => toasts.push(t), tunePeerSenders: (p) => tuned.push(p) });
+  vm.runInContext(['videoEncoderHardware', 'capSoftwareLive', 'liveVideoEncoding'].map((n) => declaration(source, n)).join('\n'), ctx);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'MediaFoundationVideoEncodeAccelerator (NVENC)', powerEfficientEncoder: false }), true);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'libvpx' }), false);
+  assert.equal(ctx.videoEncoderHardware({ framesEncoded: 10, powerEfficientEncoder: false }), false);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'SimulcastEncoderAdapter' }), null, 'com dados inconclusivos não reduz');
+  const probe = V.screenEncoderProbe = { stream, track, quality: V.screenQ };
+  await ctx.capSoftwareLive(probe);
+  assert.equal(V.screenQName, '720p30'); assert.equal(constraints.length, 1); assert.equal(tuned.length, 1);
+  const enc = ctx.liveVideoEncoding({ screenVideoPaused: true }, track);
+  assert.equal(enc.maxFramerate, 30); assert.equal(enc.scaleResolutionDownBy, 1.5); assert.equal(enc.active, false);
+  assert.equal(toasts.length, 1);
+  await ctx.capSoftwareLive(probe); assert.equal(toasts.length, 1, 'sem repetir aviso');
+  console.log('PASS: distingue encoders e limita uma live de software a 720p/30 sem trocar a faixa');
+})().catch((e) => { console.error(e); process.exitCode = 1; });

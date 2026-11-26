@@ -31,7 +31,7 @@ html.glass #sidebar .channel:hover, html.glass #sidebar #room-header:hover,
 html.glass #sidebar #user-panel .icon-btn:hover { background: var(--g-fill-2); }
 html.glass #sidebar .channel.active { background: var(--g-fill-h); }
 html.glass #sidebar .server-dot.active { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--text-hi); }
-html.glass #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px transparent, 0 0 0 3px var(--speak, var(--green)); }
+html.glass #sidebar .vu .avatar { --speaking-ring: 0 0 0 3px var(--speak, var(--green)); }
 html.glass #chat .right-nav button[aria-pressed=true] { background: var(--g-fill-h); }
 html.glass #chat #composer, html.glass #chat .msg.bot .text { background: var(--g-fill); border-color: var(--g-edge); }
 html.glass #chat .msg:hover { background: rgba(255,255,255,.035); }
@@ -52,7 +52,6 @@ html.glass #call .tile::after, html.glass #call .vc-card::after {
 html.glass #call .vc-card { position: relative; }
 html.glass #call .grid > .tile:hover::after, html.glass #call .focus-strip > .tile:hover::after, html.glass #call .vc-card:hover::after { opacity: 1; }
 html.glass #call .grid > .tile, html.glass #call .focus-strip > .tile { cursor: pointer; }
-html.glass #call .tile.speaking { box-shadow: var(--g-shine), inset 0 0 0 3px var(--speak, var(--green)); }
 
 /* Dock flutuante em pílula de vidro. */
 html.glass #call #call-controls {
@@ -322,7 +321,6 @@ html.theme-fixed .palette-grid { opacity: .35; pointer-events: none; }
 
 /* Quadro de quem está ao vivo: contorno vermelho suave e botão de vidro no centro, embaixo do avatar. */
 html.glass #call .tile:not(.is-screen):has(.live-join), #call .tile:not(.is-screen):has(.live-join) { box-shadow: var(--g-shine, none), inset 0 0 0 2px rgba(255,74,74,.55); }
-html.glass #call .tile:not(.is-screen):has(.live-join).speaking { box-shadow: var(--g-shine, none), inset 0 0 0 3px var(--speak, var(--green)); }
 #call .tile:not(.is-screen) .tile-tools:has(.live-join) { inset: 0 !important; top: 0 !important; right: 0 !important; display: flex !important; align-items: flex-end; justify-content: center;
   padding: 0 0 max(14px, 13cqh) !important; background: none !important; pointer-events: none; opacity: 1 !important; }
 #call .tile:not(.is-screen) .tile-tools .live-join { pointer-events: auto; max-width: none !important; min-height: 38px !important; padding: 0 16px 0 12px !important; gap: 8px !important;

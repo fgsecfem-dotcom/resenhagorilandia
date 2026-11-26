@@ -95,7 +95,7 @@ html[data-tk="vidro"] {
   & #call .tile:not(.is-screen) { background: var(--lg-tile) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0 !important; border-radius: 24px !important;
     box-shadow: inset 0 1px 0 var(--lg-top), inset 0 0 0 1px var(--lg-edge), 0 18px 44px rgba(0,0,0,.30) !important; }
   & #call .tile.is-screen { border-radius: 24px !important; box-shadow: 0 18px 44px rgba(0,0,0,.35) !important; }
-  & #call .tile.speaking:not(.is-screen) { box-shadow: inset 0 0 0 2px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.08), 0 18px 44px rgba(0,0,0,.30) !important; }
+  & #call .tile:not(.is-screen, .is-voice) { --speaking-ring: inset 0 0 0 2px rgba(255,255,255,.9); }
   & #call .tile .tile-body .avatar { border-radius: 50% !important; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
   & #call .tile .label { background: var(--lg-thin) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 999px !important; padding: 4px 12px !important; font-weight: 600; color: #fff !important; }
   /* texto em três níveis, como a vibração do visionOS (principal, secundário, inativo) */

@@ -107,15 +107,13 @@ function createSpotify({ getWindow }) {
   }
   function logout() { access = null; refresh = null; user = null; scope = ''; save(); }
   async function status() {
-    if (available() && !cdm) cdm = components.whenReady().then(() => true, () => false);
-    const drm = available() ? await cdm : false;
+    const drm = await cdmReady();
     return { available: available(), drm, connected: !!refresh, user, scopes: scope, ownKey: !!clientId };
   }
   load();
-  function cdmReady(ms) {
+  function cdmReady() {
     if (!available()) return Promise.resolve(false);
-    if (!cdm) cdm = components.whenReady().then(() => true, () => false);
-    return Promise.race([cdm, new Promise((r) => setTimeout(() => r(false), ms))]);
+    return cdm ??= Promise.resolve().then(() => components.whenReady()).then(() => true, () => false);
   }
   ipcMain.handle('spotify:status', () => status());
   ipcMain.handle('spotify:login', () => login().then((u) => ({ ok: true, user: u }), (e) => ({ ok: false, error: e.message })));

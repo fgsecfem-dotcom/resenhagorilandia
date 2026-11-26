@@ -551,7 +551,8 @@
       return { kind, g, body, fx, clear, time: 0, route: [] };
     }
     const dog = make('dog', 'Pipoca'), cat = make('cat', 'Amora'), pets = [dog, cat];
-    let raf = 0, last = 0, depthAt = 0, listenAt = 0, reduced = false, started = false;
+    const PET_FRAME = 1000 / 15;
+    let raf = 0, nextFrame = 0, last = 0, depthAt = 0, listenAt = 0, reduced = false, started = false;
     let routine = 0, speaker = '', heardAt = -6000;
 
     function place(pet) {
@@ -645,19 +646,22 @@
       if (k === 1) { p.node = action.node; p.route.shift(); }
     }
     function tick(now) {
-      const dt = last ? Math.min(40, now - last) : 0;
+      raf = requestAnimationFrame(tick);
+      if (now < nextFrame) return;
+      // Guarda a fase para respeitar o limite também em monitores de 120/144 Hz.
+      nextFrame = nextFrame ? Math.max(now, nextFrame + PET_FRAME) : now + PET_FRAME;
+      const dt = last ? Math.min(2 * PET_FRAME, now - last) : 0;
       last = now;
       if (now >= listenAt) { listen(); listenAt = now + 160; }
       for (const pet of pets) { step(pet, dt); paint(pet); }
       if (now >= depthAt) { pets.forEach(place); depthAt = now + 75; }
-      raf = requestAnimationFrame(tick);
     }
     reset();
     return {
       motion(sleep, halt) {
         if (sleep && !reduced && started) reset();
         reduced = sleep; started = true;
-        if (sleep || halt) { cancelAnimationFrame(raf); raf = 0; last = 0; pets.forEach(p => p.clear()); }
+        if (sleep || halt) { cancelAnimationFrame(raf); raf = 0; last = nextFrame = 0; pets.forEach(p => p.clear()); }
         else if (!raf) raf = requestAnimationFrame(tick);
       },
       stop() { cancelAnimationFrame(raf); pets.forEach(p => p.clear()); },

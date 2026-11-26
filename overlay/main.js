@@ -5,7 +5,8 @@ const { spawn } = require('child_process');
 const { isGame, vkFor, validKey, place, snap, createHold } = require('./detect');
 
 const startWindowsHelper = () => spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'helper.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
-const POLL_MS = 1500, SHRINK_DELAY = 360, IDLE_DESTROY_MS = 20000;
+// Só observar a troca de foco não detecta entrar/sair da tela cheia sem trocar de janela.
+const POLL_MS = 3000, SHRINK_DELAY = 360, IDLE_DESTROY_MS = 20000;
 
 function createOverlay({ app, BrowserWindow, globalShortcut, screen, ipcMain, getMain, isTest }) {
   const enabledPlatform = process.platform === 'win32';

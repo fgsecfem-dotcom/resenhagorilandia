@@ -49,9 +49,9 @@ html[data-tk] #sidebar .n-dot { margin-left: auto; width: 7px; height: 7px; bord
 html[data-tk] #sidebar .nsb-who { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 5px 17px; padding: 0 0 0 9px; border: 0; border-left: 1px solid var(--line); }
 html[data-tk] #sidebar .vu, html[data-tk] #sidebar .ou { display: flex; align-items: center; gap: 8px; height: 28px; min-height: 28px; padding: 0 6px; border-radius: 6px; color: var(--muted); font-size: 13px; }
 html[data-tk] #sidebar .vu:hover, html[data-tk] #sidebar .ou:hover { background: var(--hover); color: var(--text); }
-html[data-tk] #sidebar .vu .avatar, html[data-tk] #sidebar .ou .avatar { width: 20px; height: 20px; min-width: 20px; font-size: 11px; transition: box-shadow 120ms var(--ease-out); }
+html[data-tk] #sidebar .vu .avatar, html[data-tk] #sidebar .ou .avatar { width: 20px; height: 20px; min-width: 20px; font-size: 11px; }
 html[data-tk] #sidebar .vu.speaking { color: var(--text-hi); }
-html[data-tk] #sidebar .vu.speaking .avatar { box-shadow: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--accent); }
+html[data-tk] #sidebar .vu .avatar { --speaking-ring: 0 0 0 2px var(--bg-side), 0 0 0 3.5px var(--accent); }
 html[data-tk] #sidebar .vu .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
 html[data-tk] #sidebar .vu .st { display: flex; gap: 3px; color: var(--muted2); }
 html[data-tk] #sidebar .vu .st .ic { width: 13px; height: 13px; }

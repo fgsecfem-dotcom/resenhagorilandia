@@ -90,8 +90,19 @@ input, textarea, select { font: inherit; color: var(--text); }
 #voice-users { padding-left: 24px; }
 .vu { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; color: var(--muted); font-size: 14px; }
 .vu:hover { background: var(--hover); color: var(--text); }
-.vu .avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px transparent; transition: box-shadow .08s; }
-.vu.speaking .avatar, .ou.speaking .avatar { box-shadow: 0 0 0 2px var(--speak, var(--green)); }
+.vu .avatar { width: 24px; height: 24px; font-size: 11px; }
+:is(.vu, .ou) .avatar, .tile.is-voice .avatar, .live-person { position: relative; }
+:is(.vu, .ou) .avatar::before, .tile.is-voice .avatar::before,
+:is(.tile:not(.is-voice), .live-person)::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: var(--speaking-ring, 0 0 0 2px var(--speak, var(--green)));
+  opacity: 0; transition: opacity var(--dur-press, 120ms) var(--ease-out);
+}
+:is(.vu, .ou).speaking .avatar::before, .tile.is-voice.speaking .avatar::before,
+:is(.tile:not(.is-voice), .live-person).speaking::before { opacity: 1; }
+:is(.tile:not(.is-voice), .live-person) { --speaking-ring: inset 0 0 0 3px var(--speak, var(--green)); }
+:is(.tile:not(.is-voice), .live-person)::before { z-index: 1; }
+:is(html.reduce-motion, html.bg-paused) :is(.vu .avatar, .ou .avatar, .tile, .tile .avatar, .live-person)::before { transition: none; }
 .vu .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vu .st { display: flex; gap: 3px; color: var(--muted2); }
 .vu .st .ic.red { color: var(--red); }
@@ -137,8 +148,6 @@ input, textarea, select { font: inherit; color: var(--text); }
 #call-stage { flex: 1; min-height: 0; position: relative; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .grid { flex: 1; min-height: 0; display: grid; gap: 10px; align-content: center; justify-content: center; }
 .tile { position: relative; background: var(--bg-side); border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; aspect-ratio: 16/9; cursor: pointer; min-width: 0; min-height: 0; }
-.tile::after { content: ''; position: absolute; inset: 0; border-radius: 10px; box-shadow: inset 0 0 0 0 var(--green); transition: box-shadow .08s; pointer-events: none; }
-.tile.speaking::after { box-shadow: inset 0 0 0 3px var(--speak, var(--green)); }
 .tile .avatar { width: 80px; height: 80px; font-size: 32px; }
 .tile .label { position: absolute; left: 10px; bottom: 10px; background: #000a; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; max-width: calc(100% - 20px); }
 .tile .label span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

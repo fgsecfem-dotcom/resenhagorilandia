@@ -26,6 +26,7 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
+    "electronLanguages": ["pt-BR", "en-US"],
     "asarUnpack": [
       "app/icon.ico",
       "app/icon.png"
