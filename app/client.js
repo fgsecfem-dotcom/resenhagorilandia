@@ -40,7 +40,7 @@ const settings = Object.assign({
   aiNoise: true, vadSens: 60, echoCancellation: true, autoGain: true, sounds: true,
   voiceFx: 'normal', pitchSemis: 0, theme: 'resenha', themeColor: 'auto', stageStyle: 'roda',
   ...Object.fromEntries(Object.values(SHORTCUTS).map(([k]) => [k, ''])), pttRelease: 0, chatWidth: 360, sidebarWidth: 264,
-  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', appIcon: 'quentinha', translucent: true,
+  layout: ['sidebar', 'call', 'chat'], tileOrder: [], pipCorner: 'br', fontScale: 100, compact: false, reduceMotion: 'auto', keepAnimatingInBackground: false, appIcon: 'quentinha', translucent: true,
   userVolumes: {}, userMuted: {}, streamVolumes: {}, perfTelemetry: true,
 }, LS.get('settings', {}));
 // Migração do antigo padrão desligado; o desligado explícito da nova opção é preservado.
@@ -1721,10 +1721,11 @@ addEventListener('resenha-theme', () => {
 function pushTray() { if (native) native.voiceState({ inVoice: V.joined, muted: micMuted(), deafened: V.deafened }); }
 
 function refreshSpeaking() {
+  overlayClient?.syncSpeaking();
+  if (document.documentElement.classList.contains('bg-paused')) return;
   $$('#voice-channels .vu').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
   for (const [k, t] of tileCache) if (k.startsWith('user:')) t.classList.toggle('speaking', isSpeaking(k.slice(5)));
   $$('.live-person').forEach((el) => el.classList.toggle('speaking', isSpeaking(el.dataset.uid)));
-  overlayClient?.syncSpeaking();
   syncSkinSpeaking();
 }
 
@@ -3529,6 +3530,7 @@ async function openSettings(tab = 'voz') {
           ${native?.setWindowMaterial ? `<div class="field"><label>Janela</label><label class="check"><input type="checkbox" id="st-glass" ${settings.translucent !== false ? 'checked' : ''}> Janela translúcida (vidro do Windows 11 sobre o papel de parede)</label></div>` : ''}
           <div class="field"><label>Música</label><label class="check"><input type="checkbox" id="st-music" ${settings.music ? 'checked' : ''}> Player de música do Spotify (desligado, ele nem aparece)</label></div>
           <div class="field"><label for="st-motion">Reduzir animações</label><select id="st-motion">${[['auto','Seguir o Windows'], ['true','Ligado'], ['false','Desligado']].map(([v, name]) => `<option value="${v}" ${String(settings.reduceMotion) === v ? 'selected' : ''}>${name}</option>`).join('')}</select></div>
+          <div class="field"><label class="check"><input type="checkbox" id="st-bg-motion" ${settings.keepAnimatingInBackground ? 'checked' : ''}> Continuar animando com o Resenha em segundo plano</label></div>
         </div>
         <p class="muted small" style="margin:4px 0 10px">Dá para <b>segurar e arrastar</b> os canais da lista, os quadrados da call e a miniatura da tela. As bordas entre os painéis mudam a largura.</p>
         <button class="btn" id="st-reset-layout">Voltar layout ao padrão</button></details>
@@ -3669,6 +3671,7 @@ async function openSettings(tab = 'voz') {
   if ($('#st-glass', el)) $('#st-glass', el).onchange = (e) => { settings.translucent = e.target.checked; saveSettings(); applyWindowMaterial(); };
   if ($('#st-perf', el)) $('#st-perf', el).onchange = (e) => { settings.perfTelemetry = e.target.checked; saveSettings(); if (!e.target.checked) perfStop(false); else if (V.joined) perfStart(); };
   $('#st-motion', el).onchange = (e) => { const v = e.target.value; settings.reduceMotion = v === 'auto' ? v : v === 'true'; saveSettings(); applyReduceMotion(); syncSkinSoon(); };
+  $('#st-bg-motion', el).onchange = (e) => { settings.keepAnimatingInBackground = e.target.checked; saveSettings(); syncBgPaused(); };
   cancelAppearance = bindAppearance(el);
   $('#st-fs', el).onchange = (e) => { settings.fontScale = +e.target.value; saveSettings(); applyLayout(); };
   $('#st-fs', el).oninput = (e) => { $('#st-fs-v', el).textContent = e.target.value + '%'; };
@@ -4238,8 +4241,25 @@ async function maybeWhatsNew() {
 }
 maybeWhatsNew();
 native?.onCaptureFailure?.((message) => { stopShare(); toast(message, 'err', 10000); });
-// Janela escondida ou minimizada: pausa as animações decorativas (o renderer não desacelera sozinho por causa da voz).
-const syncBgPaused = () => document.documentElement.classList.toggle('bg-paused', !V.windowVisible || document.hidden);
+// Só a aparência desacelera ao perder o foco. Voz e live não dependem deste estado.
+let bgBlurTimer = null;
+function syncBgPaused() {
+  const classes = document.documentElement.classList;
+  const wasPaused = classes.contains('bg-paused');
+  const paused = !V.windowVisible || document.hidden || (!!V.windowIdle && !settings.keepAnimatingInBackground);
+  classes.toggle('bg-paused', paused);
+  window.resenhaAmbient?.setPaused(paused);
+  if (wasPaused && !paused) refreshSpeaking();
+}
+function setBackgroundFocus(focused) {
+  clearTimeout(bgBlurTimer);
+  bgBlurTimer = null;
+  if (focused) { V.windowIdle = false; syncBgPaused(); }
+  else if (!V.windowIdle) bgBlurTimer = setTimeout(() => { bgBlurTimer = null; V.windowIdle = true; syncBgPaused(); }, 5000);
+}
+window.addEventListener('blur', () => setBackgroundFocus(false));
+window.addEventListener('focus', () => setBackgroundFocus(true));
+setBackgroundFocus(document.hasFocus());
 native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); renderCall(); });
 document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); });
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
