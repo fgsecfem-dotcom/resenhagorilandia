@@ -33,7 +33,9 @@
 .mg :is(h1, h2) { font: italic 900 clamp(29px, 3.6vw, 51px)/.94 var(--mg-display); text-transform: uppercase; }
 .mg :is(.mg-water, .mg-rays, .mg-menu-water, .mg-white, .mg-menu-wing) { position: absolute; pointer-events: none; }
 .mg :is(.mg-water, .mg-menu-water) { inset: -12% -13%; background: var(--mg-caustic) repeat 0 0 / 1050px 610px; }
-.mg-water { animation: mg-water-drift 22s var(--mg-ease) infinite alternate; }
+/* O quadro base é estático; só há deriva enquanto a aparência está ativa. */
+.mg-water { transform: translate3d(-3%, 2%, 0); }
+html:not(.bg-paused) .mg:not(.is-reduced) .mg-water { animation: mg-water-drift 22s var(--mg-ease) infinite alternate; }
 .mg-rays {
   inset: -8% -5%; transform: skewX(-16deg);
   background: linear-gradient(180deg, transparent, #0b35c3 92%), linear-gradient(90deg, transparent 44%, #a3eeff35 44%, #a3eeff08 54%, transparent 55% 60%, #abecff2b 60%, transparent 68% 77%, #adeaff20 77%, transparent 82%);
@@ -358,5 +360,5 @@
 html.bg-paused .mg *, html.bg-paused .mg *::before, html.bg-paused .mg *::after,
 .mg.is-reduced *, .mg.is-reduced *::before, .mg.is-reduced *::after { animation: none; transition: none; }
 @media (prefers-reduced-motion: reduce) {
-  .mg *, .mg *::before, .mg *::after { animation: none; transition: none; }
+  .mg *, .mg *::before, .mg *::after, html:not(.bg-paused) .mg:not(.is-reduced) .mg-water { animation: none; transition: none; }
 }
