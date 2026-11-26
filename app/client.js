@@ -1501,6 +1501,19 @@ function updateTile(key, u, isScreen) {
   }
   return t;
 }
+// Não confundir com bg-paused: perder o foco não interrompe a live em outro monitor.
+function syncWatchingVisibility() {
+  const paused = !V.windowVisible || document.hidden;
+  if (paused === !!V.watchVideoPaused) return;
+  V.watchVideoPaused = paused;
+  for (const [owner, streamId] of V.watching) {
+    const via = V.relayVia.get(owner);
+    if (via) {
+      relayHealth.set(owner, { since: Date.now(), bad: 0 });
+      sig(via, { relayVideoPaused: paused, owner, streamId });
+    } else sig(owner, { watchVideoPaused: paused, streamId });
+  }
+}
 function setWatching(uid, active) {
   const u = S.users.get(uid);
   if (!u) return;
@@ -2162,6 +2175,8 @@ function onSignal(from, data) {
         p.wantsScreen = !!data.watch && !!V.screen && data.streamId === V.screen.id;
         if (p.wantsScreen) routeViewer(p, data);
         else { removeScreenFrom(p); V.relayed.delete(p.uid); if (V.relayId === p.uid) dropRelay(); }
+      } else if (typeof data.watchVideoPaused === 'boolean') {
+        if (p.wantsScreen && V.screen?.id === data.streamId) setViewerVideoPaused(p, data.watchVideoPaused);
       } else if (onRelaySignal(from, p, data)) {
         // handled: relay routing between streamer, relay and viewers
       } else if (data.desc) {
@@ -2190,8 +2205,11 @@ function tunePeerSenders(p) {
   for (const sender of p.pc.getSenders()) {
     if (!sender.track) continue;
     const screen = (V.screenSenders.get(p.uid) || []).includes(sender);
-    if (screen && sender.track.kind === 'video') tuneSender(sender, { maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' });
-    else tuneSender(sender, { maxBitrate: screen ? 128000 : 96000 });
+    const relay = V.relayOut.get(p.uid);
+    const forwarded = relay?.senders.includes(sender);
+    if (screen && sender.track.kind === 'video') tuneSender(sender, { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' });
+    else if (forwarded && sender.track.kind === 'video') tuneSender(sender, { active: !relay.videoPaused, maxBitrate: 4500000, degradationPreference: 'maintain-framerate' });
+    else tuneSender(sender, { maxBitrate: screen || forwarded ? 128000 : 96000 });
   }
 }
 function attachRemoteAudio(p, stream, isScreen) {
@@ -2562,8 +2580,15 @@ function canRelay() { return typeof native !== 'undefined' && !!native; }
 // relayV: versão do repasse. Quem transmite só escolhe como repasse quem tem a versão atual (2.3.3+);
 // um repasse de versão antiga deixava a live preta para quem chegava depois.
 const RELAY_VERSION = 2;
-function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, ...extra }; }
+function watchMsg(streamId, active = true, extra = {}) { return { watch: active, streamId, acceptsRelay: true, canRelay: canRelay(), relayV: RELAY_VERSION, videoPaused: !!V.watchVideoPaused, ...extra }; }
+function setViewerVideoPaused(p, paused) {
+  p.screenVideoPaused = paused;
+  // Quem está em segundo plano não deve congelar a imagem de quem recebe por repasse.
+  if (paused && V.relayId === p.uid) dropRelay();
+  for (const s of V.screenSenders.get(p.uid) || []) if (s.track?.kind === 'video') tuneSender(s, { active: !paused });
+}
 function routeViewer(p, data) {
+  setViewerVideoPaused(p, data.videoPaused === true);
   const relay = V.relayId && V.relayId !== p.uid && V.screenSenders.has(V.relayId) && V.peers.get(V.relayId);
   if (relay && data.acceptsRelay && !data.noRelay) {
     removeScreenFrom(p); V.relayed.add(p.uid);
@@ -2571,7 +2596,7 @@ function routeViewer(p, data) {
     return;
   }
   V.relayed.delete(p.uid); addScreenTo(p);
-  if (!V.relayId && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
+  if (!V.relayId && !p.screenVideoPaused && data.canRelay && Number(data.relayV) >= RELAY_VERSION) V.relayId = p.uid;
 }
 function dropRelay(keepRelay = false) { // relayed viewers ask again and get a new route
   if (!keepRelay) V.relayId = null;
@@ -2583,22 +2608,30 @@ function stopRelayingTo(uid) {
   if (out && p) for (const s of out.senders) try { p.pc.removeTrack(s); } catch {}
   V.relayOut.delete(uid);
 }
-function relayTo(p, owner, streamId) { // runs on the relay: forward the live it is watching to one more viewer
+function relayTo(p, owner, streamId, videoPaused = false) { // runs on the relay: forward the live it is watching to one more viewer
   stopRelayingTo(p.uid);
   const stream = V.peers.get(owner)?.streams.get(streamId);
   if (!canRelay() || !stream?.getVideoTracks().length) return sig(p.uid, { relayFail: true, owner });
   const senders = stream.getTracks().map((t) => p.pc.addTrack(t, stream)); // same stream id, so the viewer's UI finds it
   for (const s of senders) {
-    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { maxBitrate: 4500000, degradationPreference: 'maintain-framerate' }); }
+    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { active: !videoPaused, maxBitrate: 4500000, degradationPreference: 'maintain-framerate' }); }
     else tuneSender(s, { maxBitrate: 128000 });
   }
-  V.relayOut.set(p.uid, { owner, streamId, senders });
+  V.relayOut.set(p.uid, { owner, streamId, senders, videoPaused });
 }
 function onRelaySignal(from, p, data) {
-  if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId); else stopRelayingTo(from); return true; }
+  if ('relayWatch' in data) { if (data.relayWatch) relayTo(p, data.owner, data.streamId, data.videoPaused === true); else stopRelayingTo(from); return true; }
+  if (typeof data.relayVideoPaused === 'boolean') {
+    const out = V.relayOut.get(from);
+    if (out?.owner === data.owner && out?.streamId === data.streamId && out) {
+      out.videoPaused = data.relayVideoPaused;
+      for (const s of out.senders) if (s.track?.kind === 'video') tuneSender(s, { active: !out.videoPaused });
+    }
+    return true;
+  }
   if ('relayVia' in data) { // from the streamer: watch through this relay
     if (V.watching.get(from) !== data.streamId || !V.peers.has(data.relayVia)) return sig(from, watchMsg(data.streamId, true, { noRelay: true })), true;
-    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId });
+    V.relayVia.set(from, data.relayVia); relayHealth.set(from, { since: Date.now(), bad: 0 }); sig(data.relayVia, { relayWatch: true, owner: from, streamId: data.streamId, videoPaused: !!V.watchVideoPaused });
     return true;
   }
   if ('relayLost' in data) { // from the streamer: the relay went away, ask again
@@ -2629,6 +2662,7 @@ function goDirect(owner) {
   toast('A live de ' + (S.users.get(owner)?.name || 'quem transmite') + ' chegava fraca pelo repasse. Agora vem direto.', '', 4000);
 }
 async function checkRelayQuality() {
+  if (V.watchVideoPaused) return;
   for (const [owner, via] of [...V.relayVia]) {
     const p = V.peers.get(via), sid = V.watching.get(owner), track = sid && p?.streams?.get(sid)?.getVideoTracks()[0];
     // Repasse que não entrega nada (tela preta) em 10 s: pede direto para quem transmite.
@@ -2636,6 +2670,7 @@ async function checkRelayQuality() {
     if (!track) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
     let r = null; try { (await p.pc.getStats(track)).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') r = x; }); } catch {}
     if (!r) { if (waited > RELAY_DEAD_MS) goDirect(owner); continue; }
+    if (V.watchVideoPaused || V.relayVia.get(owner) !== via) continue;
     const now = Date.now(), h = relayHealth.get(owner) || { since: now, bad: 0 };
     const kbps = h.at ? (r.bytesReceived - h.bytes) * 8 / Math.max(1, now - h.at) : null;
     const frames = Number(r.framesDecoded), stalled = Number.isFinite(frames) && Number.isFinite(h.frames) ? frames <= h.frames : !r.framesPerSecond;
@@ -2668,7 +2703,7 @@ function addScreenTo(p) {
   V.screenSenders.set(p.uid, senders);
   p.screenStartupSender = null;
   for (const s of senders) {
-    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' }); }
+    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' }); }
     else tuneSender(s, { maxBitrate: 128000 });
   }
 }
@@ -4269,8 +4304,8 @@ function setBackgroundFocus(focused) {
 window.addEventListener('blur', () => setBackgroundFocus(false));
 window.addEventListener('focus', () => setBackgroundFocus(true));
 setBackgroundFocus(document.hasFocus());
-native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); renderCall(); });
-document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); });
+native?.onWindowVisible?.((visible) => { V.windowVisible = visible; if (!visible && V.focus === 'screen:' + S.myId) V.focus = null; syncBgPaused(); syncWatchingVisibility(); renderCall(); });
+document.addEventListener('visibilitychange', () => { if (!native) { V.windowVisible = !document.hidden; renderCall(); } syncBgPaused(); syncWatchingVisibility(); });
 // Modo compatibilidade (sem GPU): animações reduzidas, como em "Reduzir animações".
 native?.captureInfo?.().then((info) => { if (info?.compatibility) document.documentElement.classList.add('reduce-motion'); }).catch(() => {});
 bind();
