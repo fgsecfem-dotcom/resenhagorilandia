@@ -246,9 +246,8 @@ function refreshShortcutIcons() {
 app.whenReady().then(async () => {
   overlay = createOverlay({ app, BrowserWindow, globalShortcut, screen: require('electron').screen, ipcMain, getMain: () => win, isTest: TEST_MODE && !process.env.RESENHA_TEST_OVERLAY }); // ilha por cima do jogo (opcional)
   const spotify = require('./spotify').createSpotify({ getWindow: () => win }); // música (Spotify): só funciona no Electron da Castlabs
-  // O Widevine precisa estar pronto ANTES de abrir a janela (com ele preparado depois, o Spotify recusa a licença).
-  // Espera no máximo 8 s para não travar a abertura sem internet; nas aberturas seguintes leva poucos milissegundos.
-  await spotify.cdmReady(8000);
+  // Prepara o Widevine em segundo plano; só o Spotify espera por ele.
+  void spotify.cdmReady();
   setTimeout(refreshShortcutIcons, 5000);
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'display-capture', 'notifications', 'clipboard-read', 'clipboard-sanitized-write', 'fullscreen', 'speaker-selection', 'mediaKeySystem'].includes(perm)));
