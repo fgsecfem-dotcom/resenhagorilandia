@@ -4,7 +4,7 @@ const part=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
 (async()=>{
  for(const web of [false,true]){
   let mic=0,peer=0,djClosed=0;const track={enabled:true},V={joined:false,muted:false,deafened:false,raw:{getAudioTracks:()=>[track]},gate:{gain:{value:0}},peers:new Map()};
-  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,micMuted:()=>V.muted||V.deafened,updatePttTrack:()=>{track.enabled=!V.muted&&!V.deafened},applyNoiseMode:()=>{},clearTimeout,pttTimer:null,pttPressed:false,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},djPanel:{close:()=>djClosed++},closePeer:()=>{},perfStart:()=>{},perfStop:()=>{},perf:{timer:null},watchDevices:()=>{}});
+  const ctx=vm.createContext({WEB_VIEWER:web,WEB_VOICE:web,V,micMuted:()=>V.muted||V.deafened,updatePttTrack:()=>{track.enabled=!V.muted&&!V.deafened},applyNoiseMode:()=>{},syncVoiceTimers:()=>{},clearTimeout,pttTimer:null,pttPressed:false,S:{myId:'me'},DJ_ID:'dj',LS:{set(){}},ensureAudio:async()=>{},openMic:async()=>{mic++},voiceChannels:()=>[{id:'lobby'}],usersIn:()=>[{id:'peer'}],getPeer:()=>peer++,wsSend:()=>{},sfx:()=>{},setConnStatus:()=>{},syncDJ:()=>{},renderAll:()=>{},toast:()=>{},stopShare:()=>{},tileCache:new Map(),stopDJAudio:()=>{},djPanel:{close:()=>djClosed++},closePeer:()=>{},perfStart:()=>{},perfStop:()=>{},perf:{timer:null},watchDevices:()=>{}});
   vm.runInContext(part('async function joinVoice(','// Laço: portão'),ctx);
   await ctx.joinVoice('lobby');assert.equal(mic,1);assert.equal(peer,1);assert(V.joined);
   ctx.setMuted(true);assert(V.muted);if(web)assert.equal(track.enabled,false);
@@ -20,3 +20,21 @@ const part=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
  }
  console.log('PASS: same channel flow for desktop/web, mute/deafen restores mic state, leave cleanup, chat retains text until ACK and on error');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+// Os relógios de voz pertencem à call, não à tela inicial nem a cada renderização.
+{
+  const { declaration } = require('./helpers/characterization-client');
+  const src = require('node:fs').readFileSync(require.resolve('../app/client.js'), 'utf8');
+  const active = new Map(); let next = 0;
+  const V = { joined: false, testing: false };
+  const ctx = vm.createContext({ V, window: {}, MIC_TICK: 40, SPEAK_TICK: 120, tickMic() {}, tickSpeaking() {}, checkStuckPeers() {}, checkRelayQuality() {},
+    setInterval(fn, ms) { active.set(++next, ms); return next; }, clearInterval(id) { active.delete(id); } });
+  vm.runInContext(declaration(src, 'syncVoiceTimers'), ctx);
+  const sync = () => ctx.syncVoiceTimers();
+  sync(); assert.equal(active.size, 0);
+  V.joined = true; sync(); sync();
+  assert.deepEqual([...active.values()], [40, 120, 4000, 2000]);
+  V.joined = false; sync(); assert.equal(active.size, 0);
+  V.testing = true; sync(); assert.deepEqual([...active.values()], [40]);
+  V.testing = false; sync(); assert.equal(active.size, 0);
+}

@@ -1148,7 +1148,7 @@ function handle(m) {
       if (!chanById(S.textChannel)) S.textChannel = textChannels()[0]?.id;
       // ligações de voz com quem sumiu da sala: espera um pouco (na troca de anfitrião a galera volta aos poucos)
       clearTimeout(S.peerSweep);
-      S.peerSweep = setTimeout(() => { for (const id of [...V.peers.keys()]) { const u = S.users.get(id); if (!u || u.voiceChannel !== V.channel) closePeer(id); } renderCall(); }, 20000);
+      S.peerSweep = V.joined && V.peers.size ? setTimeout(() => { for (const id of [...V.peers.keys()]) { const u = S.users.get(id); if (!u || u.voiceChannel !== V.channel) closePeer(id); } renderCall(); }, 20000) : null;
       for (const list of Object.values(S.history)) for (const msg of list) cacheAttachments(msg);
       showMain();
       if (LS.get('musicIntro', false)) { LS.set('musicIntro', false); setTimeout(() => roomUI?.open('music'), 700); } // 2.2: primeira sala depois de atualizar
@@ -1934,6 +1934,7 @@ async function joinVoice(channelId) {
   // The person left the room or picked another channel while the microphone was starting.
   if (attempt !== V.voiceAttempt || S.closing) return;
   V.joined = true; V.channel = channelId; watchDevices();
+  syncVoiceTimers();
   if (V.deafened) V.muted = true;
   updatePttTrack();
   wsSend({ t: 'state', voiceChannel: channelId, muted: micMuted(), deafened: V.deafened });
@@ -1955,6 +1956,7 @@ function leaveVoice(silentSwitch) {
 }
 function teardownVoice() {
   if (perf.timer) perfStop();
+  clearTimeout(S.peerSweep); S.peerSweep = null;
   clearTimeout(pttTimer); pttPressed = false; updatePttTrack();
   djPanel?.close();
   V.voiceAttempt = (V.voiceAttempt || 0) + 1; // cancels a joinVoice() still waiting for the microphone
@@ -1964,6 +1966,7 @@ function teardownVoice() {
   if (V.src) try { V.src.disconnect(); } catch {}
   V.raw = null; V.src = null; V.joined = false; V.channel = null; V.speaking.clear(); V.focus = null; V.gateOpen = false; V.vadOpen = false;
   applyNoiseMode();
+  syncVoiceTimers();
   for (const tile of tileCache.values()) detachTile(tile); tileCache.clear();
   stopDJAudio();
 }
@@ -1995,8 +1998,7 @@ const MIC_TICK = WEB_VIEWER ? 80 : 40, SPEAK_TICK = WEB_VIEWER ? 160 : 120;
 let noiseFloor = -60;
 const lvlBuf = new Float32Array(512);
 const level = (an) => { an.getFloatTimeDomainData(lvlBuf); let s = 0; for (let i = 0; i < lvlBuf.length; i++) s += lvlBuf[i] * lvlBuf[i]; return 20 * Math.log10(Math.sqrt(s / lvlBuf.length) + 1e-9); };
-setInterval(() => {
-  if (!V.joined && !V.testing) return;
+function tickMic() {
   if (!V.analyser || !V.src) return;
   if (!V.micActive) return;
   const now = performance.now();
@@ -2016,9 +2018,8 @@ setInterval(() => {
   }
   const send = (WEB_VIEWER || open) && !micMuted() && V.joined && V.ctx.currentTime >= V.micReadyAt;
   if (V.gate.gain.value > 0.5 !== send) V.gate.gain.setTargetAtTime(send ? 1 : 0, V.ctx.currentTime, send ? 0.005 : 0.03);
-}, MIC_TICK);
-setInterval(() => {
-  if (!V.joined && !V.testing) return;
+}
+function tickSpeaking() {
   if (!V.windowVisible || document.hidden) return;
   const now = performance.now();
   let changed = false;
@@ -2034,13 +2035,25 @@ setInterval(() => {
     if (sp !== V.speaking.has(DJ_ID)) { if (sp) V.speaking.add(DJ_ID); else V.speaking.delete(DJ_ID); changed = true; }
   }
   if (changed) refreshSpeaking();
-}, SPEAK_TICK);
+}
+function syncVoiceTimers() {
+  if (V.joined || V.testing) V.micTimer ??= setInterval(tickMic, MIC_TICK);
+  else { clearInterval(V.micTimer); V.micTimer = null; }
+  if (V.joined) {
+    V.speakTimer ??= setInterval(tickSpeaking, SPEAK_TICK);
+    V.peerTimer ??= setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
+    V.relayTimer ??= setInterval(() => { if (V.relayVia.size) checkRelayQuality(); }, 2000);
+  } else {
+    for (const key of ['speakTimer', 'peerTimer', 'relayTimer']) { clearInterval(V[key]); V[key] = null; }
+  }
+  window.resenhaAmbient?.setInCall(V.joined);
+}
 setInterval(() => {
-  if (V.windowVisible && !document.hidden) tickTimers();
+  if (V.joined && V.windowVisible && !document.hidden) tickTimers();
   wsSend({ t: 'ping', ts: Date.now() });
   let ch = false; for (const [id, t] of S.typing) if (Date.now() - t > 6000) { S.typing.delete(id); ch = true; }
   if (ch) renderTyping();
-  if (V.windowVisible && !document.hidden) updateDJProgress();
+  if (V.joined && V.windowVisible && !document.hidden) updateDJProgress();
 }, 1000);
 
 // Estado da voz na linha "você" da barra lateral: ícone de sinal (cor pelo ping) + onde você está.
@@ -2071,8 +2084,9 @@ function getPeer(uid) {
   pc.onsignalingstatechange = () => { if (pc.signalingState === 'stable') tunePeerSenders(p); };
   pc.onicecandidate = ({ candidate }) => { if (candidate) sig(uid, { cand: candidate }); };
   pc.oniceconnectionstatechange = () => {
+    clearTimeout(p.iceRetry); p.iceRetry = null;
     if (pc.iceConnectionState === 'failed') { try { pc.restartIce(); } catch {} }
-    if (pc.iceConnectionState === 'disconnected') setTimeout(() => { if (pc.iceConnectionState === 'disconnected') try { pc.restartIce(); } catch {} }, 3000);
+    if (pc.iceConnectionState === 'disconnected') p.iceRetry = setTimeout(() => { if (pc.iceConnectionState === 'disconnected') try { pc.restartIce(); } catch {} }, 3000);
   };
   pc.ontrack = (ev) => {
     const stream = ev.streams[0] || new MediaStream([ev.track]);
@@ -2113,9 +2127,9 @@ function checkStuckPeers(now = Date.now()) {
     if (now - Math.max(p.okAt || 0, p.since || 0) > PEER_STUCK_MS && now - (p.resetAt || 0) > PEER_RESET_GAP_MS) resetPeer(uid, true);
   }
 }
-setInterval(() => { try { checkStuckPeers(); } catch (e) { console.warn('peer watchdog', e); } }, 4000);
 function closePeer(uid) {
   const p = V.peers.get(uid); if (!p) return;
+  clearTimeout(p.iceRetry);
   V.peers.delete(uid); V.speaking.delete(uid);
   try { p.pc.close(); } catch {}
   for (const a of [p.audio, p.screenAudio]) if (a) { try { a.src.disconnect(); a.gain.disconnect(); } catch {} a.el.srcObject = null; }
@@ -2414,7 +2428,10 @@ function swapShareStream(next, q) {
   V.screenQ = Q; V.screenQName = q;
   // The relay forwards the tracks it receives; when sound appears or goes, relayed viewers ask again so the
   // relay picks up the new set (the video track itself is swapped in place and keeps flowing).
-  if (soundChanged) setTimeout(() => dropRelay(true), 1500);
+  if (soundChanged) {
+    clearTimeout(V.relayAudioTimer);
+    V.relayAudioTimer = setTimeout(() => { V.relayAudioTimer = null; dropRelay(true); }, 1500);
+  }
   native?.captureStatus({ active: true, stage: 'streaming', quality: q, audio: !!na });
   renderAll();
 }
@@ -2622,7 +2639,6 @@ async function checkRelayQuality() {
     if (h.bad >= 4) goDirect(owner);
   }
 }
-window.__relayCheck = setInterval(() => { if (V.relayVia.size) checkRelayQuality(); }, 2000);
 
 // Shown in "Alterar transmissão": which encoder runs, what limits it, and how many copies the PC encodes.
 async function liveEncoderInfo() {
@@ -2656,6 +2672,7 @@ function removeScreenFrom(p) {
   V.screenSenders.delete(p.uid);
 }
 function stopShare(silent) {
+  clearTimeout(V.relayAudioTimer); V.relayAudioTimer = null;
   if (!V.screen) return;
   V.screen.getTracks().forEach((t) => t.stop());
   for (const [uid, senders] of V.screenSenders) { const p = V.peers.get(uid); if (p) for (const s of senders) try { p.pc.removeTrack(s); } catch {} }
@@ -3578,7 +3595,7 @@ async function openSettings(tab = 'voz') {
       ${overlayClient ? overlayClient.panelHTML() : ''}
     </div>
     <div class="settings-undo" hidden><span role="status"></span><button type="button">Desfazer</button></div>
-    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); applyNoiseMode(); } });
+    <footer><span class="muted small" style="margin-right:auto" id="st-ver"></span>${native ? '<button class="btn" id="st-updates">Atualizações</button>' : ''}<button class="btn primary" data-close>Pronto</button></footer>`, { label: 'st-title', cls: 'settings-dialog', opener, onClose: () => { cancelAppearance?.(); cancelShortcutRecording?.(); V.testing = false; setMonitor(false); closeSettingsMic(); applyNoiseMode(); syncVoiceTimers(); } });
   const el = m.el;
   overlayClient?.bindPanel(el);
   const tabEls = $$('[role="tab"]', el), panels = $$('[data-p]', el);
@@ -3670,7 +3687,7 @@ async function openSettings(tab = 'voz') {
     if (el.inert) return;
     if (!V.src) await openMic();
     if (el.inert) { if (!V.joined) closeSettingsMic(); return; }
-    V.testing = true; applyNoiseMode();
+    V.testing = true; applyNoiseMode(); syncVoiceTimers();
     const lvl = $('.lvl', el), thr = $('.thr', el), st = $('#st-state', el);
     const pos = (db) => clamp((db + 80) / 70 * 100, 0, 100) + '%';
     const tick = () => {
