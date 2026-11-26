@@ -2207,7 +2207,7 @@ function tunePeerSenders(p) {
     const screen = (V.screenSenders.get(p.uid) || []).includes(sender);
     const relay = V.relayOut.get(p.uid);
     const forwarded = relay?.senders.includes(sender);
-    if (screen && sender.track.kind === 'video') tuneSender(sender, { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' });
+    if (screen && sender.track.kind === 'video') tuneSender(sender, liveVideoEncoding(p, sender.track));
     else if (forwarded && sender.track.kind === 'video') tuneSender(sender, { active: !relay.videoPaused, maxBitrate: 4500000, degradationPreference: 'maintain-framerate' });
     else tuneSender(sender, { maxBitrate: screen || forwarded ? 128000 : 96000 });
   }
@@ -2433,13 +2433,18 @@ async function toggleShare() {
 // Video is swapped in place; sound that appears or goes away is added or removed per viewer (renegotiates).
 function swapShareStream(next, q) {
   const cur = V.screen, Q = QUALITY[q] || QUALITY['720p30'];
+  clearLiveEncoderProbe();
+  V.screenEncoderCap = null;
   const nv = next.getVideoTracks()[0], na = next.getAudioTracks()[0];
   const soundChanged = !!na !== cur.getAudioTracks().length > 0;
   for (const [uid, senders] of V.screenSenders) {
     const p = V.peers.get(uid); if (!p) continue;
     const kept = [];
     for (const s of senders) {
-      if (s.track?.kind === 'video') { s.replaceTrack(nv || null).catch(() => {}); tuneSender(s, { maxBitrate: Q.br, maxFramerate: Q.fps, degradationPreference: 'maintain-framerate' }); kept.push(s); }
+      if (s.track?.kind === 'video') {
+        s.replaceTrack(nv || null).then(() => { if (s.track === nv && nv) tuneSender(s, liveVideoEncoding(p, nv)); }).catch(() => {});
+        kept.push(s);
+      }
       else if (s.track?.kind === 'audio' && na) { s.replaceTrack(na).catch(() => {}); kept.push(s); }
       else try { p.pc.removeTrack(s); } catch {}
     }
@@ -2451,6 +2456,7 @@ function swapShareStream(next, q) {
   for (const t of next.getTracks()) cur.addTrack(t);
   if (nv) { nv.contentHint = 'motion'; nv.onended = () => stopShare(); }
   V.screenQ = Q; V.screenQName = q;
+  scheduleLiveEncoderProbe();
   // The relay forwards the tracks it receives; when sound appears or goes, relayed viewers ask again so the
   // relay picks up the new set (the video track itself is swapped in place and keeps flowing).
   if (soundChanged) {
@@ -2464,6 +2470,7 @@ function startShareWithStream(stream, q, startupEnabled = true) {
   const Q = QUALITY[q] || QUALITY['720p60'];
   V.screen = stream; V.screenQ = Q; V.screenQName = QUALITY[q] ? q : '720p60'; V.previewHidden = true;
   V.screenStartupEnabled = startupEnabled;
+  V.screenEncoderCap = null;
   native?.captureStatus({ active: true, stage: 'streaming', quality: q, audio: stream.getAudioTracks().length > 0 });
   const vt = stream.getVideoTracks()[0];
   if (vt) { vt.contentHint = 'motion'; vt.onended = () => stopShare(); }
@@ -2586,6 +2593,7 @@ function setViewerVideoPaused(p, paused) {
   // Quem está em segundo plano não deve congelar a imagem de quem recebe por repasse.
   if (paused && V.relayId === p.uid) dropRelay();
   for (const s of V.screenSenders.get(p.uid) || []) if (s.track?.kind === 'video') tuneSender(s, { active: !paused });
+  if (!paused && V.screenSenders.has(p.uid)) scheduleLiveEncoderProbe();
 }
 function routeViewer(p, data) {
   setViewerVideoPaused(p, data.videoPaused === true);
@@ -2682,19 +2690,71 @@ async function checkRelayQuality() {
   }
 }
 
-// Shown in "Alterar transmissão": which encoder runs, what limits it, and how many copies the PC encodes.
+function videoEncoderHardware(stat) {
+  const impl = String(stat.encoderImplementation || '');
+  if (stat.powerEfficientEncoder === true || /MediaFoundation|VideoToolbox|NVENC|AMF|QSV|Accelerator|External|VAAPI|V4L2/i.test(impl)) return true;
+  if (/OpenH264|libvpx|libaom|software|x264/i.test(impl) || (stat.powerEfficientEncoder === false && stat.framesEncoded > 0)) return false;
+  return null;
+}
+function liveVideoEncoding(p, track) {
+  const opts = { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' };
+  const cap = V.screenEncoderCap;
+  if (cap) {
+    const { width, height } = track.getSettings();
+    opts.scaleResolutionDownBy = Math.max(1, (width || cap.w) / V.screenQ.w, (height || cap.h) / V.screenQ.h);
+  } else opts.scaleResolutionDownBy = 1;
+  return opts;
+}
+function clearLiveEncoderProbe() {
+  clearTimeout(V.screenEncoderProbe?.timer);
+  V.screenEncoderProbe = null;
+}
+async function capSoftwareLive(probe) {
+  if (V.screenEncoderProbe !== probe || V.screenEncoderCap) return;
+  const { track, quality } = probe, q = QUALITY['720p30'];
+  V.screenEncoderCap = quality;
+  V.screenQName = '720p30'; V.screenQ = q;
+  try { await track.applyConstraints({ width: { max: q.w }, height: { max: q.h }, frameRate: { max: q.fps } }); } catch {} // Alguns modos de captura só aceitam redução no envio.
+  if (V.screenEncoderProbe !== probe) return;
+  for (const p of V.peers.values()) if (V.screenSenders?.has(p.uid)) tunePeerSenders(p);
+  native?.captureStatus({ active: true, stage: 'streaming', quality: '720p30', audio: probe.stream.getAudioTracks().length > 0 });
+  toast('Seu PC não tem codificador de vídeo; a live ficou em 720p para não pesar no jogo');
+}
+function scheduleLiveEncoderProbe() {
+  const stream = V.screen, quality = V.screenQ;
+  const track = stream?.getVideoTracks()[0], target = QUALITY['720p30'];
+  if (!track || !V.screenSenders.size || V.screenEncoderProbe || V.screenEncoderCap || (quality.w <= target.w && quality.h <= target.h && quality.fps <= target.fps)) return;
+  const probe = V.screenEncoderProbe = { stream, track, quality, timer: null, attempts: 0 };
+  const check = async () => {
+    if (V.screenEncoderProbe !== probe) return;
+    const stat = await liveEncoderInfo();
+    if (V.screenEncoderProbe !== probe) return;
+    if (stat.gpu === false) { await capSoftwareLive(probe); return; }
+    if (++probe.attempts < 8 && (stat.gpu !== true || stat.pending)) probe.timer = setTimeout(check, 2000);
+    else clearLiveEncoderProbe();
+  };
+  probe.timer = setTimeout(check, 3000);
+}
+// Mostrado em "Alterar transmissão" e usado para reduzir a carga de um codificador por software.
 async function liveEncoderInfo() {
-  const copies = [...V.screenSenders.values()].length;
+  const copies = V.screenSenders.size;
+  let first = null, pending = false;
   for (const senders of V.screenSenders.values()) for (const s of senders) {
     if (s.track?.kind !== 'video') continue;
     try {
-      for (const r of (await s.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
-        const impl = String(r.encoderImplementation || ''), gpu = r.powerEfficientEncoder === true || /MediaFoundation|VideoToolbox|NVENC|AMF|QSV|Accelerator|External/i.test(impl);
-        return { copies, gpu, impl, limit: r.qualityLimitationReason || 'none', fps: Math.round(r.framesPerSecond || 0) };
+      let found = false;
+      for (const r of (await s.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video' && r.framesEncoded > 0) {
+        const gpu = videoEncoderHardware(r);
+        if (gpu === null) continue;
+        found = true;
+        const info = { copies, gpu, impl: String(r.encoderImplementation || ''), limit: r.qualityLimitationReason || 'none', fps: Math.round(r.framesPerSecond || 0) };
+        if (!gpu) return info; // Basta uma cópia por software para o jogo sentir o custo.
+        first ??= info;
       }
-    } catch {}
+      pending ||= !found;
+    } catch { pending = true; }
   }
-  return { copies };
+  return { copies, ...first, pending };
 }
 
 function addScreenTo(p) {
@@ -2703,9 +2763,10 @@ function addScreenTo(p) {
   V.screenSenders.set(p.uid, senders);
   p.screenStartupSender = null;
   for (const s of senders) {
-    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, { active: !p.screenVideoPaused, maxBitrate: V.screenQ.br, maxFramerate: V.screenQ.fps, degradationPreference: 'maintain-framerate' }); }
+    if (s.track.kind === 'video') { preferH264(p.pc, s); tuneSender(s, liveVideoEncoding(p, s.track)); }
     else tuneSender(s, { maxBitrate: 128000 });
   }
+  scheduleLiveEncoderProbe();
 }
 function removeScreenFrom(p) {
   for (const sender of V.screenSenders.get(p.uid) || []) {
@@ -2715,6 +2776,8 @@ function removeScreenFrom(p) {
 }
 function stopShare(silent) {
   clearTimeout(V.relayAudioTimer); V.relayAudioTimer = null;
+  clearLiveEncoderProbe();
+  V.screenEncoderCap = null;
   if (!V.screen) return;
   V.screen.getTracks().forEach((t) => t.stop());
   for (const [uid, senders] of V.screenSenders) { const p = V.peers.get(uid); if (p) for (const s of senders) try { p.pc.removeTrack(s); } catch {} }

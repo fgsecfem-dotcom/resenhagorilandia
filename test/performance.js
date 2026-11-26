@@ -28,3 +28,27 @@ vm.runInContext(main.slice(main.indexOf("ipcMain.handle('performance:save'"),mai
   V.windowVisible = false; vctx.tickSpeaking(); assert.equal(reads.peer, 1);
   console.log('PASS: microfone mudo não é medido, abertura aguarda o filtro e só o laço de fala lê os pares');
 })();
+
+(async () => {
+  const { declaration } = require('./helpers/characterization-client');
+  const source = fs.readFileSync(require.resolve('../app/client.js'), 'utf8');
+  const toasts = [], tuned = [], constraints = [];
+  const track = { getSettings: () => ({ width: 1920, height: 1080 }), applyConstraints: async (c) => { constraints.push(c); throw Error('capture não aceitou'); } };
+  const stream = { getVideoTracks: () => [track], getAudioTracks: () => [{}] };
+  const V = { screen: stream, screenQ: { w: 1920, h: 1080, fps: 60 }, screenQName: '1080p60', screenSenders: new Map([['a', []]]), peers: new Map([['a', { uid: 'a' }]]) };
+  const QUALITY = { '720p30': { w: 1280, h: 720, fps: 30, br: 2500000 } };
+  const ctx = vm.createContext({ V, QUALITY, native: null, toast: (t) => toasts.push(t), tunePeerSenders: (p) => tuned.push(p) });
+  vm.runInContext(['videoEncoderHardware', 'capSoftwareLive', 'liveVideoEncoding'].map((n) => declaration(source, n)).join('\n'), ctx);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'MediaFoundationVideoEncodeAccelerator (NVENC)', powerEfficientEncoder: false }), true);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'libvpx' }), false);
+  assert.equal(ctx.videoEncoderHardware({ framesEncoded: 10, powerEfficientEncoder: false }), false);
+  assert.equal(ctx.videoEncoderHardware({ encoderImplementation: 'SimulcastEncoderAdapter' }), null, 'com dados inconclusivos não reduz');
+  const probe = V.screenEncoderProbe = { stream, track, quality: V.screenQ };
+  await ctx.capSoftwareLive(probe);
+  assert.equal(V.screenQName, '720p30'); assert.equal(constraints.length, 1); assert.equal(tuned.length, 1);
+  const enc = ctx.liveVideoEncoding({ screenVideoPaused: true }, track);
+  assert.equal(enc.maxFramerate, 30); assert.equal(enc.scaleResolutionDownBy, 1.5); assert.equal(enc.active, false);
+  assert.equal(toasts.length, 1);
+  await ctx.capSoftwareLive(probe); assert.equal(toasts.length, 1, 'sem repetir aviso');
+  console.log('PASS: distingue encoders e limita uma live de software a 720p/30 sem trocar a faixa');
+})().catch((e) => { console.error(e); process.exitCode = 1; });

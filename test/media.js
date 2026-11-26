@@ -25,10 +25,10 @@ const context = vm.createContext({ console, RTCPeerConnection: PC, WEB_VIEWER: f
   S: { myId: 'a', isHost: false, users: new Map([['b', { id: 'b', voiceChannel: 'lobby', sharing: true, screenStreamId: 'remote-1' }]]) },
   V: { joined: true, channel: 'lobby', screen, screenQ: { br: 3500000, fps: 60 }, screenSenders: new Map(), watching: new Map(), peers: new Map(), dest: { stream: voice }, relayId: null, relayed: new Set(), relayVia: new Map(), relayOut: new Map() }, native: null,
   sig: (to, data) => signals.push({ to, data }), iceServers: () => [], LS: { get: () => false },
-  renderCall: () => {}, applyUserVolume: () => {}, attachRemoteAudio: () => {},
+  scheduleLiveEncoderProbe: () => {}, renderCall: () => {}, applyUserVolume: () => {}, attachRemoteAudio: () => {},
 });
 vm.runInContext(fs.readFileSync(require.resolve('../app/screen-startup.js'), 'utf8').replace(/^export /gm, ''), context);
-vm.runInContext(['getPeer', 'onSignal', 'tuneSender', 'tunePeerSenders', 'addScreenTo', 'removeScreenFrom', 'setWatching', 'preferH264', 'canRelay', 'watchMsg', 'routeViewer', 'dropRelay', 'stopRelayingTo', 'relayTo', 'onRelaySignal'].map(extract).join('\n'), context);
+vm.runInContext(['getPeer', 'onSignal', 'tuneSender', 'tunePeerSenders', 'addScreenTo', 'removeScreenFrom', 'setWatching', 'preferH264', 'canRelay', 'watchMsg', 'setViewerVideoPaused', 'liveVideoEncoding', 'routeViewer', 'dropRelay', 'stopRelayingTo', 'relayTo', 'onRelaySignal'].map(extract).join('\n'), context);
 (async () => {
   const p = vm.runInContext("getPeer('b')", context);
   assert.equal(p.pc.senders.length, 1, 'only voice is sent before subscription');
@@ -41,6 +41,12 @@ vm.runInContext(['getPeer', 'onSignal', 'tuneSender', 'tunePeerSenders', 'addScr
   assert.equal(videoSender.parameters.encodings[0].maxBitrate, 3500000);
   assert.equal(videoSender.parameters.encodings[0].maxFramerate, 60);
   assert.equal(videoSender.parameters.encodings[0].degradationPreference, undefined);
+  vm.runInContext("onSignal('b', {watchVideoPaused:true, streamId:'old-live'})", context); await p.queue;
+  assert.equal(videoSender.parameters.encodings[0].active, true, 'ignora pausa de uma live antiga');
+  vm.runInContext("onSignal('b', {watchVideoPaused:true, streamId:'live-1'})", context); await p.queue;
+  assert.equal(videoSender.parameters.encodings[0].active, false); assert.equal(p.pc.senders.length, 3);
+  vm.runInContext("onSignal('b', {watchVideoPaused:false, streamId:'live-1'})", context); await p.queue;
+  assert.equal(videoSender.parameters.encodings[0].active, true);
   vm.runInContext("onSignal('b', {watch:false, streamId:'live-1'})", context); await p.queue;
   assert.equal(p.pc.senders.length, 1, 'unsubscribe removes video and screen audio');
   vm.runInContext("setWatching('b',true)", context);
